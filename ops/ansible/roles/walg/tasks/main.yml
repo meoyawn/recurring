@@ -1,0 +1,4 @@
+---
+- name: WAL-G backup role placeholder
+  ansible.builtin.debug:
+    msg: Install WAL-G, configure storage credentials, set archive_command and base backups — see https://github.com/wal-g/wal-g

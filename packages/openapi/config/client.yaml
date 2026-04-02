@@ -1,0 +1,8 @@
+generatorName: typescript-fetch
+# Paths are relative to packages/openapi (generator cwd).
+inputSpec: spec/recurring.openapi.yaml
+output: ../../apps/web/gen
+additionalProperties:
+  typescriptThreePlus: true
+  supportsES6: true
+  useSingleRequestParameter: false

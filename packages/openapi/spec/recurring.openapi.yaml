@@ -1,0 +1,31 @@
+openapi: 3.0.3
+info:
+  title: Recurring API
+  version: 0.1.0
+  description: Backend for recurring expense tracking (shared contract with apps/web).
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: http://127.0.0.1:8080
+    description: Local
+paths:
+  /v1/health:
+    get:
+      operationId: getHealth
+      summary: Liveness check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok

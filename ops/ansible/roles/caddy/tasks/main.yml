@@ -1,0 +1,4 @@
+---
+- name: Install Caddy and deploy site config
+  ansible.builtin.debug:
+    msg: Install Caddy, copy Caddyfile from ops/ansible/caddy/, reload service.

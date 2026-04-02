@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: recurring
+      POSTGRES_PASSWORD: recurring
+      POSTGRES_DB: recurring
+    volumes:
+      - recurring_pgdata:/var/lib/postgresql/data
+
+volumes:
+  recurring_pgdata:

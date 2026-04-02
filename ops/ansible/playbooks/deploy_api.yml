@@ -1,0 +1,7 @@
+---
+- name: Deploy Go API and Caddy
+  hosts: api
+  become: true
+  roles:
+    - role: caddy
+    - role: api

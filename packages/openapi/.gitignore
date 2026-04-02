@@ -1,0 +1,9 @@
+.openapi-generator/
+.openapi-generator-ignore
+
+# If generate is run with wrong cwd, ignore stray output here.
+/apis/
+/models/
+/runtime.ts
+/index.ts
+/docs/

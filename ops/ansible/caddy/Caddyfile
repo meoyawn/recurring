@@ -1,0 +1,6 @@
+# Example: TLS terminates at Caddy; reverse proxy to local Go API.
+# Replace domains and upstream port with your values.
+
+# {$RECURRING_API_DOMAIN:api.example.com} {
+#     reverse_proxy 127.0.0.1:8080
+# }

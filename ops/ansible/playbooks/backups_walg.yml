@@ -1,0 +1,6 @@
+---
+- name: Configure WAL-G for Postgres backups
+  hosts: db
+  become: true
+  roles:
+    - role: walg

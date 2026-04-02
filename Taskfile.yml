@@ -1,0 +1,34 @@
+version: "3"
+
+tasks:
+  default:
+    desc: List common tasks
+    cmds:
+      - task --list
+
+  install:
+    desc: Install Bun deps in packages/openapi and apps/web
+    cmds:
+      - cd packages/openapi && bun install
+      - cd apps/web && bun install
+
+  dev:web:
+    desc: SolidStart dev server
+    cmds:
+      - cd apps/web && bun run dev
+
+  openapi:gen:client:
+    desc: Generate TypeScript client into apps/web/gen
+    cmds:
+      - cd packages/openapi && bun run generate:client
+
+  openapi:gen:server-stubs:
+    desc: Generate Go server stubs into apps/api/gen
+    cmds:
+      - cd packages/openapi && bun run generate:server-stubs
+
+  openapi:gen:
+    desc: Client + optional Go stubs
+    cmds:
+      - task openapi:gen:client
+      - task openapi:gen:server-stubs

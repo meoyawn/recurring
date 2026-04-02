@@ -1,0 +1,4 @@
+---
+- name: Postgres role placeholder
+  ansible.builtin.debug:
+    msg: Install Postgres packages, tune postgresql.conf, create DB/user — align with apps/api/migrations.

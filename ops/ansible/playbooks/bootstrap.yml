@@ -1,0 +1,6 @@
+---
+# Baseline OS hardening, users, firewall — extend per your distribution.
+- name: Bootstrap servers
+  hosts: all
+  become: true
+  roles: []

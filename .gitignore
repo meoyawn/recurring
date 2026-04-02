@@ -1,0 +1,24 @@
+.DS_Store
+.env
+.env.*.local
+*.log
+
+# Go
+apps/api/bin/
+
+# JS build outputs
+apps/web/.solid-start/
+apps/web/dist/
+apps/web/.vite/
+
+# Generated OpenAPI clients
+apps/web/gen/
+apps/api/gen/
+
+node_modules/
+
+# Accidental OpenAPI Generator output at repo root (if -o is omitted)
+/models/
+/apis/
+/runtime.ts
+/openapi-generator-*.md

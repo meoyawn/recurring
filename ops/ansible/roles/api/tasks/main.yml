@@ -1,0 +1,4 @@
+---
+- name: Deploy Go API binary and systemd unit
+  ansible.builtin.debug:
+    msg: Copy release binary, env file, and systemd unit; enable recurring-api service.
