@@ -10,9 +10,9 @@ It is aimed at **individuals**, **small businesses**, **teams**, and **families*
 - **`packages/openapi`** — OpenAPI spec and codegen (TypeScript client, optional Go server stubs)
 - **`apps/api`** — API layer (stubs generated from the OpenAPI package where applicable)
 
-## Prerequisites (local development and CI)
+## Prerequisites (local development)
 
-Use the same toolchain locally as in CI so scripts, codegen, and ops checks behave the same everywhere. On macOS (or other platforms), install the same tools via each project’s official installer or a package manager such as Homebrew.
+Install the tools below via each project’s official installer or a package manager such as Homebrew (or your platform’s equivalent).
 
 | Tool | Role in this repo | Ubuntu notes |
 |------|-------------------|--------------|
@@ -35,7 +35,3 @@ task dev:web    # run the web app locally
 ```
 
 Other tasks: `task --list`.
-
-## CI (Ubuntu runners)
-
-CI should match **Prerequisites**: install the same tools on the runner using the Ubuntu column (distro packages, vendor APT repos, or upstream installers as noted).

@@ -1,0 +1,13 @@
+# Copy to `terraform.tfvars` in this directory (gitignored) for local non-secret values.
+# Do not commit `terraform.tfvars` or `*.auto.tfvars` with real data.
+#
+# API credentials — never put them in tfvars. Export in your shell or CI instead:
+#   export HCLOUD_TOKEN="..."
+#   export CLOUDFLARE_API_TOKEN="..."
+#
+# After you declare `variable` blocks in *.tf, add assignments here, for example:
+#   location     = "nbg1"
+#   server_type  = "cx22"
+#
+# For extra sensitive Terraform variables you define yourself, prefer TF_VAR_name in CI
+# or a gitignored tfvars file — same rule: do not commit real values.

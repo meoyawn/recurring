@@ -22,3 +22,22 @@ node_modules/
 /apis/
 /runtime.ts
 /openapi-generator-*.md
+
+# Terraform — see ops/terraform/README.md
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+*_override.tf
+.terraformrc
+terraform.rc
+*.tfvars
+*.auto.tfvars
+
+# Ansible — see ops/ansible/README.md
+**/.vault_pass
+**/vault_pass.txt
+**/*.retry
+ops/ansible/.ansible/
