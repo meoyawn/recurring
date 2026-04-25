@@ -2,6 +2,7 @@
 .env
 .env.*.local
 *.log
+.task/
 
 # Go
 apps/api/bin/
