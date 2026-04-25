@@ -26,8 +26,10 @@ Target is OpenAPI `3.1+` only.
   `HEAD(...)` for single-method top-level paths.
 - Use `scope({ ... })` when path has nested routes, shared params, shared
   security, or multiple methods.
-- Inside `scope`, method keys are plain object keys like `GET: { ... }`,
-  `POST: { ... }`. Do not use method helpers there.
+- Inside `scope`, direct methods are plain object keys like `GET: { ... }`,
+  `POST: { ... }`.
+- Inside `scope`, nested single-method paths can still use method helpers:
+  `"/items": GET({ ... })`.
 - Paths use colon params: `"/users/:id"`.
 
 ## Minimal Example
@@ -93,6 +95,23 @@ Common schema builders:
 - `int32`, `int64`, `uint32`, `uint64`, `float`, `double`
 - `unknown`, `nullable`, `oneOf`, `anyOf`, `allOf`
 - `email`, `httpURL`, `unixMillis`
+
+OpenAPI 3.1 duration intervals can be modeled as RFC 3339 / ISO 8601 duration
+strings until there is a dedicated helper:
+
+```ts
+const BillingPeriod = () => string({ format: "duration", examples: ["P1M"] })
+```
+
+For money, prefer a tiny object over loose sibling fields:
+
+```ts
+const Money = () =>
+  object({
+    amount: int64({ description: "Minor units, e.g. cents." }),
+    currency: string({ pattern: "^[A-Z]{3}$" }),
+  })
+```
 
 ## Root Structure
 
@@ -164,8 +183,8 @@ Nested/shared path behavior:
 
 Rules:
 
-- Use method helpers only at top level.
-- Use method keys only inside `scope`.
+- Use method helpers for single-method paths at root or nested path values.
+- Use method keys inside the `scope` object that directly owns the methods.
 - Put shared `pathParams`, `params`, `forEachOp`, and `security` on nearest
   scope that owns them.
 

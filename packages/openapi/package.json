@@ -6,6 +6,7 @@
     "generate:server-stubs": "openapi-generator-cli generate -c config/server-stubs.yaml"
   },
   "devDependencies": {
-    "@openapitools/openapi-generator-cli": "^2.25.0"
+    "@openapitools/openapi-generator-cli": "^2.25.0",
+    "@responsibleapi/ts": "1.0.0"
   }
 }
