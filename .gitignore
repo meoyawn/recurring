@@ -3,6 +3,7 @@
 .env.*.local
 *.log
 .task/
+.codex/
 
 # Go
 apps/api/bin/
