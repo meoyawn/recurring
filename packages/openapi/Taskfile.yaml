@@ -1,12 +1,12 @@
-version: '3'
+version: "3"
 
 tasks:
   generate:client:
-    dir: '{{.TASKFILE_DIR}}'
+    dir: "{{.TASKFILE_DIR}}"
     cmds:
       - ./node_modules/.bin/openapi-generator-cli generate -c config/client.yaml
 
   generate:server-stubs:
-    dir: '{{.TASKFILE_DIR}}'
+    dir: "{{.TASKFILE_DIR}}"
     cmds:
       - ./node_modules/.bin/openapi-generator-cli generate -c config/server-stubs.yaml
