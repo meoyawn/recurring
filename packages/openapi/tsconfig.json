@@ -21,8 +21,9 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ESNext",
-    "verbatimModuleSyntax": true,
+    "types": ["bun"],
+    "verbatimModuleSyntax": true
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules/**/*"],
+  "exclude": ["node_modules/**/*"]
 }

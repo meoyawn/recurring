@@ -1,0 +1,11 @@
+{
+  "name": "recurring",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "oxfmt": "^0.46.0"
+  }
+}

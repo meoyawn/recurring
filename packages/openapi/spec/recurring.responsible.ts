@@ -8,28 +8,29 @@ import {
   scope,
   string,
   unixMillis,
-} from "@responsibleapi/ts";
+} from "@responsibleapi/ts"
+import { YAML } from "bun"
 
-const NonEmptyString = () => string({ minLength: 1 });
+const NonEmptyString = () => string({ minLength: 1 })
 
 const CurrencyCode = () =>
   string({
     description: "ISO 4217 alpha currency code.",
     examples: ["USD", "EUR"],
     pattern: "^[A-Z]{3}$",
-  });
+  })
 
 const MinorUnitAmount = () =>
   int64({
     description: "Monetary value multiplied by 100.",
     minimum: 0,
-  });
+  })
 
 const Money = () =>
   object({
     amount: MinorUnitAmount,
     currency: CurrencyCode,
-  });
+  })
 
 const RecurringInterval = () =>
   string({
@@ -37,7 +38,7 @@ const RecurringInterval = () =>
     examples: ["P1W", "P1Y"],
     format: "duration",
     minLength: 1,
-  });
+  })
 
 const Expense = () =>
   object({
@@ -49,9 +50,9 @@ const Expense = () =>
     "comment?": string(),
     "canceled_at?": unixMillis,
     "cancel_url?": httpURL,
-  });
+  })
 
-export default responsibleAPI({
+const api = responsibleAPI({
   partialDoc: {
     openapi: "3.1.0",
     info: {
@@ -74,4 +75,6 @@ export default responsibleAPI({
       }),
     }),
   },
-});
+})
+
+console.log(YAML.stringify(api, null, 2))

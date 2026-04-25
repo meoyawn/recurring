@@ -7,10 +7,15 @@ Generator version is pinned in `openapitools.json` (used by `@openapitools/opena
 - `config/client.yaml` — TypeScript `fetch` client → `apps/web/gen/`
 - `config/server-stubs.yaml` — Go server scaffolding → `apps/api/gen/` (merge carefully with real handlers in `apps/api/internal`)
 
-Run from this directory (so paths in the YAML and `openapitools.json` resolve correctly):
+Install dependencies from the repo root:
 
 ```bash
 bun install
+```
+
+Run generation from this directory (so paths in the YAML and `openapitools.json` resolve correctly):
+
+```bash
 task generate:client
 task generate:server-stubs
 ```

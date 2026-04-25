@@ -8,7 +8,8 @@
   },
   "devDependencies": {
     "@openapitools/openapi-generator-cli": "^2.25.0",
-    "@responsibleapi/ts": "1.0.1",
+    "@responsibleapi/ts": "^1.0.3",
+    "@types/bun": "^1.3.13",
     "typescript": "^6.0.3"
   }
 }

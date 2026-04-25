@@ -4,6 +4,7 @@
 *.log
 .task/
 .codex/
+.code-review-graph/
 
 # Go
 apps/api/bin/

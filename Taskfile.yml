@@ -8,10 +8,9 @@ tasks:
       - "ops/**/*"
 
   install:
-    desc: Install Bun deps in packages/openapi and apps/web
+    desc: Install Bun deps for all workspaces
     cmds:
-      - cd packages/openapi && bun install
-      - cd apps/web && bun install
+      - bun install
 
   dev:web:
     desc: SolidStart dev server
