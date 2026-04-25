@@ -1,10 +1,6 @@
 ---
 name: responsibleapi
-description:
-  Use when working on `*.responsible.ts` files or other TypeScript that declares
-  APIs with the responsibleapi DSL. Covers `@responsibleapi/ts` route shape,
-  schemas, params, responses, security, tags, and OpenAPI 3.1 authoring
-  patterns.
+description: Use when working on `*.responsible.ts` files
 ---
 
 # responsibleapi
@@ -14,13 +10,18 @@ OpenAPI with `@responsibleapi/ts`.
 
 Target is OpenAPI `3.1+` only.
 
+Keep this skill focused on authoring expressive TypeScript DSL code. State which
+DSL form to use and when. Avoid discussion of runtime tooling or downstream
+representation.
+
 ## Mental Model
 
 `responsibleapi` is TypeScript DSL for declaring OpenAPI 3.1 APIs.
 
 - Start with `responsibleAPI({ partialDoc, routes, ...defaults })`.
-- `partialDoc` is raw OpenAPI 3.1 document shell. Keep `components` and
-  top-level `security` out unless you know exact reason.
+- Use `partialDoc` only for the base document metadata and deliberately authored
+  raw OpenAPI fields. Keep `components` and top-level `security` out unless you
+  know the exact reason.
 - `routes` is path map.
 - Use method helpers like `GET(...)`, `POST(...)`, `PUT(...)`, `DELETE(...)`,
   `HEAD(...)` for single-method top-level paths.
@@ -32,12 +33,32 @@ Target is OpenAPI `3.1+` only.
   `"/items": GET({ ... })`.
 - Paths use colon params: `"/users/:id"`.
 
+## Maximal Expressiveness
+
+Use the richest DSL construct that states author intent directly:
+
+- Prefer semantic helpers over raw objects: schema builders, params, response
+  helpers, security helpers, tag helpers, and method helpers.
+- Put shared behavior at the narrowest common place: root defaults for the whole
+  API, `scope` defaults for a route group, operation fields for one endpoint.
+- Use stable names with `named(...)` for concepts that are reused or externally
+  meaningful.
+- Use thunks for reusable schemas and pass the thunk itself when nesting it.
+- Add local meaning with helper options such as `description`, `examples`,
+  `format`, `pattern`, numeric bounds, `deprecated`, operation `id`, `tags`,
+  response headers, cookies, and MIME choices.
+- Use `resp(...)` when a response needs a description, headers, cookies, MIME
+  details, or other response-level metadata.
+- Use `ref(...)` when reusing a named value with local metadata.
+- Use raw OpenAPI objects only when the DSL has no helper for the construct;
+  keep the raw object local, typed, and small.
+
 ## Minimal Example
 
 ```ts
 import { GET, object, responsibleAPI, resp, string } from "@responsibleapi/ts"
 
-export default responsibleAPI({
+responsibleAPI({
   partialDoc: {
     openapi: "3.1.0",
     info: {
@@ -78,13 +99,16 @@ const User = () =>
 Rules:
 
 - Required object keys are plain keys.
-- Optional object keys end with `?`.
-- For reusable schemas, pass thunk itself, not `Thunk()`.
+- Optional object keys end with `?`, quoted as needed for TypeScript object
+  syntax, for example `"nickname?"`.
+- For reusable schemas, pass the thunk itself, not `Thunk()`, when nesting it in
+  another schema, request, response, or parameter map. Call the thunk only when
+  defining it or when intentionally inlining a one-off schema.
 - Inline one-off schemas are fine when reuse does not matter.
 - Use `named("ComponentName", value)` when schema/parameter/security/header
   needs stable component name.
-- Use `ref(NamedValue, { description })` when you need `$ref` plus sibling
-  metadata.
+- Use `ref(NamedValue, { description })` when you want to reuse a named value
+  and add local metadata.
 - Raw OpenAPI 3.1 schema objects are allowed when DSL has no helper. Keep them
   local, typed, and rare.
 
@@ -94,13 +118,16 @@ Common schema builders:
 - `string`, `boolean`, `number`, `integer`
 - `int32`, `int64`, `uint32`, `uint64`, `float`, `double`
 - `unknown`, `nullable`, `oneOf`, `anyOf`, `allOf`
-- `email`, `httpURL`, `unixMillis`
+- `email`, `httpURL`, `isoDuration`, `unixMillis`
 
-OpenAPI 3.1 duration intervals can be modeled as RFC 3339 / ISO 8601 duration
-strings until there is a dedicated helper:
+Use `isoDuration(...)` for RFC 3339 / ISO 8601 duration intervals:
 
 ```ts
-const BillingPeriod = () => string({ format: "duration", examples: ["P1M"] })
+const BillingPeriod = () =>
+  isoDuration({
+    description: "Subscription billing period length.",
+    examples: ["P1M"],
+  })
 ```
 
 For money, prefer a tiny object over loose sibling fields:
@@ -285,7 +312,7 @@ Rules:
 - One-off response headers go in `headers`.
 - Reusable response headers use `named("header", responseHeader(...))` and
   `headerParams`.
-- `cookies` models `Set-Cookie` response cookies.
+- Use `cookies` for response cookies.
 
 ## Parameters
 

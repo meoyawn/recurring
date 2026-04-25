@@ -1,31 +1,124 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Recurring API
-  version: 0.1.0
-  description: Backend for recurring expense tracking (shared contract with apps/web).
-servers:
-  - url: https://api.example.com
-    description: Production
-  - url: http://127.0.0.1:8080
-    description: Local
+  version: "1"
 paths:
-  /v1/health:
+  /v1/expenses:
     get:
-      operationId: getHealth
-      summary: Liveness check
+      operationId: listExpenses
       responses:
         "200":
-          description: OK
+          description: "200"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HealthResponse"
+                type: array
+                items:
+                  $ref: "#/components/schemas/Expense"
+                minItems: 0
+    post:
+      operationId: createExpense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpense"
+      responses:
+        "201":
+          description: "201"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
 components:
   schemas:
-    HealthResponse:
+    NonEmptyString:
+      type: string
+      minLength: 1
+    unixMillis:
+      description: UNIX epoch milliseconds
+      type: integer
+      format: int64
+    MinorUnitAmount:
+      description: Monetary value multiplied by 100.
+      minimum: 0
+      type: integer
+      format: int64
+    CurrencyCode:
+      type: string
+      description: ISO 4217 alpha currency code.
+      examples:
+        - USD
+        - EUR
+      pattern: "^[A-Z]{3}$"
+    Money:
       type: object
-      required: [status]
       properties:
-        status:
+        amount:
+          $ref: "#/components/schemas/MinorUnitAmount"
+        currency:
+          $ref: "#/components/schemas/CurrencyCode"
+      required:
+        - amount
+        - currency
+    RecurringInterval:
+      type: string
+      examples:
+        - P1W
+        - P1M
+        - P1Y
+      description: Subscription billing period length as an RFC 3339 duration.
+      format: duration
+    httpURL:
+      type: string
+      format: uri
+      pattern: ^https?://\S+$
+    Expense:
+      type: object
+      properties:
+        name:
+          $ref: "#/components/schemas/NonEmptyString"
+        created_at:
+          $ref: "#/components/schemas/unixMillis"
+          description: db timestamp
+        start_at:
+          $ref: "#/components/schemas/unixMillis"
+          description: when Subscription start
+        money:
+          $ref: "#/components/schemas/Money"
+        recurring:
+          $ref: "#/components/schemas/RecurringInterval"
+        category:
+          $ref: "#/components/schemas/NonEmptyString"
+        comment:
           type: string
-          example: ok
+        canceled_at:
+          $ref: "#/components/schemas/unixMillis"
+        cancel_url:
+          $ref: "#/components/schemas/httpURL"
+      required:
+        - name
+        - created_at
+        - start_at
+        - money
+        - recurring
+    CreateExpense:
+      type: object
+      properties:
+        name:
+          $ref: "#/components/schemas/NonEmptyString"
+        money:
+          $ref: "#/components/schemas/Money"
+        recurring:
+          $ref: "#/components/schemas/RecurringInterval"
+        category:
+          $ref: "#/components/schemas/NonEmptyString"
+        comment:
+          type: string
+        cancel_url:
+          $ref: "#/components/schemas/httpURL"
+      required:
+        - name
+        - money
+        - recurring

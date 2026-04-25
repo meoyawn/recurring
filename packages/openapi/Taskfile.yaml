@@ -1,6 +1,11 @@
 version: "3"
 
 tasks:
+  generate:spec:
+    dir: "{{.TASKFILE_DIR}}"
+    cmds:
+      - bun spec/recurring.responsible.ts > spec/recurring.openapi.yaml
+
   generate:client:
     dir: "{{.TASKFILE_DIR}}"
     cmds:

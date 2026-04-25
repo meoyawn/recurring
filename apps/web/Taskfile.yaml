@@ -1,0 +1,7 @@
+version: "3"
+
+tasks:
+  clean:
+    dir: "{{.TASKFILE_DIR}}"
+    cmds:
+      - rm -rf .nitro/ .output/ dist/

@@ -1,9 +1,10 @@
 import {
-  GET,
   array,
   httpURL,
   int64,
+  isoDuration,
   object,
+  ref,
   responsibleAPI,
   scope,
   string,
@@ -32,24 +33,43 @@ const Money = () =>
     currency: CurrencyCode,
   })
 
+export const DbTimestamps = () =>
+  object({
+    created_at: unixMillis,
+    updated_at: unixMillis,
+  })
+
 const RecurringInterval = () =>
-  string({
+  isoDuration({
     description: "Subscription billing period length as an RFC 3339 duration.",
-    examples: ["P1W", "P1Y"],
-    format: "duration",
-    minLength: 1,
   })
 
 const Expense = () =>
   object({
     name: NonEmptyString,
-    created_at: unixMillis,
+    money: Money,
+    recurring: RecurringInterval,
+    started_at: ref(unixMillis, { description: "when Subscription start" }),
+    "category?": NonEmptyString,
+    "comment?": NonEmptyString,
+    "cancel_url?": httpURL,
+    "canceled_at?": ref(unixMillis, {
+      description: "when Subscription was canceled",
+    }),
+  })
+
+const CreateExpense = () =>
+  object({
+    started_at: ref(unixMillis, { description: "when Subscription start" }),
+    name: NonEmptyString,
     money: Money,
     recurring: RecurringInterval,
     "category?": NonEmptyString,
     "comment?": string(),
-    "canceled_at?": unixMillis,
     "cancel_url?": httpURL,
+    "canceled_at?": ref(unixMillis, {
+      description: "when Subscription was canceled",
+    }),
   })
 
 const api = responsibleAPI({
@@ -63,14 +83,26 @@ const api = responsibleAPI({
   routes: {
     "/v1": scope({
       forEachOp: {
+        req: {
+          mime: "application/json",
+        },
         res: {
           mime: "application/json",
         },
       },
-      "/expenses": GET({
-        id: "listExpenses",
-        res: {
-          200: array(Expense, { minItems: 0 }),
+      "/expenses": scope({
+        GET: {
+          id: "listExpenses",
+          res: {
+            200: array(Expense, { minItems: 0 }),
+          },
+        },
+        POST: {
+          id: "createExpense",
+          req: CreateExpense,
+          res: {
+            201: Expense,
+          },
         },
       }),
     }),
