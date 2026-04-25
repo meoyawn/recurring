@@ -11,8 +11,8 @@ Run from this directory (so paths in the YAML and `openapitools.json` resolve co
 
 ```bash
 bun install
-bun run generate:client
-bun run generate:server-stubs
+task generate:client
+task generate:server-stubs
 ```
 
 From repo root via [Task](https://taskfile.dev):

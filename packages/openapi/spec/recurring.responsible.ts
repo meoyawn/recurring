@@ -8,28 +8,28 @@ import {
   scope,
   string,
   unixMillis,
-} from "@responsibleapi/ts"
+} from "@responsibleapi/ts";
 
-const NonEmptyString = () => string({ minLength: 1 })
+const NonEmptyString = () => string({ minLength: 1 });
 
 const CurrencyCode = () =>
   string({
     description: "ISO 4217 alpha currency code.",
     examples: ["USD", "EUR"],
     pattern: "^[A-Z]{3}$",
-  })
+  });
 
 const MinorUnitAmount = () =>
   int64({
     description: "Monetary value multiplied by 100.",
     minimum: 0,
-  })
+  });
 
 const Money = () =>
   object({
     amount: MinorUnitAmount,
     currency: CurrencyCode,
-  })
+  });
 
 const RecurringInterval = () =>
   string({
@@ -37,7 +37,7 @@ const RecurringInterval = () =>
     examples: ["P1W", "P1Y"],
     format: "duration",
     minLength: 1,
-  })
+  });
 
 const Expense = () =>
   object({
@@ -45,11 +45,11 @@ const Expense = () =>
     created_at: unixMillis,
     money: Money,
     recurring: RecurringInterval,
-    category: NonEmptyString,
+    "category?": NonEmptyString,
     "comment?": string(),
     "canceled_at?": unixMillis,
     "cancel_url?": httpURL,
-  })
+  });
 
 export default responsibleAPI({
   partialDoc: {
@@ -74,4 +74,4 @@ export default responsibleAPI({
       }),
     }),
   },
-})
+});
