@@ -5,10 +5,12 @@
 - Runtime driver: `github.com/jackc/pgx/v5`.
 - Runtime pool: `github.com/jackc/pgx/v5/pgxpool`.
 - Migrations: `github.com/pressly/goose/v3`.
-- Migration driver path: short-lived `database/sql` handle using `github.com/jackc/pgx/v5/stdlib`.
+- Migration driver path: short-lived `database/sql` handle using
+  `github.com/jackc/pgx/v5/stdlib`.
 - Query generation: `pggen`.
 - Query style: raw SQL files, generated typed Go wrappers, no ORM.
-- Local/codegen database: Postgres in Compose or another local Postgres instance.
+- Local/codegen database: Postgres in Compose or another local Postgres
+  instance.
 - Generated query Go code is committed.
 - Ordinary build should not require a running Postgres server.
 - Query tests use sandboxed Postgres transactions.
@@ -20,13 +22,19 @@ Use `pggen` because this project wants PgTyped-style query generation:
 
 - Raw SQL remains source of truth.
 - Codegen can require a running migrated Postgres database.
-- Queries may use Postgres-heavy features: CTEs, JSON, arrays, enums, extensions, custom functions, `RETURNING`, lateral joins, and unusual expressions.
+- Queries may use Postgres-heavy features: CTEs, JSON, arrays, enums,
+  extensions, custom functions, `RETURNING`, lateral joins, and unusual
+  expressions.
 - Runtime API can use `pgx`.
 - No ORM/model layer is wanted.
 
-`pggen` is preferred over `sqlc` for this project because `pggen` is designed around running queries against Postgres and using Postgres catalog/type metadata.
+`pggen` is preferred over `sqlc` for this project because `pggen` is designed
+around running queries against Postgres and using Postgres catalog/type
+metadata.
 
-`sqlc` remains the mature default in much of Go and can use database-backed analysis, but this project accepts `pggen`'s lower adoption in exchange for stronger alignment with running-Postgres type inference.
+`sqlc` remains the mature default in much of Go and can use database-backed
+analysis, but this project accepts `pggen`'s lower adoption in exchange for
+stronger alignment with running-Postgres type inference.
 
 Known `pggen` tradeoffs:
 
@@ -38,7 +46,8 @@ Known `pggen` tradeoffs:
 Mitigation:
 
 - Keep generated code in `apps/api/internal/store`.
-- Verify generated code in CI by regenerating against a migrated database and failing on diff.
+- Verify generated code in CI by regenerating against a migrated database and
+  failing on diff.
 - Review nullable generated types during query review.
 
 ## Postgres Type Analysis Terms
@@ -47,7 +56,8 @@ The Postgres-side mechanism is parse analysis / type resolution.
 
 For parameters:
 
-- Postgres can infer `$1`, `$2`, etc. types during `PREPARE` or extended-protocol `Parse` when parameter types are omitted or `unknown`.
+- Postgres can infer `$1`, `$2`, etc. types during `PREPARE` or
+  extended-protocol `Parse` when parameter types are omitted or `unknown`.
 
 For result columns:
 
@@ -64,13 +74,15 @@ Use `pressly/goose` for API schema migrations.
 Reasons:
 
 - Library and CLI both supported.
-- Same migration files work for embedded startup migrations and later ops-run migrations.
+- Same migration files work for embedded startup migrations and later ops-run
+  migrations.
 - SQL files stay in `apps/api/migrations`.
 - Embedded migrations work with `go:embed`.
 - Go migrations remain possible later, but default should be SQL.
 - Postgres locking support exists for concurrent deploys.
 
-Do not use `golang-migrate` unless paired `.up.sql` / `.down.sql` files become a hard requirement.
+Do not use `golang-migrate` unless paired `.up.sql` / `.down.sql` files become a
+hard requirement.
 
 ## Runtime Execution Model
 
@@ -79,16 +91,28 @@ API server runs migrations during startup, before listening for requests.
 Startup order:
 
 1. Read config.
-2. Open short-lived `database/sql` connection from `DATABASE_URL` using pgx stdlib.
+2. Open short-lived `database/sql` connection from `DATABASE_URL` using pgx
+   stdlib.
 3. Ping database.
 4. Run `goose up`.
 5. Close migration connection.
 6. Open long-lived `pgxpool.Pool` from `DATABASE_URL`.
 7. Start HTTP server.
 
-If migration fails, process exits non-zero. Systemd/deploy tooling can retry after the issue is fixed.
+If migration fails, process exits non-zero. Systemd/deploy tooling can retry
+after the issue is fixed.
 
 Keep migration connection lifecycle separate from runtime pool lifecycle.
+
+Startup migrations must run before the HTTP listener starts serving accepted
+requests. In production, systemd may already own the socket and queue incoming
+connections, but the API process must not accept them until migrations and pool
+startup have completed.
+
+Runtime database calls must take the request context from Echo/`net/http`.
+Request handlers must not use `context.Background()` for pgx calls. During
+shutdown, request contexts should cancel in-flight queries when clients
+disconnect or when the HTTP shutdown timeout expires.
 
 ## Codegen Execution Model
 
@@ -104,7 +128,8 @@ Local/codegen flow:
 
 Generation should use the same migration files as runtime startup.
 
-Ordinary `go test ./...` should not regenerate query code. A dedicated codegen verification task should regenerate and fail on dirty diff.
+Ordinary `go test ./...` should not regenerate query code. A dedicated codegen
+verification task should regenerate and fail on dirty diff.
 
 ## Test Execution Model
 
@@ -133,7 +158,8 @@ Rules:
 - Tests must not depend on rows created by another test.
 - Query tests should be idempotent against any migrated test database.
 - Tests using `t.Parallel()` need their own connection and transaction.
-- Code under test should accept a transaction-capable query dependency instead of hard-coding `*pgxpool.Pool`.
+- Code under test should accept a transaction-capable query dependency instead
+  of hard-coding `*pgxpool.Pool`.
 
 Recommended query-test helper shape:
 
@@ -150,7 +176,9 @@ Conn pgx.Tx
 Store *store.DBQuerier
 ```
 
-`pggen` generated queriers can be created over `pgx.Tx`, `*pgx.Conn`, or `*pgxpool.Pool`, so production code can use the pool and tests can use a transaction.
+`pggen` generated queriers can be created over `pgx.Tx`, `*pgx.Conn`, or
+`*pgxpool.Pool`, so production code can use the pool and tests can use a
+transaction.
 
 ## Test Database Provisioning
 
@@ -161,13 +189,15 @@ Supported options:
 - External `DATABASE_URL`, usually Compose Postgres.
 - One automatically started Postgres container per package or suite.
 
-E2E tests may use `testcontainers-go` because E2E tests benefit from owning their dependency lifecycle.
+E2E tests may use `testcontainers-go` because E2E tests benefit from owning
+their dependency lifecycle.
 
 Do not start one container per test.
 
 ## Future Ops Execution Model
 
-Keep migration files compatible with goose CLI so execution can move out of API code later.
+Keep migration files compatible with goose CLI so execution can move out of API
+code later.
 
 Future ops command shape:
 
@@ -176,7 +206,8 @@ goose -dir apps/api/migrations postgres "$DATABASE_URL" up
 goose -dir apps/api/migrations postgres "$DATABASE_URL" status
 ```
 
-Migration ownership can move from API startup to Ansible, CI, or a one-shot systemd unit without rewriting migration files.
+Migration ownership can move from API startup to Ansible, CI, or a one-shot
+systemd unit without rewriting migration files.
 
 ## File Layout
 
@@ -241,6 +272,8 @@ apps/api/queries/
 - Requires `DATABASE_URL`.
 - Pings before returning.
 - Owns pool close at API shutdown.
+- Closes the pool after HTTP drain or shutdown timeout, not before handlers have
+  had a chance to finish.
 
 `internal/migrator`:
 
@@ -248,6 +281,8 @@ apps/api/queries/
 - Imports embedded migration FS.
 - Sets goose dialect to `postgres`.
 - Runs `goose.UpContext`.
+- Uses a bounded startup context so failed or stuck migrations do not leave the
+  service in an indefinite activating state.
 - Closes migration handle before runtime pool starts.
 - Returns wrapped errors.
 
@@ -268,7 +303,8 @@ apps/api/queries/
 `apps/api/migrations`:
 
 - Holds SQL migrations.
-- May include a tiny Go file only for embedding if startup migrations remain in-process.
+- May include a tiny Go file only for embedding if startup migrations remain
+  in-process.
 
 `apps/api/queries`:
 
@@ -302,7 +338,8 @@ Optional for tests:
 RECURRING_TEST_DATABASE_URL=postgres://recurring:recurring@127.0.0.1:5432/recurring_test?sslmode=disable
 ```
 
-If omitted, test helper may use `DATABASE_URL` for local query tests or start an E2E-owned container when that test mode is selected.
+If omitted, test helper may use `DATABASE_URL` for local query tests or start an
+E2E-owned container when that test mode is selected.
 
 ## Zero Downtime Rules
 
@@ -328,6 +365,12 @@ Not allowed during API startup:
 
 Destructive or contract migrations need separate ops plan and deploy sequencing.
 
+Socket activation only queues new, unaccepted API connections during startup or
+restart. It does not protect accepted requests from incompatible schema changes,
+and long startup migrations can still exhaust listener backlog or client
+timeouts. Keep startup migrations short; move long backfills, validation, and
+contract work to explicit ops steps.
+
 ## Deploy Pattern
 
 Use expand/contract.
@@ -345,11 +388,13 @@ Use expand/contract.
 3. Add `github.com/jackc/pgx/v5/stdlib`.
 4. Add `internal/migrator` with short-lived migration handle.
 5. Add `internal/db` with runtime `pgxpool`.
-6. Wire `cmd/api/main.go` to run migrations before opening runtime pool and listening.
+6. Wire `cmd/api/main.go` to run migrations before opening runtime pool and
+   listening.
 7. Add `apps/api/queries`.
 8. Add `pggen` generation command after first table/query exists.
 9. Commit generated query Go code.
 10. Add `internal/testdb` with migrate-once and transaction-per-test helpers.
 11. Add first real migration when first table is designed.
 12. Add `go test ./...` verification.
-13. Add codegen verification task that starts/migrates Postgres, runs `pggen`, and fails on generated-code diff.
+13. Add codegen verification task that starts/migrates Postgres, runs `pggen`,
+    and fails on generated-code diff.

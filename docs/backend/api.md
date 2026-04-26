@@ -20,9 +20,9 @@ The API should support:
 - OpenTelemetry instrumentation
 - JSON REST endpoints for now
 
-OpenAPI 3.1 support is required. The exact validation engine can be decided later.
-Using an existing OpenAPI or JSON Schema library is preferred over writing a parser
-and validator from scratch.
+OpenAPI 3.1 support is required. The exact validation engine can be decided
+later. Using an existing OpenAPI or JSON Schema library is preferred over
+writing a parser and validator from scratch.
 
 ## Decision
 
@@ -70,28 +70,47 @@ api.Handle("listExpenses", listExpenses)
 
 The registration layer maps operation IDs to Echo routes using the OpenAPI spec.
 
+## Shutdown Requirements
+
+The API must support graceful shutdown because production runs behind a systemd
+socket-activated listener.
+
+Shutdown requirements:
+
+- Serve through an explicit `http.Server` so startup and shutdown are owned by
+  application code.
+- On `SIGTERM`, stop accepting new requests and call `http.Server.Shutdown(ctx)`
+  or Echo's shutdown helper with a bounded timeout.
+- Pass each request's context into pgx queries and downstream work.
+- Avoid `context.Background()` in request-handling paths.
+- Close the runtime `pgxpool.Pool` only after the HTTP server has drained or
+  the shutdown timeout has expired.
+- Keep handlers cancellation-aware so deploy restarts do not wait on abandoned
+  database work.
+
 ## Eliminated Options
 
 ### chi
 
-Good router and middleware model, but weaker fit for this project because it does
-not provide a framework-level error and response model. It would require more
-custom glue for consistent validation errors.
+Good router and middleware model, but weaker fit for this project because it
+does not provide a framework-level error and response model. It would require
+more custom glue for consistent validation errors.
 
 ### Gin
 
-Capable, popular, and testable. Eliminated because the handler and middleware flow
-is less clean for this validation pipeline than Echo's `return error` model.
+Capable, popular, and testable. Eliminated because the handler and middleware
+flow is less clean for this validation pipeline than Echo's `return error`
+model.
 
 ### Fiber
 
-Eliminated because it is built on `fasthttp`. The context and cancellation model is
-a weaker fit for pgx-backed request lifecycles.
+Eliminated because it is built on `fasthttp`. The context and cancellation model
+is a weaker fit for pgx-backed request lifecycles.
 
 ### Huma
 
-Eliminated because it is OpenAPI-aware but pulls the project toward Go-code-first
-API declaration. This project keeps YAML as the source of truth.
+Eliminated because it is OpenAPI-aware but pulls the project toward
+Go-code-first API declaration. This project keeps YAML as the source of truth.
 
 ### ogen
 
