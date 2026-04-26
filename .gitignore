@@ -44,3 +44,4 @@ terraform.rc
 **/vault_pass.txt
 **/*.retry
 ops/ansible/.ansible/
+.ansible/
