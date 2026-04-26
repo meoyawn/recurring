@@ -1,5 +1,3 @@
-import type { APIEvent } from "@solidjs/start/server"
-
 const googleStateCookieName = "googleOAuthState"
 const sessionCookieName = "sessionID"
 
@@ -79,7 +77,7 @@ const cookie = (name: string, value: string, opts: CookieOptions) => {
 const clearCookie = (name: string, path: string, secure: boolean) =>
   cookie(name, "", { path, maxAge: 0, secure })
 
-const readCookie = (request: Request, name: string) => {
+const readCookie = (request: Request, name: string): string | undefined => {
   const header = request.headers.get("cookie")
   if (!header) {
     return
@@ -215,9 +213,9 @@ const upsertSignup = async (profile: GoogleProfile) => {
   return parseSignupResponse(await res.json())
 }
 
-export const startGoogleAuth = (event: APIEvent) => {
+export const startGoogleAuth = (request: Request) => {
   try {
-    const config = authConfig(event.request)
+    const config = authConfig(request)
     const state = randomState()
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth")
     url.searchParams.set("client_id", config.clientId)
@@ -231,16 +229,16 @@ export const startGoogleAuth = (event: APIEvent) => {
       cookie(googleStateCookieName, state, {
         path: "/auth/google/callback",
         maxAge: 600,
-        secure: isSecureRequest(event.request),
+        secure: isSecureRequest(request),
       }),
     ])
   } catch {
-    return errorRedirect(event.request, "configuration_error")
+    return errorRedirect(request, "configuration_error")
   }
 }
 
-export const finishGoogleAuth = async (event: APIEvent) => {
-  const secure = isSecureRequest(event.request)
+export const finishGoogleAuth = async (request: Request) => {
+  const secure = isSecureRequest(request)
   const clearState = clearCookie(
     googleStateCookieName,
     "/auth/google/callback",
@@ -248,27 +246,27 @@ export const finishGoogleAuth = async (event: APIEvent) => {
   )
 
   try {
-    const url = new URL(event.request.url)
+    const url = new URL(request.url)
     const error = url.searchParams.get("error")
     if (error) {
-      return errorRedirect(event.request, error, [clearState])
+      return errorRedirect(request, error, [clearState])
     }
 
     const code = url.searchParams.get("code")
     const state = url.searchParams.get("state")
     if (!code || !state) {
-      return errorRedirect(event.request, "invalid_callback", [clearState])
+      return errorRedirect(request, "invalid_callback", [clearState])
     }
 
-    if (state !== readCookie(event.request, googleStateCookieName)) {
-      return errorRedirect(event.request, "invalid_state", [clearState])
+    if (state !== readCookie(request, googleStateCookieName)) {
+      return errorRedirect(request, "invalid_state", [clearState])
     }
 
-    const token = await exchangeCode(code, authConfig(event.request))
+    const token = await exchangeCode(code, authConfig(request))
     const profile = await fetchGoogleProfile(token.access_token)
     const signup = await upsertSignup(profile)
 
-    return redirect(new URL("/", publicOrigin(event.request)).toString(), 303, [
+    return redirect(new URL("/", publicOrigin(request)).toString(), 303, [
       clearState,
       cookie(sessionCookieName, signup.session_id, {
         path: "/",
@@ -277,6 +275,6 @@ export const finishGoogleAuth = async (event: APIEvent) => {
       }),
     ])
   } catch {
-    return errorRedirect(event.request, "login_failed", [clearState])
+    return errorRedirect(request, "login_failed", [clearState])
   }
 }

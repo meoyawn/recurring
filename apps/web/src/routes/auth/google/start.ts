@@ -1,6 +1,6 @@
-import type { APIEvent } from "@solidjs/start/server";
-import { startGoogleAuth } from "~/lib/googleAuth";
+import type { APIEvent } from "@solidjs/start/server"
+import { startGoogleAuth } from "~/lib/googleAuth.ts"
 
 export function GET(event: APIEvent) {
-  return startGoogleAuth(event);
+  return startGoogleAuth(event.request)
 }

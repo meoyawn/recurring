@@ -11,7 +11,9 @@
     "allowJs": false,
     "strict": true,
     "noEmit": true,
-    "types": ["vite/client"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "types": ["@solidjs/start/env"],
     "isolatedModules": true,
     "paths": {
       "~/*": ["./src/*"],
