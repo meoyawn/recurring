@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import {
   array,
+  email,
   GET,
   httpSecurity,
   httpURL,
@@ -11,6 +12,7 @@ import {
   resp,
   responsibleAPI,
   scope,
+  string,
   unixMillis,
 } from "@responsibleapi/ts"
 import { YAML } from "bun"
@@ -110,6 +112,30 @@ const sessionAPI = scope({
   }),
 })
 
+const ValidationErr = () =>
+  object({
+    message: string(),
+  })
+
+const GoogleSubject = () =>
+  string({
+    description: "Stable Google account subject identifier from the ID token.",
+    minLength: 1,
+  })
+
+const Signup = () =>
+  object({
+    google_sub: GoogleSubject,
+    email: email(),
+    "name?": NonEmptyString,
+    "picture_url?": httpURL,
+  })
+
+const SignupSession = () =>
+  object({
+    session_id: NonEmptyString,
+  })
+
 const api = responsibleAPI({
   partialDoc: {
     openapi: "3.1.0",
@@ -126,10 +152,19 @@ const api = responsibleAPI({
         },
         res: {
           mime: "application/json",
+          add: {
+            400: ValidationErr,
+          },
         },
       },
       "/signup": POST({
-        id: "TODO",
+        id: "upsertSignup",
+        description:
+          "Create or update a local user from web-authenticated Google signup/login data and return a session id for the web tier.",
+        req: Signup,
+        res: {
+          200: SignupSession,
+        },
       }),
       "/session": sessionAPI,
     }),

@@ -10,7 +10,8 @@ Web 2.0 app
 
 ## Rules
 
-- never format files. Leave that to humans
+- never format files. Leave it to humans
+- never `git commit` secrets or IPs. This repo is Open Source
 
 ## CLI
 
