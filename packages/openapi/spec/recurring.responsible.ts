@@ -65,7 +65,7 @@ const CreateExpense = () =>
     money: Money,
     recurring: RecurringInterval,
     "category?": NonEmptyString,
-    "comment?": string(),
+    "comment?": NonEmptyString,
     "cancel_url?": httpURL,
     "canceled_at?": ref(unixMillis, {
       description: "when Subscription was canceled",
