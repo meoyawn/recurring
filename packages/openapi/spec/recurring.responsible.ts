@@ -1,30 +1,26 @@
 #!/usr/bin/env bun
 import {
   array,
+  GET,
+  httpSecurity,
   httpURL,
-  int64,
   isoDuration,
   object,
+  POST,
   ref,
+  resp,
   responsibleAPI,
   scope,
   unixMillis,
 } from "@responsibleapi/ts"
 import { YAML } from "bun"
 
-import { CurrencyCode, NonEmptyString } from "./shared.responsibe.ts"
-
-const MinorUnitAmount = () =>
-  int64({
-    description: "Monetary value multiplied by 100.",
-    minimum: 0,
-  })
-
-const Money = () =>
-  object({
-    amount: MinorUnitAmount,
-    currency: CurrencyCode,
-  })
+import {
+  Money,
+  NonEmptyString,
+  WorkbookExportResponse,
+  WorkbookFormat,
+} from "./shared.responsibe.ts"
 
 export const DbTimestamps = () =>
   object({
@@ -35,6 +31,13 @@ export const DbTimestamps = () =>
 const RecurringInterval = () =>
   isoDuration({
     description: "Subscription billing period length as an RFC 3339 duration.",
+  })
+
+const SessionSecurity = () =>
+  httpSecurity({
+    description:
+      "API token security using the session-id header. Web auth remains cookie-based; callers pass the resolved session id to the API in this header.",
+    scheme: "bearer",
   })
 
 const Expense = () =>
@@ -65,6 +68,49 @@ const CreateExpense = () =>
     }),
   })
 
+const sessionAPI = scope({
+  forEachOp: {
+    req: {
+      security: SessionSecurity,
+    },
+    res: {
+      add: {
+        401: resp({
+          description: "Missing or invalid API token.",
+        }),
+      },
+    },
+  },
+  "/expenses": scope({
+    GET: {
+      id: "listExpenses",
+      res: {
+        200: array(Expense, { minItems: 0 }),
+      },
+    },
+    POST: {
+      id: "createExpense",
+      req: CreateExpense,
+      res: {
+        201: Expense,
+      },
+    },
+  }),
+  "/exports/workbook": GET({
+    id: "downloadWorkbookExport",
+    description:
+      "Download current user's recurring expense export as a workbook. Response is proxied through from the internal sheets service to preserve the generated file body and download headers.",
+    req: {
+      query: {
+        "format?": WorkbookFormat,
+      },
+    },
+    res: {
+      200: WorkbookExportResponse,
+    },
+  }),
+})
+
 const api = responsibleAPI({
   partialDoc: {
     openapi: "3.1.0",
@@ -83,21 +129,10 @@ const api = responsibleAPI({
           mime: "application/json",
         },
       },
-      "/expenses": scope({
-        GET: {
-          id: "listExpenses",
-          res: {
-            200: array(Expense, { minItems: 0 }),
-          },
-        },
-        POST: {
-          id: "createExpense",
-          req: CreateExpense,
-          res: {
-            201: Expense,
-          },
-        },
+      "/signup": POST({
+        id: "TODO",
       }),
+      "/session": sessionAPI,
     }),
   },
 })

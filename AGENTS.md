@@ -8,6 +8,10 @@ Web 2.0 app
 - [ansible](ops/ansible/AGENTS.md)
 - [terraform](ops/terraform/AGENTS.md)
 
+## Rules
+
+- never format files. Leave that to humans
+
 ## CLI
 
 ### Rules

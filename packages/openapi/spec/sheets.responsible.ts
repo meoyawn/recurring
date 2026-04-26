@@ -1,8 +1,7 @@
 #!/usr/bin/env bun
 import {
   array,
-  httpURL,
-  number,
+  isoDuration,
   object,
   POST,
   responsibleAPI,
@@ -10,62 +9,62 @@ import {
 } from "@responsibleapi/ts"
 import { YAML } from "bun"
 
-import { CurrencyCode, NonEmptyString } from "./shared.responsibe.ts"
+import {
+  CurrencyCode,
+  Money,
+  NonEmptyString,
+  WorkbookExportResponse,
+  WorkbookFormat,
+} from "./shared.responsibe.ts"
 
 const Cadence = () =>
-  string({
-    description: "Recurring expense cadence used by spreadsheet formulas.",
-    enum: ["weekly", "monthly", "quarterly", "yearly"],
+  isoDuration({
+    description: "Recurring interval used to render the workbook.",
+    examples: ["P1M", "P1W", "P3Y"],
   })
 
 const ISODate = () =>
   string({
-    description: "Calendar date in ISO 8601 YYYY-MM-DD format.",
+    description:
+      "Calendar date in ISO 8601 YYYY-MM-DD format, rendered as d MMM yyyy in the workbook.",
     examples: ["2026-05-01"],
     format: "date",
   })
 
-const DateTime = () =>
-  string({
-    description: "Timestamp in RFC 3339 date-time format.",
-    examples: ["2026-04-26T00:00:00Z"],
-    format: "date-time",
-  })
-
-const ExportExpense = () =>
+const ExportRow = () =>
   object({
-    id: NonEmptyString,
     name: NonEmptyString,
-    amount: number({
-      description: "Expense amount in major currency units as shown in Sheets.",
-      minimum: 0,
-    }),
-    currency: CurrencyCode,
-    cadence: Cadence,
-    nextDueDate: ISODate,
-    "category?": NonEmptyString,
-    createdAt: DateTime,
-    updatedAt: DateTime,
+    date: ISODate,
+    money: Money,
+    recurring: Cadence,
+    "group?": NonEmptyString,
+    "comment?": string(),
+    "usdAmount?": Money,
+    "perMonth?": Money,
+    dateEnd: ISODate,
+    "canceledAt?": ISODate,
   })
 
-const GoogleSheetExportRequest = () =>
+const ExportSummary = () =>
+  object({
+    total: Money,
+    perMonth: Money,
+  })
+
+const WorkbookExportRequest = () =>
   object({
     userId: NonEmptyString,
     baseCurrency: CurrencyCode,
-    expenses: array(ExportExpense, { minItems: 0 }),
-  })
-
-const GoogleSheetExportResponse = () =>
-  object({
-    spreadsheetId: NonEmptyString,
-    url: httpURL,
+    "format?": WorkbookFormat,
+    "summary?": ExportSummary,
+    rows: array(ExportRow, { minItems: 0 }),
   })
 
 const api = responsibleAPI({
   partialDoc: {
     openapi: "3.1.0",
     info: {
-      title: "Recurring Sheets Service API",
+      title: "Recurring Workbook Export Service API",
       version: "1",
     },
   },
@@ -73,15 +72,12 @@ const api = responsibleAPI({
     req: {
       mime: "application/json",
     },
-    res: {
-      mime: "application/json",
-    },
   },
   routes: {
-    "/exports/google-sheet": POST("createGoogleSheetExport", {
-      req: GoogleSheetExportRequest,
+    "/exports/workbook": POST("createWorkbookExport", {
+      req: WorkbookExportRequest,
       res: {
-        201: GoogleSheetExportResponse,
+        201: WorkbookExportResponse,
       },
     }),
   },
