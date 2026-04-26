@@ -12,5 +12,5 @@ Web 2.0 app
 
 ### Rules
 
-- never call `rg --files`, call `rg --files --hidden -g '!.git'` instead
+- never call `rg --files`, call `rg --files --hidden -u -g '!.git'` instead
 - never use `bunx`, ask human to `bun i -d`, then use `bun`

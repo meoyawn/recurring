@@ -1,6 +1,7 @@
 .openapi-generator/
 .openapi-generator-ignore
 spec/recurring.openapi.yaml
+spec/sheets.openapi.yaml
 
 # If generate is run with wrong cwd, ignore stray output here.
 /apis/
