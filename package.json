@@ -5,7 +5,14 @@
     "apps/*",
     "packages/*"
   ],
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  },
   "devDependencies": {
-    "oxfmt": "^0.46.0"
+    "oxfmt": "^0.46.0",
+    "oxlint": "^1.61.0",
+    "oxlint-tsgolint": "^0.22.0"
   }
 }
