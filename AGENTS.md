@@ -2,11 +2,11 @@
 
 Web 2.0 app
 
-- [OpenAPI](packages/openapi/README.md)
-- [golang echo http backend](apps/api/README.md)
-- [typescript SolidStart](apps/web/README.md)
-- [ansible](ops/ansible/README.md)
-- [terraform](ops/terraform/README.md)
+- [OpenAPI](packages/openapi/AGENTS.md)
+- [golang echo http backend](apps/api/AGENTS.md)
+- [typescript SolidStart](apps/web/AGENTS.md)
+- [ansible](ops/ansible/AGENTS.md)
+- [terraform](ops/terraform/AGENTS.md)
 
 ## CLI
 
