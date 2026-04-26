@@ -2,26 +2,44 @@
 
 ## Decisions
 
-- Migrations: `pressly/goose`.
-- Runtime driver: `pgx/v5` with `pgxpool`.
+- Runtime driver: `github.com/jackc/pgx/v5`.
+- Runtime pool: `github.com/jackc/pgx/v5/pgxpool`.
+- Migrations: `github.com/pressly/goose/v3`.
 - Migration driver path: short-lived `database/sql` handle using `github.com/jackc/pgx/v5/stdlib`.
 - Query generation: `pggen`.
-- Query style: raw SQL files, generated raw typed Go wrappers, no ORM.
-- Local/codegen database: Postgres in Compose.
+- Query style: raw SQL files, generated typed Go wrappers, no ORM.
+- Local/codegen database: Postgres in Compose or another local Postgres instance.
+- Generated query Go code is committed.
+- Ordinary build should not require a running Postgres server.
+- Query tests use sandboxed Postgres transactions.
+- E2E tests may use `testcontainers-go` to own a full temporary Postgres server.
 
 ## Why `pggen`
 
 Use `pggen` because this project wants PgTyped-style query generation:
 
 - Raw SQL remains source of truth.
-- Postgres is available in Compose during codegen.
+- Codegen can require a running migrated Postgres database.
 - Queries may use Postgres-heavy features: CTEs, JSON, arrays, enums, extensions, custom functions, `RETURNING`, lateral joins, and unusual expressions.
 - Runtime API can use `pgx`.
 - No ORM/model layer is wanted.
 
-`pggen` is a better fit than `sqlc` for live Postgres-backed type analysis.
+`pggen` is preferred over `sqlc` for this project because `pggen` is designed around running queries against Postgres and using Postgres catalog/type metadata.
 
-`sqlc` remains the boring default in much of Go, but its default analysis is static over schema/query files. It can use database-backed analysis, but that is an opt-in enhancement. `pggen` is designed around Postgres-backed query analysis.
+`sqlc` remains the mature default in much of Go and can use database-backed analysis, but this project accepts `pggen`'s lower adoption in exchange for stronger alignment with running-Postgres type inference.
+
+Known `pggen` tradeoffs:
+
+- Lower adoption than `sqlc`.
+- Module is not a stable v1 API.
+- Generated Go must be committed.
+- Nullability inference may need review around complex queries.
+
+Mitigation:
+
+- Keep generated code in `apps/api/internal/store`.
+- Verify generated code in CI by regenerating against a migrated database and failing on diff.
+- Review nullable generated types during query review.
 
 ## Postgres Type Analysis Terms
 
@@ -74,17 +92,78 @@ Keep migration connection lifecycle separate from runtime pool lifecycle.
 
 ## Codegen Execution Model
 
-`pggen` needs a Postgres database during generation.
+`pggen` needs a migrated Postgres database during generation.
 
 Local/codegen flow:
 
-1. Start Compose Postgres.
-2. Run goose migrations against the Compose database.
+1. Start Compose Postgres or provide a local `DATABASE_URL`.
+2. Run goose migrations against the codegen database.
 3. Run `pggen` against the migrated database and SQL query files.
 4. Commit generated Go code.
 5. Run Go tests.
 
 Generation should use the same migration files as runtime startup.
+
+Ordinary `go test ./...` should not regenerate query code. A dedicated codegen verification task should regenerate and fail on dirty diff.
+
+## Test Execution Model
+
+Database tests use real Postgres.
+
+Schema setup:
+
+1. Start or connect to one test Postgres server.
+2. Run migrations once before DB tests.
+3. Reuse the migrated schema for all tests.
+
+Per-test sandbox:
+
+1. Acquire one dedicated connection.
+2. Begin a transaction.
+3. Pass that `pgx.Tx` or a tx-backed query dependency into code under test.
+4. Run test.
+5. Roll back transaction in cleanup.
+6. Release connection.
+
+Rules:
+
+- No per-test migrations.
+- No per-test containers.
+- Each test must be isolated by rollback.
+- Tests must not depend on rows created by another test.
+- Query tests should be idempotent against any migrated test database.
+- Tests using `t.Parallel()` need their own connection and transaction.
+- Code under test should accept a transaction-capable query dependency instead of hard-coding `*pgxpool.Pool`.
+
+Recommended query-test helper shape:
+
+```text
+testdb.Start(ctx)
+testdb.Migrate(ctx)
+testdb.Tx(t)
+```
+
+`testdb.Tx(t)` should return a generated querier or a small struct containing:
+
+```text
+Conn pgx.Tx
+Store *store.DBQuerier
+```
+
+`pggen` generated queriers can be created over `pgx.Tx`, `*pgx.Conn`, or `*pgxpool.Pool`, so production code can use the pool and tests can use a transaction.
+
+## Test Database Provisioning
+
+Query/data-layer tests should not care how Postgres is provisioned.
+
+Supported options:
+
+- External `DATABASE_URL`, usually Compose Postgres.
+- One automatically started Postgres container per package or suite.
+
+E2E tests may use `testcontainers-go` because E2E tests benefit from owning their dependency lifecycle.
+
+Do not start one container per test.
 
 ## Future Ops Execution Model
 
@@ -119,6 +198,12 @@ Generated query code should live under:
 apps/api/internal/store/
 ```
 
+Test DB helpers should live near API tests:
+
+```text
+apps/api/internal/testdb/
+```
+
 Use one SQL file per migration:
 
 ```text
@@ -145,6 +230,7 @@ When implemented:
 apps/api/internal/db/
 apps/api/internal/migrator/
 apps/api/internal/store/
+apps/api/internal/testdb/
 apps/api/migrations/
 apps/api/queries/
 ```
@@ -171,6 +257,14 @@ apps/api/queries/
 - Uses `pgx` types and connection interfaces.
 - Contains no hand-written ORM layer.
 
+`internal/testdb`:
+
+- Provides DB test setup.
+- Runs migrations once per test database.
+- Opens one transaction per test.
+- Rolls back each test transaction during cleanup.
+- May connect to external `DATABASE_URL` or use one suite container.
+
 `apps/api/migrations`:
 
 - Holds SQL migrations.
@@ -182,7 +276,7 @@ apps/api/queries/
 
 ## Config
 
-Required:
+Required for runtime:
 
 ```text
 DATABASE_URL=postgres://recurring:recurring@127.0.0.1:5432/recurring?sslmode=disable
@@ -201,6 +295,14 @@ RECURRING_API_MIGRATIONS=disable
 ```
 
 Use the escape hatch only after ops owns migration execution.
+
+Optional for tests:
+
+```text
+RECURRING_TEST_DATABASE_URL=postgres://recurring:recurring@127.0.0.1:5432/recurring_test?sslmode=disable
+```
+
+If omitted, test helper may use `DATABASE_URL` for local query tests or start an E2E-owned container when that test mode is selected.
 
 ## Zero Downtime Rules
 
@@ -246,5 +348,8 @@ Use expand/contract.
 6. Wire `cmd/api/main.go` to run migrations before opening runtime pool and listening.
 7. Add `apps/api/queries`.
 8. Add `pggen` generation command after first table/query exists.
-9. Add first real migration when first table is designed.
-10. Add `go test ./...` verification.
+9. Commit generated query Go code.
+10. Add `internal/testdb` with migrate-once and transaction-per-test helpers.
+11. Add first real migration when first table is designed.
+12. Add `go test ./...` verification.
+13. Add codegen verification task that starts/migrates Postgres, runs `pggen`, and fails on generated-code diff.
