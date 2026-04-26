@@ -158,8 +158,10 @@ WantedBy=multi-user.target
 ```
 
 `Type=notify` is preferred once the API sends `READY=1` after migrations,
-database pool startup, route registration, and listener startup are complete.
-Until then, `Type=simple` is acceptable.
+database pool startup, route registration, and listener acquisition are
+complete. `http.Server.Serve(listener)` is the blocking serve loop, so readiness
+must be sent immediately before entering that loop or from the goroutine that
+starts it. Until then, `Type=simple` is acceptable.
 
 The socket unit owns the runtime socket path. Do not also make the service own
 `RuntimeDirectory=recurring`, because stopping the service must not remove the
@@ -176,8 +178,9 @@ Startup sequence:
 5. API runs goose migrations through a short-lived `database/sql` connection.
 6. API opens the long-lived `pgxpool.Pool`.
 7. API builds Echo routes from OpenAPI operation IDs.
-8. API serves the inherited systemd listener.
+8. API acquires the inherited systemd listener.
 9. API sends systemd readiness notification when supported.
+10. API enters the blocking HTTP serve loop for the inherited listener.
 
 The process must not accept requests before migrations and DB startup complete.
 

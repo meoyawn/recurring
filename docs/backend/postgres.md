@@ -86,7 +86,7 @@ hard requirement.
 
 ## Runtime Execution Model
 
-API server runs migrations during startup, before listening for requests.
+API server runs migrations during startup, before serving requests.
 
 Startup order:
 
@@ -97,17 +97,17 @@ Startup order:
 4. Run `goose up`.
 5. Close migration connection.
 6. Open long-lived `pgxpool.Pool` from `DATABASE_URL`.
-7. Start HTTP server.
+7. Start serving HTTP requests.
 
 If migration fails, process exits non-zero. Systemd/deploy tooling can retry
 after the issue is fixed.
 
 Keep migration connection lifecycle separate from runtime pool lifecycle.
 
-Startup migrations must run before the HTTP listener starts serving accepted
-requests. In production, systemd may already own the socket and queue incoming
-connections, but the API process must not accept them until migrations and pool
-startup have completed.
+Startup migrations must run before the API starts serving HTTP requests. The
+runtime listener shape is owned by the API and Linux runtime docs. Postgres only
+requires that migrations and runtime pool startup complete before any accepted
+request can reach handlers.
 
 Runtime database calls must take the request context from Echo/`net/http`.
 Request handlers must not use `context.Background()` for pgx calls. During
@@ -318,11 +318,7 @@ Required for runtime:
 DATABASE_URL=postgres://recurring:recurring@127.0.0.1:5432/recurring?sslmode=disable
 ```
 
-Existing:
-
-```text
-RECURRING_API_ADDR=:8080
-```
+HTTP listen configuration is owned by the API and Linux runtime docs.
 
 Optional future escape hatch:
 
@@ -365,11 +361,11 @@ Not allowed during API startup:
 
 Destructive or contract migrations need separate ops plan and deploy sequencing.
 
-Socket activation only queues new, unaccepted API connections during startup or
-restart. It does not protect accepted requests from incompatible schema changes,
-and long startup migrations can still exhaust listener backlog or client
-timeouts. Keep startup migrations short; move long backfills, validation, and
-contract work to explicit ops steps.
+Runtime listener buffering, when available, only helps with requests that have
+not reached API handlers. It does not protect accepted requests from
+incompatible schema changes, and long startup migrations can still exhaust
+runtime buffers or client timeouts. Keep startup migrations short; move long
+backfills, validation, and contract work to explicit ops steps.
 
 ## Deploy Pattern
 
