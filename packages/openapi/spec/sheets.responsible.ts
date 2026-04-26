@@ -10,14 +10,7 @@ import {
 } from "@responsibleapi/ts"
 import { YAML } from "bun"
 
-const NonEmptyString = () => string({ minLength: 1 })
-
-const CurrencyCode = () =>
-  string({
-    description: "ISO 4217 alpha currency code.",
-    examples: ["USD", "EUR"],
-    pattern: "^[A-Z]{3}$",
-  })
+import { CurrencyCode, NonEmptyString } from "./shared.responsibe.ts"
 
 const Cadence = () =>
   string({

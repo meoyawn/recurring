@@ -1,6 +1,7 @@
 {
   "name": "@recurring/openapi",
   "private": true,
+  "type": "module",
   "scripts": {
     "generate:client": "openapi-generator-cli generate -c config/client.yaml",
     "generate:server-stubs": "openapi-generator-cli generate -c config/server-stubs.yaml",
