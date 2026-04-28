@@ -83,8 +83,8 @@ Shutdown requirements:
   or Echo's shutdown helper with a bounded timeout.
 - Pass each request's context into pgx queries and downstream work.
 - Avoid `context.Background()` in request-handling paths.
-- Close the runtime `pgxpool.Pool` only after the HTTP server has drained or
-  the shutdown timeout has expired.
+- Close the runtime `pgxpool.Pool` only after the HTTP server has drained or the
+  shutdown timeout has expired.
 - Keep handlers cancellation-aware so deploy restarts do not wait on abandoned
   database work.
 
