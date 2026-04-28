@@ -25,28 +25,31 @@ object on the first request, then return JSON page objects for later Inertia
 navigation requests.
 
 This is not blocked by the Cloudflare Workers runtime. The real blockers are
-adapter and migration choices:
+adapter maturity and migration choices:
 
 - Official Inertia client adapters are React, Vue, and Svelte, not Solid.
 - Official Inertia server adapters are Laravel, Rails, Phoenix, and Django.
-- There is no official Cloudflare Workers or Hono server adapter in the
-  documented happy path.
-- Inertia does not deploy to Cloudflare Workers by itself. A Worker can
-  implement the protocol, but app routing, props, redirects, asset versioning,
-  partial reloads, and static assets still need adapter code.
+- Inertia does not document a first-party Cloudflare Workers server adapter in
+  its official server setup path.
+- Hono now has an experimental `@hono/inertia` middleware package in the
+  `honojs/middleware` repository. This is the best Workers-shaped adapter
+  candidate because Hono runs directly on Cloudflare Workers.
+- Inertia still does not deploy to Cloudflare Workers by itself. Hono owns the
+  Worker routing layer, `@hono/inertia` owns the Inertia response protocol, and
+  the app still owns page data, redirects, mutations, static assets, and
+  deployment wiring.
 - Inertia SSR requires Node.js 22 or higher in the official deployment model.
   That affects component HTML pre-rendering only, not first-response page JSON.
 
 Use Inertia on Workers only as a spike unless the team is willing to:
 
 - Use React, Vue, or Svelte, or accept/build a Solid Inertia client adapter.
-- Build a small Worker/Hono server adapter, or spike `@antennajs/adapter-hono`
-  after code review.
+- Spike experimental `@hono/inertia` and verify the protocol edges needed by
+  this app.
 - Move page routing and page data loading into Worker routes.
 - Keep Inertia SSR disabled for the Worker deployment.
 
-Stay with SolidStart if avoiding a frontend/router migration is more important
-than adopting Inertia's server-routed page protocol.
+See `progress.md` for cross-spike progress.
 
 ## Terms
 
@@ -135,72 +138,61 @@ Cloudflare-specific concerns:
   workers.dev preview URL, unless that preview URL is registered in Google
   OAuth.
 
-## Worker Adapter Shape
+## Hono Adapter Shape
 
-A minimal Worker-owned Inertia adapter needs to switch response mode based on
-the request headers.
+The preferred Worker adapter candidate is `@hono/inertia`.
 
 ```ts
-const htmlSafeJson = (value: unknown) =>
-  JSON.stringify(value).replace(/</g, "\\u003c")
+import { Hono } from "hono"
+import { inertia, serializePage, type RootView } from "@hono/inertia"
 
-type InertiaPage = {
-  component: string
-  props: Record<string, unknown>
-  url: string
-  version: string
-}
-
-const renderHtml = (page: InertiaPage) => `<!doctype html>
+const rootView: RootView = page => `<!doctype html>
 <html>
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script type="module" src="/assets/app.js" defer></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script type="module" src="/src/client.tsx"></script>
   </head>
   <body>
-    <script data-page="app" type="application/json">${htmlSafeJson(page)}</script>
+    <script data-page="app" type="application/json">${serializePage(page)}</script>
     <div id="app"></div>
   </body>
 </html>`
 
-const inertia = (request: Request, page: InertiaPage) => {
-  if (request.headers.get("X-Inertia") === "true") {
-    return Response.json(page, {
-      headers: {
-        "X-Inertia": "true",
-        Vary: "X-Inertia",
-      },
-    })
-  }
+const app = new Hono()
 
-  return new Response(renderHtml(page), {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      Vary: "X-Inertia",
-    },
-  })
-}
+app.use(inertia({ version: "1", rootView }))
+
+app.get("/", c => c.render("Home", { message: "Hello, Inertia" }))
 ```
 
-That helper follows the Inertia protocol shape for non-SSR first responses: page
-JSON in `<script data-page="app" type="application/json">` and a root
-`<div id="app"></div>` mount point.
+`@hono/inertia` sets `c.render(component, props)` and switches response mode
+from request headers:
 
-That helper is only a sketch. A real adapter must also handle:
+- normal document request: full HTML from `rootView(page, c)`
+- `X-Inertia` request: JSON page object with `X-Inertia: true`
+- `Accept: application/json`: props JSON for the same route
+- stale `X-Inertia-Version` on `GET`: `409` with `X-Inertia-Location`
 
-- Robust JSON escaping for inline page objects.
-- Asset version checks using `X-Inertia-Version`.
-- `409` plus `X-Inertia-Location` for asset mismatch and external redirects.
+It also provides `serializePage(page)` for safe `<script
+type="application/json">` embedding and a Vite plugin that generates page-name
+types for `c.render()`.
+
+The middleware removes the need to write the basic response-mode adapter. It
+does not remove the need to verify app-level protocol behavior:
+
+- Root HTML and static asset production wiring.
 - `303` redirects after non-GET mutations.
-- Shared props.
-- Error props.
-- Partial reload headers.
+- External redirects.
+- Shared props and error props.
+- Partial reload headers and lazy prop evaluation.
 - CSRF/XSRF handling for unsafe methods.
-- Static asset routing.
+- Validation error transport.
+- No-SSR operation with the chosen official client adapter.
 
-This adapter work is why Inertia is a bigger commitment than a SolidStart
-configuration change.
+The source for `@hono/inertia` 0.2.0 shows the core response switching and asset
+version mismatch behavior. Treat broader protocol claims as things to test in
+the project spike, not assumptions.
 
 ## Adapter Status
 
@@ -209,46 +201,31 @@ Inertia is adapter-driven: the official client adapters are React, Vue, and
 Svelte; the official server adapters are Laravel, Rails, Phoenix, and Django.
 The server-side setup docs remain Laravel-centered.
 
-Inertia also does not support Workers "out of the box" as a deployment target in
-the way SolidStart or Hono do. A Worker can run the protocol because the non-SSR
-protocol is plain HTTP plus JSON, but some server adapter must still own the
-protocol details.
+There is now a Hono-maintained middleware package:
 
-Best current community candidate for this app:
+- `@hono/inertia` 0.2.0, published April 28, 2026.
+- It lives in the `honojs/middleware` monorepo and is marked experimental.
+- It exposes `inertia()`, `serializePage()`, `RootView`, `PageObject`, and a
+  `@hono/inertia/vite` page-generation plugin.
+- It has peer dependencies on `hono >=4.0.0` and optional `vite >=5.0.0`.
+- It fits Cloudflare Workers because the deployment target is ordinary Hono on
+  Workers, not a Node SSR service.
 
-- `@antennajs/adapter-hono`: Hono adapter for the Inertia protocol. It exposes
-  middleware, `Inertia.render(ctx, component, props)`, root view customization,
-  asset versioning, shared props, and lazy props. Because Hono runs on
-  Cloudflare Workers and exposes bindings through `c.env`, this is the most
-  directly Worker-shaped candidate.
+This materially improves the Inertia-on-Workers story. The app no longer needs
+to start by building its own response-mode adapter or relying on
+a separate community Hono adapter.
 
-Risks:
+Remaining risks:
 
-- `@antennajs/adapter-hono` is young and low-adoption. Treat it as source to
-  inspect, not as proven infrastructure.
-- It still needs verification against Inertia v3 protocol details used by this
+- `@hono/inertia` is new and explicitly experimental.
+- It is Hono-maintained, not an official Inertia server adapter.
+- It still needs verification against the exact Inertia v3 behavior used by this
   app: asset mismatch, external redirects, partial reloads, once props,
   validation errors, unsafe-method redirects, and no-SSR operation.
-- Other emerging packages exist, such as `honertia`, but they are Inertia-style
-  Hono frameworks rather than clearly documented drop-in Inertia protocol
-  adapters for this app.
+- Official client support is still React, Vue, and Svelte. Solid still requires
+  community adapter risk.
 
-## Decision Points
-
-Choose Worker-owned Inertia if the team wants Inertia as the app architecture:
-
-- Server-owned routing.
-- Page props loaded by Worker routes.
-- Same-origin browser traffic.
-- Recurring API called only by Worker code.
-- Inertia navigation protocol instead of SolidStart routing.
-
-Do not choose Worker-owned Inertia if the team wants to keep:
-
-- SolidStart's current router and server-function model.
-- Solid as the frontend framework without community adapter risk.
-- A documented framework deployment path with minimal custom adapter code.
-- Component HTML SSR on Cloudflare Workers.
+## Inertia SSR Elsewhere
 
 Use Inertia SSR elsewhere only if server-rendered component HTML matters:
 
@@ -266,6 +243,8 @@ Known-supported:
 - Inertia official client support is React, Vue, and Svelte.
 - Inertia server setup is adapter-driven and Laravel-centered in the docs.
 - Inertia official server adapters do not include Cloudflare Workers or Hono.
+- `@hono/inertia` exists as an experimental Hono middleware package and provides
+  core Inertia response-mode handling for Hono routes.
 - Hono supports Cloudflare Workers and exposes Worker bindings through `c.env`.
 - Inertia SSR requires Node.js 22 or higher.
 - Cloudflare Workers support standard Fetch APIs.
@@ -274,8 +253,7 @@ Known-supported:
 
 Needs project spike:
 
-- Complete Inertia v3 server adapter on Cloudflare Workers, or a reviewed
-  `@antennajs/adapter-hono` integration.
+- `@hono/inertia` integration on Cloudflare Workers.
 - Solid Inertia client adapter suitable for this app.
 - OAuth, cookies, and Recurring API behavior on preview and production Worker
   domains.
@@ -283,8 +261,8 @@ Needs project spike:
 - Partial reload behavior.
 - Unsafe-method redirects and CSRF behavior.
 
-Do not treat Worker Inertia as a documented happy path. Treat it as a viable
-runtime model with adapter risk.
+Do not treat Worker Inertia as a documented Inertia happy path yet. Treat it as
+a viable Hono runtime model with a newly available experimental adapter.
 
 ## Recommended Spike
 
@@ -292,8 +270,7 @@ Build the smallest useful Worker-owned Inertia spike:
 
 - Choose client adapter: React/Vue/Svelte for official support, or Solid only if
   community adapter risk is accepted.
-- Start with `@antennajs/adapter-hono` if its source passes review; otherwise
-  build the smallest Worker/Hono adapter locally.
+- Start with `@hono/inertia` and keep SSR disabled.
 - Serve Vite-built client assets from the Worker deployment.
 - Port one authenticated page route into a Worker route handler.
 - Call the API declared by `packages/openapi/spec/recurring.responsible.ts` from
@@ -316,6 +293,8 @@ Acceptance checks:
 - Asset version mismatch returns the expected Inertia reload behavior.
 - Google OAuth callback sets cookies and redirects on a real Cloudflare preview.
 - Session cookies work on the production custom domain.
+- Partial reload requests evaluate and return only the intended prop keys, or
+  the app explicitly defers partial reload support.
 
 ## References
 
@@ -329,8 +308,6 @@ Acceptance checks:
 - Inertia authentication: https://inertiajs.com/docs/v3/security/authentication
 - Inertia redirects: https://inertiajs.com/docs/v3/the-basics/redirects
 - Inertia CSRF: https://inertiajs.com/docs/v3/security/csrf-protection
-- SolidStart config and Nitro presets:
-  https://docs.solidjs.com/solid-start/reference/config/define-config
 - Cloudflare Workers Node.js compatibility:
   https://developers.cloudflare.com/workers/runtime-apis/nodejs/
 - Cloudflare Workers environment variables:
@@ -339,6 +316,5 @@ Acceptance checks:
   https://developers.cloudflare.com/workers/framework-guides/web-apps/more-web-frameworks/hono/
 - Hono Cloudflare Workers guide:
   https://www.honojs.com/docs/getting-started/cloudflare-workers
-- `@antennajs/adapter-hono`:
-  https://www.npmjs.com/package/@antennajs/adapter-hono
-- `honertia`: https://socket.dev/npm/package/honertia
+- `@hono/inertia`: https://github.com/honojs/middleware/tree/main/packages/inertia
+- `@hono/inertia` npm: https://www.npmjs.com/package/@hono/inertia

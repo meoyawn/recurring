@@ -145,6 +145,16 @@ const api = responsibleAPI({
     },
   },
   routes: {
+    "/healthz": GET({
+      id: "healthCheck",
+      description:
+        "Operational health check for reverse proxies and load balancers.",
+      res: {
+        200: resp({
+          description: "Service is healthy.",
+        }),
+      },
+    }),
     "/v1": scope({
       forEachOp: {
         req: {

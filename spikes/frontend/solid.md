@@ -20,10 +20,15 @@ Desired behavior:
 
 ## Problem
 
-`apps/web` currently uses `ssr: false`, but pure CSR disables the normal
-SolidStart SSR document/data pipeline. We still need a Cloudflare Worker that
-can run request-scoped code, set cookies, call the Recurring API server-side,
-and use SolidStart route data without rendering the app body.
+Pure CSR with `ssr: false` disables the normal SolidStart SSR document/data
+pipeline. We still need a Cloudflare Worker that can run request-scoped code,
+set cookies, call the Recurring API server-side, and use SolidStart route data
+without rendering the app body.
+
+`apps/web` has since moved to `ssr: true`, which matches this spike's preferred
+direction. The remaining question is whether SolidStart's route-data
+serialization is the right app protocol, not whether CSR-only can support the
+required server work.
 
 `apps/web/src/lib/googleAuth.ts` is already written for this shape: the worker
 handles the Google OAuth callback, calls Google and the backend server-side,
@@ -50,24 +55,52 @@ document handling plus client-side app rendering:
 - Later browser interactions call SolidStart routes or server functions, which
   call the Recurring API from the worker.
 
+See `progress.md` for cross-spike progress.
+
 ## SolidStart Route Data Only
 
-Inertia owns a protocol: initial HTML includes a JSON encoded page object, and
-later visits return JSON. Its adapters hide that serialization.
-
-SolidStart serialization is not that protocol. It serializes server function
-arguments and return values for SolidStart's own data path. With `ssr: false`,
-there is no automatic arbitrary page-props channel in the document.
+SolidStart serialization serializes server function arguments and return values
+for SolidStart's own data path. With `ssr: false`, there is no automatic
+arbitrary page-props channel in the document.
 
 First-load data should be expressed as SolidStart queries/server functions under
 `ssr: true`, with server wrappers only where the first HTML response needs
 serialized route data.
 
+## Constraint Learned From Spike
+
+If initial props must be serialized into the first HTML response, the route file
+must remain visible to the server render.
+
+Wrapping all `FileRoutes` in `clientOnly` makes the whole route tree
+client-only. The server then renders only the app shell, does not execute the
+route component during SSR, and cannot resolve or serialize route-level
+`query()` / `createAsync()` data for the first response.
+
+Local proof in `apps/web`:
+
+- Normal SSR route wrapper with `query()` returned `solid-initial-props-proof`.
+- First HTML contained that marker in both rendered DOM and SolidStart
+  serialized route data.
+- The same route behind global `clientOnly(FileRoutes)` returned only shell/nav
+  HTML.
+- First HTML had no route body DOM and no serialized marker.
+
+Therefore:
+
+- Use global `clientOnly(FileRoutes)` only for routes whose data may load after
+  the browser starts.
+- Do not use a route export that is itself `clientOnly` when the route needs
+  first-response data.
+- Use a server-rendered route wrapper plus a client-only child component for
+  routes that need serialized initial props.
+
 ## Patterns
 
 ### Global Client-Only Routes
 
-One boundary can wrap all UI routes:
+One boundary can wrap all UI routes only when first-response route data is not
+required:
 
 ```tsx
 // src/ClientRoutes.tsx
@@ -111,12 +144,14 @@ Tradeoff:
 
 - Least route-file ceremony.
 - Page DOM is rendered only in browser.
-- Route-level data behind this boundary will usually fetch after client start,
-  because the route component itself is not server-rendered.
-- Data that must be serialized into the first HTML response should be lifted
-  into a server-rendered route wrapper.
-- This is supported by the `clientOnly` primitive, but wrapping all `FileRoutes`
-  is an extrapolated pattern, not a heavily documented public recipe.
+- Route-level data behind this boundary fetches after client start because the
+  route component itself is not server-rendered.
+- Data that must be serialized into the first HTML response cannot live behind
+  this boundary.
+- Local spike showed no route body DOM and no serialized route data in the first
+  HTML response.
+- This pattern is unsuitable for this app if serialized initial props are a hard
+  requirement for most authenticated pages.
 
 ### Per-Route Server Wrapper
 
@@ -141,11 +176,12 @@ export default function Home() {
 
 Tradeoff:
 
-- More like Inertia: server route wrapper resolves data, client component
-  renders DOM.
+- Server route wrapper resolves data, client component renders DOM.
 - More per-route ceremony.
 - Stronger fit when first response should carry route props through SolidStart
   route serialization.
+- Avoid exporting the whole route as `clientOnly`; only the browser-only child
+  component should be client-only.
 
 ## Evidence Level
 
@@ -159,18 +195,25 @@ Known-supported:
 
 Less proven:
 
-- A single global `clientOnly` wrapper around all `FileRoutes`.
-- Treat as a pragmatic experiment. Verify build output and first-load data
-  behavior before relying on it widely.
+- Whether per-route wrappers stay ergonomic as the app grows.
+- Whether SolidStart route serialization is close enough to the desired
+  page-props model for authenticated pages.
+
+Rejected by local spike:
+
+- A single global `clientOnly` wrapper around all `FileRoutes` when routes need
+  serialized initial props.
 
 ## Current Web App Implication
 
-`apps/web` currently has `ssr: false`. To try this approach:
+`apps/web` currently has `ssr: true`. To try this approach:
 
-- Switch to `ssr: true` or remove the `ssr` override.
 - Keep `entry-server.tsx` standard.
-- Add a `ClientRoutes` boundary if route data can load after client start.
-- Use per-route wrappers for routes that need first-response props.
+- Do not add a global `ClientRoutes` boundary for authenticated pages that need
+  serialized initial props.
+- Use per-route server wrappers for routes that need first-response props.
+- Move browser-only UI into client-only child components imported from those
+  wrappers.
 - Use the SolidStart 2 Vite-based deployment path for Cloudflare Workers.
 - Call the API declared by `packages/openapi/spec/recurring.responsible.ts` from
   Cloudflare Worker server code, not from browser code.
@@ -185,4 +228,3 @@ Less proven:
   https://docs.solidjs.com/solid-start/reference/server/use-server
 - SolidStart 2 public roadmap:
   https://github.com/solidjs/solid-start/discussions/1960
-- Inertia protocol: https://www.inertiajs.com/the-protocol

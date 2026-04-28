@@ -42,6 +42,12 @@ automatic tracing is useful for Worker-local timing, but Cloudflare currently
 documents that exported Worker trace IDs are not propagated to other services.
 It also documents custom spans and attributes as roadmap work.
 
+As of April 28, 2026, Hono now has experimental `@hono/inertia` middleware.
+That weakens SolidStart's deployment/observability advantage when the desired
+app model is Inertia-style page props: Inertia gets a concrete Hono integration
+point for route, component, prop-key, and response-mode logging. SolidStart can
+still be observed well, but it needs more app-owned conventions.
+
 So the pragmatic recommendation is:
 
 - use browser OpenTelemetry for document loads, soft navigations, server
@@ -109,6 +115,11 @@ single protocol:
 Unlike Inertia, SolidStart does not have a page-object protocol where initial
 HTML and later visits share a named JSON envelope. Its serialization path is for
 SolidStart server function arguments and return values.
+
+This is the observability tradeoff. Inertia has one protocol envelope to label:
+`component`, `props`, `url`, `version`, request mode, and asset version.
+SolidStart has multiple surfaces to label consistently: document render,
+route-wrapper query, server function, API route, and browser navigation.
 
 That means observability should attach to the concrete request boundaries:
 
@@ -529,13 +540,16 @@ against `vite dev`.
 Current `apps/web` notes:
 
 - `apps/web/package.json` uses `@solidjs/start` `2.0.0-alpha.2`
-- `apps/web/vite.config.ts` currently sets `ssr: false`
+- `apps/web/vite.config.ts` currently sets `ssr: true`
 - there is no `app.config.ts`
 - `apps/web/src/app.tsx` renders `<FileRoutes />` directly
 - `apps/web/src/routes/index.tsx` currently fetches `/api/backend/v1/health`
   from the browser
 - `apps/web/src/lib/googleAuth.ts` already models server-side OAuth and backend
   API calls
+- the generated `.output/nitro.json` observed during the spike used the
+  `node-server` preset, so Cloudflare Worker output still needs explicit
+  verification
 
 For the frontend spike's intended shape, move toward:
 
@@ -563,9 +577,16 @@ For `apps/web`, choose this:
 This gives useful production debugging without betting on unstable framework or
 Worker custom-span support.
 
+If deployment and observability are weighted above keeping SolidStart, compare
+this with the Inertia/Hono spike before standardizing. `@hono/inertia` gives
+Inertia a clearer Worker route boundary and a named page-object protocol, while
+SolidStart gives a more framework-native continuation of the current app.
+
 ## Avoid
 
 - treating SolidStart serialization as an Inertia-style page-props protocol
+- assuming SolidStart route wrappers will produce Inertia-like observability
+  without explicit labels and log fields
 - relying on Cloudflare Worker traces to automatically parent Go API traces
 - adding browser calls directly to the Recurring API
 - logging serialized route data, OAuth tokens, session IDs, or Google profile
@@ -663,3 +684,5 @@ observability platform.
   https://opentelemetry.io/docs/languages/js/getting-started/browser/
 - Frontend SolidStart spike: ../frontend/solid.md
 - Inertia observability spike: ./inertia.md
+- `@hono/inertia`:
+  https://github.com/honojs/middleware/tree/main/packages/inertia
