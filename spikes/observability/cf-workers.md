@@ -9,8 +9,8 @@ that fronts the Recurring web app is:
 - Worker metrics: Cloudflare Workers metrics and zone analytics for request,
   error, CPU, wall-time, duration, invocation-status, and subrequest views
 - telemetry export: Cloudflare OpenTelemetry export for Worker traces and logs
-- app trace propagation: explicit W3C `traceparent` and `tracestate`
-  forwarding from Worker requests to Recurring API requests
+- app trace propagation: explicit W3C `traceparent` and `tracestate` forwarding
+  from Worker requests to Recurring API requests
 - app correlation: app-owned `request_id`, Cloudflare Ray ID where available,
   route, target service, URL, status, and timestamp
 - custom app metrics: backend Prometheus/OpenTelemetry metrics, or Workers
@@ -51,8 +51,8 @@ So the pragmatic model is:
 - correlate Cloudflare Worker traces/logs with app traces by `request_id`,
   `cf_ray`, route, target URL, status, and timestamp
 
-Do not choose Cloudflare Workers expecting one clean automatic trace from browser
-click to PostgreSQL today.
+Do not choose Cloudflare Workers expecting one clean automatic trace from
+browser click to PostgreSQL today.
 
 ## Runtime Shape
 
@@ -258,7 +258,8 @@ supports OTLP.
 
 Use Workers Logpush when the requirement is raw Workers Trace Event logs in a
 storage or log-processing destination. Logpush is useful for archival and
-warehouse-style pipelines, but it is not a replacement for app trace propagation.
+warehouse-style pipelines, but it is not a replacement for app trace
+propagation.
 
 Use Tail Workers only for specialized filtering, sampling, or transformation
 pipelines. It is marked beta and should not be the default production path for
@@ -329,8 +330,9 @@ not the parent of the API/PostgreSQL trace in external tools.
   we rely on Cloudflare telemetry metadata plus app `request_id`?
 - Does the chosen frontend runtime make every backend call pass through a single
   helper?
-- Which backend is the source of truth for traces and logs: Cloudflare dashboard,
-  Grafana/Tempo/Loki, Honeycomb, Sentry, Axiom, or another OTLP destination?
+- Which backend is the source of truth for traces and logs: Cloudflare
+  dashboard, Grafana/Tempo/Loki, Honeycomb, Sentry, Axiom, or another OTLP
+  destination?
 - What production sampling rates keep cost acceptable while preserving enough
   failed and slow requests?
 - Should first HTML render API calls generate an app-owned trace context, or
