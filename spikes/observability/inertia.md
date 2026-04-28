@@ -44,16 +44,16 @@ props JSON response mode, and asset-version mismatches return `409` with
 
 The client adapter choice is also now more concrete. The current app direction
 is Solid with the freshest `inertia-adapter-solid` beta, accepting fork
-maintenance and upstream contributions if protocol or telemetry gaps appear.
-For observability, that means the spike must verify that the Solid adapter
-exposes Inertia router lifecycle events, or that the app can wrap
-`@inertiajs/core` directly.
+maintenance and upstream contributions if protocol or telemetry gaps appear. For
+observability, that means the spike must verify that the Solid adapter exposes
+Inertia router lifecycle events, or that the app can wrap `@inertiajs/core`
+directly.
 
 This Hono shape also aligns the web Worker with the planned Bun + Hono
 `apps/sheets` service. The runtime exporters are different, but a large amount
 of app-owned observability code can be shared: request IDs, context helpers,
-structured log schemas, backend `tracedFetch()`, trace-context propagation,
-and safe API-call summaries.
+structured log schemas, backend `tracedFetch()`, trace-context propagation, and
+safe API-call summaries.
 
 The blocker is not Inertia. The blocker is the Cloudflare Workers trace context
 gap. Cloudflare Workers automatic tracing is useful for Worker-local handler and
@@ -488,8 +488,8 @@ For an Inertia-on-Workers spike, choose this:
   a small Inertia router event bridge
 - client adapter: `inertia-adapter-solid@1.0.0-beta.3`, with router event
   verification or a core-router wrapper
-- server adapter: Hono plus experimental `@hono/inertia`, with app-owned
-  logging middleware around route handlers and responses
+- server adapter: Hono plus experimental `@hono/inertia`, with app-owned logging
+  middleware around route handlers and responses
 - shared Hono observability: reuse request IDs, context helpers, structured log
   fields, backend fetch helpers, and trace propagation with the Bun + Hono
   sheets service
@@ -621,10 +621,8 @@ Needs project spike:
   https://inertiajs.com/docs/v3/advanced/asset-versioning
 - `@hono/inertia`:
   https://github.com/honojs/middleware/tree/main/packages/inertia
-- `@hono/inertia` npm:
-  https://www.npmjs.com/package/@hono/inertia
-- `inertia-adapter-solid`:
-  https://github.com/iksaku/inertia-adapter-solid
+- `@hono/inertia` npm: https://www.npmjs.com/package/@hono/inertia
+- `inertia-adapter-solid`: https://github.com/iksaku/inertia-adapter-solid
 - `inertia-adapter-solid` npm:
   https://www.npmjs.com/package/inertia-adapter-solid
 - OpenTelemetry browser docs:

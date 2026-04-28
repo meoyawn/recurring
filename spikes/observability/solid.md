@@ -1,71 +1,85 @@
-# Recommended Observability Stack for SolidStart Alpha 2 on Cloudflare Workers
+# Recommended Observability Stack for SolidStart Alpha 2
 
 As of April 28, 2026, the recommended production setup for `apps/web` as a
-SolidStart alpha 2 app served by Cloudflare Workers is:
+SolidStart alpha 2 app, whether served by Cloudflare Workers or by Node.js on
+the VPS, is:
 
 - browser tracing: OpenTelemetry browser SDK with document-load, fetch, XHR, and
   optional user-interaction instrumentation
 - Solid Router navigation telemetry: app-owned wrapper around route changes for
   user-visible navigation spans
-- SolidStart server telemetry: structured logs around server functions, API
-  routes, middleware, and backend API calls
-- Worker tracing: Cloudflare Workers automatic tracing for handler and outbound
-  `fetch()` subrequest spans
-- Worker logs: structured `console` JSON logs with request ID, Cloudflare Ray
-  ID, route, server-function/API-route marker, auth state, and API target
-- API propagation: explicit `traceparent` forwarding from client-side
-  SolidStart-generated same-origin HTTP requests through Worker API calls to the
-  Recurring API
-- transport and routing: OpenTelemetry Collector for app-owned browser/API
-  telemetry, plus Cloudflare OTLP export for Worker traces and logs
-- metrics: Web Vitals and route navigation measures from the browser, Cloudflare
-  Worker built-in metrics, API and database metrics from the backend
+- SolidStart server telemetry: app-owned OpenTelemetry spans and structured logs
+  around middleware, document requests, route data, server functions, API
+  routes, OAuth routes, and backend API calls
+- runtime tracing: app-owned Solid spans are the source of truth; Cloudflare
+  Worker automatic spans or Node.js runtime spans are useful extras
+- runtime logs: structured JSON logs with request ID, route,
+  server-function/API-route marker, auth state, API target, and runtime-specific
+  IDs such as Cloudflare Ray ID when present
+- API propagation: originate trace context in the Solid client or Solid server,
+  then explicitly forward `traceparent` and `tracestate` to the Recurring API
+- transport and routing: OpenTelemetry Collector for app-owned browser, Solid
+  server, and API telemetry, preferably on the same VPS as `apps/api` behind
+  Caddy; add Cloudflare OTLP export only when deploying on Workers
+- metrics: Web Vitals and route navigation measures from the browser,
+  Solid server request metrics, runtime/platform metrics, API metrics, and
+  database metrics from the backend
 - tracing backend: Tempo, Jaeger, Honeycomb, Sentry, Axiom, or another
   OTLP-compatible tracing system
 - log backend: Loki, Elasticsearch, OpenSearch, or another log store
 
 ## Verdict
 
-SolidStart is observable enough, but it does not provide a full observability
-adapter or a framework-level tracing model.
+SolidStart observability is solved at the app layer.
+
+SolidStart does not provide a full observability adapter or a framework-level
+tracing model, but it exposes enough runtime surfaces to instrument the app
+directly. The deployment runtime changes exporter plumbing and optional platform
+spans, not the observability model.
 
 That is acceptable for this app because the target shape keeps all privileged
-work behind the Cloudflare Worker:
+work behind the Solid server runtime:
 
 - browser renders the interactive UI
 - browser calls same-origin SolidStart routes or server functions
-- Worker calls the Recurring API declared by
+- Solid server originates or continues trace context for document requests,
+  server functions, route queries, actions, API routes, and OAuth routes
+- Solid server calls the Recurring API declared by
   `packages/openapi/spec/recurring.responsible.ts`
 - Go Echo API and PostgreSQL are instrumented normally downstream
 
-The main constraint is the same one as the Inertia spike: Cloudflare Workers
-automatic tracing is useful for Worker-local timing, but Cloudflare currently
-documents that exported Worker trace IDs are not propagated to other services.
-It also documents custom spans and attributes as roadmap work.
+Cloudflare Workers automatic tracing is useful for runtime-local handler,
+binding, and subrequest timing, but it is not the foundation of the story. If
+the app runs on Workers, platform spans supplement the app-owned Solid spans. If
+the app runs on Node.js on the VPS, the same app-owned spans export through the
+normal OpenTelemetry JavaScript SDK path.
 
 As of April 28, 2026, Hono now has experimental `@hono/inertia` middleware. That
-weakens SolidStart's deployment/observability advantage when the desired app
-model is Inertia-style page props: Inertia gets a concrete Hono integration
-point for route, component, prop-key, and response-mode logging. SolidStart can
-still be observed well, but it needs more app-owned conventions.
+gives Inertia a concrete Hono integration point for route, component, prop-key,
+and response-mode logging when the desired app model is Inertia-style page
+props. SolidStart can still be observed well, but it needs more app-owned
+conventions.
 
 So the pragmatic recommendation is:
 
 - use browser OpenTelemetry for document loads, soft navigations, and
-  same-origin HTTP calls generated by SolidStart client-side query/server
-  function/API-route transport
+  same-origin HTTP calls generated by SolidStart client-side query, server
+  function, and API-route transport
 - add app-owned Solid Router navigation spans because Solid Router does not emit
   an observability protocol
-- enable Cloudflare automatic Worker tracing for Worker-local handler, binding,
-  and subrequest timing
-- forward W3C `traceparent` headers manually from Worker requests to Recurring
-  API requests when the incoming request has them
+- add app-owned Solid server spans and logs in middleware, document handling,
+  route-data wrappers, server functions, actions, API routes, OAuth routes, and
+  backend fetch helpers
+- originate W3C trace context in the browser for post-boot work and in the Solid
+  server for document/SSR work without incoming context
+- forward W3C `traceparent` and `tracestate` from Solid server requests to
+  Recurring API requests
 - instrument the Go Echo API and PostgreSQL normally
-- correlate Worker traces with app traces by `request_id`, `cf_ray`, route, URL,
-  and timestamp until Cloudflare trace propagation matures
+- enable Cloudflare automatic Worker tracing or Node.js runtime instrumentation
+  as supplemental runtime visibility, not as the source of truth
 
-Do not choose SolidStart expecting one clean automatic trace from click to
-PostgreSQL through Cloudflare Workers today.
+Do not choose SolidStart expecting zero app instrumentation. Choose it if owning
+a small Solid observability layer is acceptable.
 
 ## Runtime Shape
 
@@ -76,11 +90,12 @@ Browser after JS boot
   |- document load span
   |- solid.route.navigation span
   |- client-side SolidStart transport fetch/XHR span with traceparent
-Cloudflare Worker
-  |- Cloudflare automatic fetch handler span
-  |- SolidStart route/API/server-function code
-  |- Cloudflare automatic outbound fetch span to Recurring API
-  |- structured logs with request_id/cf_ray/solid fields
+Solid server runtime: Cloudflare Worker or Node.js
+  |- app-owned document/API/server-function root span
+  |- app-owned Solid middleware/route/query/action/server-function spans
+  |- app-owned backend fetch span to Recurring API
+  |- structured logs with request_id/trace_id/solid fields
+  |- optional platform spans: Cloudflare handler/subrequest or Node runtime spans
 Go Echo API
   |- HTTP server span from traceparent
   |- app spans
@@ -93,26 +108,27 @@ This gives two practical views:
 
 - user-facing view: browser route transitions, same-origin RPC/API requests, API
   spans, DB spans
-- Worker-local view: Cloudflare handler timing, subrequest timing, CPU/wall
-  time, Cloudflare colo, Ray ID, outcome
+- runtime/platform view: Cloudflare handler/subrequest timing or Node.js runtime
+  timing, plus runtime-specific logs and metrics
 
-The ideal single trace needs Cloudflare to propagate trace context, or the app
-to own a Worker-compatible custom tracing layer. Cloudflare's current docs say
-automatic cross-service trace propagation is still in progress.
+The app-level trace starts at the first observable app boundary: browser for
+post-boot interactions, Solid server for first document/SSR/API requests without
+incoming trace context. Platform traces can be correlated with app traces, but
+the debugging path should not require platform traces to parent API spans.
 
 ## SolidStart Runtime Surfaces
 
 For this app, treat SolidStart as several observable surfaces rather than one
 single protocol:
 
-- document requests handled by the Worker
+- document requests handled by the Solid server runtime
 - UI route rendering in the browser
 - Solid Router soft navigations
 - SolidStart server functions generated from `"use server"`
 - route data loaded through SolidStart data APIs
 - API routes under `src/routes`
 - OAuth routes and redirects
-- outbound Worker `fetch()` calls to Google and the Recurring API
+- outbound server `fetch()` calls to Google and the Recurring API
 
 Unlike Inertia, SolidStart does not have a page-object protocol where initial
 HTML and later visits share a named JSON envelope. Its serialization path is for
@@ -149,9 +165,16 @@ not need to call `fetch()` directly for propagation to work. If SolidStart's
 client-side query or server-function transport uses either browser primitive,
 matching same-origin requests can receive `traceparent`.
 
-This does not apply to route queries that execute during the initial server
-render. Those run in the Worker before browser JavaScript starts, so there is no
-browser-injected `traceparent` for that path.
+Source check: current SolidStart alpha 2 server-function client runtime calls
+global `fetch()` against `/_server` and adds SolidStart headers such as
+`X-Server-Id` and `X-Server-Instance`. It does not mention `traceparent` or
+`tracestate`. Therefore trace propagation on these requests depends on
+OpenTelemetry fetch instrumentation and its allowed-URL configuration, not on a
+SolidStart data-fetching contract.
+
+Route queries that execute during the initial server render run before browser
+JavaScript starts, so the Solid server should originate server-side trace
+context for that path.
 
 Browser spans should include:
 
@@ -168,13 +191,20 @@ Browser spans should include:
 - `app.api_route.path`
 - `app.auth.state=anonymous|session`
 
-Configure fetch/XHR propagation only for allowed origins:
+Configure fetch/XHR propagation only for app traffic:
 
 - the same web origin
-- the browser OTLP collector endpoint, if using direct browser OTLP export
+- exclude the browser telemetry proxy route, if one is used
 
 For this app's intended shape, browser application traffic should only call the
 web origin. The browser should not call the Recurring API directly.
+
+Avoid direct browser export to the VPS collector unless the endpoint is designed
+for public browser ingestion. Browser code cannot safely hold collector
+authentication secrets. Prefer a same-origin telemetry proxy route in the Solid
+server runtime that forwards OTLP payloads to the Caddy-protected collector with
+a server-side secret. Configure browser OTel `ignoreUrls` so exporter calls to
+that telemetry endpoint do not generate recursive spans or inject trace context.
 
 ## Solid Router Navigation Spans
 
@@ -219,23 +249,47 @@ where the app knows the logical route and feature name.
 ## Server Functions And Queries
 
 Treat SolidStart server functions as same-origin RPC requests when they are
-called from the browser after boot. They execute in the Worker, but the browser
-side is framework-owned transport, not app-owned `fetch()` code.
+called from the browser after boot. They execute in the Solid server runtime,
+but the browser side is framework-owned transport, not app-owned `fetch()` code.
 
 Treat route `query()` calls separately:
 
-- during initial SSR, the query function runs in the Worker as part of the
-  document request
-- during client navigation or refetch, SolidStart may call back to the Worker
-  through same-origin fetch/XHR transport
-- only the client-side transport path can receive browser-injected `traceparent`
+- during initial SSR, the query function runs in the Solid server runtime as
+  part of the document request
+- during client navigation or refetch, SolidStart may call back to the Solid
+  server through same-origin fetch/XHR transport
+- the client-side transport path can continue browser-originated trace context
+  because browser OTel instruments the underlying `fetch()`
+- the initial SSR path should continue the Solid server root span created for
+  the document request
+
+Inside `"use server"` `query()` and `action()` functions, use
+`getRequestEvent()` from `solid-js/web` to access the current request context.
+Do not look for an `APIEvent` argument there; `APIEvent` is the explicit
+argument for API route handlers such as `GET(event: APIEvent)`.
+
+Request event fields useful for observability:
+
+- `event.request.headers.get("traceparent")`
+- `event.request.headers.get("tracestate")`
+- `event.request.headers.get("cf-ray")`
+- `event.response.headers`
+- `event.locals`
+- `event.nativeEvent`
+
+For initial SSR queries, `getRequestEvent()` exists and should expose the
+request-local context created by server middleware. For client-side
+server-function/query/action calls, the same code can see `traceparent` if
+browser fetch/XHR propagation injected it into the `/_server` request.
 
 Recommended server-function logs:
 
 - `event=solid.server_function`
 - `request_id`
-- `cf_ray`
-- `traceparent_present`
+- `trace_id`
+- `span_id`
+- `cf_ray` when present
+- `trace_context_source=client|server`
 - `function`
 - `route`
 - `method`
@@ -266,18 +320,25 @@ from the frontend spike is the right place to log:
 - backend calls
 - status
 
-## Worker Tracing
+## Runtime Tracing
 
-Enable Cloudflare Workers traces in Wrangler.
+Treat runtime tracing as supplemental to app-owned Solid tracing.
+
+For Cloudflare Workers deployments, enable Cloudflare Workers traces in
+Wrangler:
 
 ```toml
 [observability.traces]
 enabled = true
+destinations = ["recurring-otel-traces"]
 head_sampling_rate = 0.05
+persist = false
 
 [observability.logs]
 enabled = true
+destinations = ["recurring-otel-logs"]
 head_sampling_rate = 0.6
+persist = false
 ```
 
 Cloudflare automatic Worker tracing currently covers:
@@ -289,7 +350,7 @@ Cloudflare automatic Worker tracing currently covers:
 It also exports OpenTelemetry-compatible traces and logs to configured
 destinations.
 
-Important limitations:
+Important Cloudflare limitations:
 
 - exported Worker trace IDs are not propagated to other services
 - custom app spans and attributes inside Workers are not generally available yet
@@ -297,9 +358,46 @@ Important limitations:
 - non-I/O spans can report `0 ms`
 - Worker OTLP metrics export is not currently supported
 
-For SolidStart, this means Cloudflare can show that a server function or route
-handler made a slow API subrequest, but an external backend may not
-automatically show that Worker span as the parent of the Go API span.
+For SolidStart on Workers, this means Cloudflare can show that a server function
+or route handler made a slow API subrequest, but those platform spans should be
+treated as extra runtime evidence. The app-owned Solid span and the forwarded
+trace context remain authoritative.
+
+For Node.js deployments, use the normal OpenTelemetry JavaScript SDK, HTTP/fetch
+instrumentation, and OTLP exporter path. The same Solid middleware, server
+function, API-route, and backend-fetch instrumentation should be shared between
+the Workers and Node runtime targets where possible.
+
+## Trace Sink
+
+Use the same VPS that runs `apps/api` as the first trace sink unless traffic
+volume proves that it needs a separate host.
+
+Recommended shape:
+
+- OpenTelemetry Collector listens on loopback for local API telemetry:
+  `127.0.0.1:4318`
+- Caddy exposes HTTPS OTLP HTTP endpoints for remote runtime export:
+  `/v1/traces` and `/v1/logs`
+- Cloudflare Workers Observability destinations, if used, point at the Caddy
+  HTTPS endpoints and include an ingestion secret as a custom header
+- Node.js Solid server export can use loopback when it runs on the same VPS, or
+  the same Caddy-protected OTLP endpoint when it runs elsewhere
+- `apps/api` exports traces to the local collector over OTLP HTTP and does not
+  need to cross Caddy
+- browser telemetry goes to a same-origin Solid server telemetry proxy, or is
+  disabled until a public-safe browser ingestion path exists
+
+Current repo shape supports this direction but does not implement it yet:
+
+- `apps/api` is plain Go `net/http`, defaulting to `:8080`
+- `apps/api/README.md` already says production API is behind Caddy
+- `ops/ansible/roles/caddy/tasks/main.yml` is still a placeholder
+
+Do not expose the collector's raw HTTP receiver broadly without authentication.
+If Caddy terminates TLS for public OTLP ingestion, restrict accepted paths to
+OTLP endpoints and require a secret header. Keep the collector receiver itself
+bound to loopback or a private interface.
 
 ## Trace Propagation
 
@@ -308,38 +406,57 @@ Use W3C Trace Context headers.
 For browser-initiated same-origin HTTP requests:
 
 - browser fetch/XHR instrumentation patches `window.fetch` and `XMLHttpRequest`
-- SolidStart client-side query/server-function/API-route transport uses one of
-  those browser primitives
-- matching same-origin requests receive `traceparent`
-- Worker receives `traceparent`
-- SolidStart server function or API route runs in the Worker
-- Worker forwards `traceparent` when calling the Recurring API
+- SolidStart client-side server-function transport uses `fetch()` against
+  `/_server`; API-route calls made through browser fetch/XHR use the same
+  browser primitives
+- matching same-origin requests receive `traceparent` when OpenTelemetry
+  fetch/XHR propagation is configured for the web origin
+- Solid server runtime receives `traceparent`
+- SolidStart server function, `query()`, `action()`, or API route runs in the
+  Solid server runtime
+- server functions, queries, and actions read headers through `getRequestEvent()`
+  while API routes receive `APIEvent`
+- Solid server backend-fetch helper forwards `traceparent` and `tracestate`
+  when calling the Recurring API
 - Echo extracts it and creates downstream spans
 - PostgreSQL spans attach under the API request span
 
-Until Cloudflare automatic trace propagation is fixed, prefer forwarding the
-incoming `traceparent` unchanged instead of inventing a Worker child span that
-is never exported. This keeps API and database spans connected to the browser
-network span.
+For Solid server-originated work:
+
+- middleware starts a request root span when no incoming trace context exists
+- document SSR, route queries, API routes, OAuth routes, and backend fetches
+  run under that request context
+- the backend-fetch helper injects the current context into Recurring API
+  requests
+- Echo extracts it and creates downstream spans
+- PostgreSQL spans attach under the API request span
+
+This makes first document/SSR requests observable without depending on browser
+JavaScript or Cloudflare platform propagation.
 
 For first HTML visits:
 
-- browser normally does not send `traceparent` on the top-level navigation
-- SolidStart route queries needed for first-response data run during that Worker
-  document request
-- Worker automatic tracing creates a Worker trace
+- browser may not send `traceparent` on the top-level navigation
+- SolidStart route queries needed for first-response data run during the Solid
+  server document request
+- for the current intended app shape, initial route data is in the HTML response
+- Solid server middleware creates the app-level server trace
+- optional runtime tracing creates Cloudflare or Node platform/runtime spans
 - browser document-load tracing can measure the load after boot
-- backend API calls made while rendering initial route data do not have a
-  browser-injected `traceparent`; use `request_id` and `cf_ray` for correlation
+- backend API calls made while rendering initial route data continue the
+  server-originated trace context
+- browser document-load spans can be correlated with server logs by
+  `request_id`, route, URL, timestamp, and response headers if the app chooses
+  to expose a safe request ID
 
-Do not rely on a clean first-load browser-to-Worker trace unless a spike proves
-that the Worker can expose or create usable trace context and export matching
-spans.
+Do not make Cloudflare automatic trace propagation part of the correctness
+story. It is useful runtime evidence when available.
 
 ## Initial HTML And Route Data
 
 The preferred app shape from `spikes/frontend/solid.md` is `ssr: true` plus
-client-rendered UI boundaries.
+client-rendered UI boundaries. Initial route data is expected to be serialized
+into the first HTML response.
 
 Track initial HTML separately from client-rendered route DOM:
 
@@ -351,11 +468,13 @@ Track initial HTML separately from client-rendered route DOM:
 - redirect status
 - backend API calls
 
-Worker logs should include:
+Solid server logs should include:
 
 - `event=solid.document`
 - `request_id`
-- `cf_ray`
+- `trace_id`
+- `span_id`
+- `cf_ray` when present
 - `method`
 - `path`
 - `route`
@@ -373,14 +492,9 @@ Browser telemetry should record:
 - hydration or mount error
 
 Because the route body is intended to render in the browser, do not treat lack
-of app-body SSR as an observability failure. The measurable question is whether
-the initial route data arrives in the first HTML response or in a follow-up
-same-origin request.
-
-If the data arrives in the first HTML response, the browser has no opportunity
-to inject `traceparent` for that query. If the data arrives through a follow-up
-same-origin SolidStart request after boot, browser fetch/XHR instrumentation can
-inject `traceparent` even though app code only calls `query()`.
+of app-body SSR as an observability failure. Initial route data runs under the
+server-originated request trace. Later refetches or server-function calls can
+continue browser-originated trace context through fetch/XHR instrumentation.
 
 ## Later Client Visits
 
@@ -408,14 +522,16 @@ describe the network. Keep both.
 
 ## Backend API Calls
 
-Centralize Worker-to-Recurring API calls behind a small server-only fetch
+Centralize Solid-server-to-Recurring API calls behind a small server-only fetch
 helper.
 
 The helper should:
 
-- read incoming `traceparent` and `tracestate` from the Worker request when
-  present
-- forward them to the Recurring API when present
+- read the current OpenTelemetry context, or incoming `traceparent` and
+  `tracestate` from the Solid server request when present
+- accept a `RequestEvent`/`APIEvent` or call `getRequestEvent()` internally, so
+  it works from server functions, `query()`, `action()`, and API routes
+- forward trace context to the Recurring API
 - attach `x-request-id`
 - attach a safe caller marker such as `recurring-web`
 - log method, path, status, duration, retry count, and error class
@@ -425,16 +541,18 @@ Recommended attributes/log fields:
 
 - `event=recurring_api.fetch`
 - `request_id`
-- `cf_ray`
+- `trace_id`
+- `span_id`
+- `cf_ray` when present
 - `api.method`
 - `api.path`
 - `api.status`
 - `api.duration_ms`
 - `api.error_class`
-- `traceparent_present`
+- `trace_context_source=client|server`
 
 This is the key project-specific rule: browser code should not call the
-Recurring API directly, so backend API observability belongs in Worker
+Recurring API directly, so backend API observability belongs in Solid
 server-side code.
 
 ## Metrics
@@ -450,15 +568,16 @@ Browser metrics:
 - server function/API route request duration
 - route error count
 
-Worker metrics:
+Runtime/platform metrics:
 
 - request count
 - error rate
-- CPU time
+- CPU time or process CPU
 - wall time
 - subrequest count
 - status code distribution
-- Cloudflare colo
+- Cloudflare colo for Workers deployments
+- memory, event loop delay, and process uptime for Node.js deployments
 
 API metrics:
 
@@ -470,19 +589,20 @@ API metrics:
 
 Cloudflare currently exports Workers traces and logs through OTLP, but not
 Worker infrastructure metrics or custom metrics. Use Cloudflare dashboards or a
-separate metrics path for Worker metrics.
+separate metrics path for Worker metrics when running on Workers. For Node.js,
+use normal process/runtime metrics.
 
 ## Logging
 
 Use structured JSON logs everywhere.
 
-Minimum Worker log fields:
+Minimum Solid server log fields:
 
 - `service=recurring-web`
 - `environment`
 - `event`
 - `request_id`
-- `cf_ray`
+- `cf_ray` when present
 - `trace_id`
 - `span_id`
 - `method`
@@ -520,11 +640,11 @@ Do not log:
 
 `apps/web/src/lib/googleAuth.ts` already has the right server-side shape:
 
-- Worker handles `/auth/google/start`
-- Worker handles `/auth/google/callback`
-- Worker calls Google token and userinfo endpoints
-- Worker calls the Recurring API
-- Worker sets same-origin cookies
+- Solid server handles `/auth/google/start`
+- Solid server handles `/auth/google/callback`
+- Solid server calls Google token and userinfo endpoints
+- Solid server calls the Recurring API
+- Solid server sets same-origin cookies
 - browser receives redirects
 
 Add OAuth-specific logs around each external step:
@@ -539,7 +659,8 @@ Add OAuth-specific logs around each external step:
 Recommended fields:
 
 - `request_id`
-- `cf_ray`
+- `cf_ray` when present
+- `trace_id`
 - `oauth.state_cookie_present`
 - `oauth.error_present`
 - `google.status`
@@ -550,20 +671,23 @@ Recommended fields:
 Never log the authorization code, access token, session cookie, or raw Google
 profile.
 
-## Adapter Impact
+## Runtime Impact
 
-SolidStart alpha 2 on Cloudflare Workers has more moving parts than a plain SPA:
+SolidStart alpha 2 has more moving parts than a plain SPA regardless of runtime:
 
 - SolidStart alpha 2
 - Vite 7
 - `@solidjs/vite-plugin-nitro-2`
 - Vinxi/Nitro server output
-- Cloudflare Workers runtime
-- Cloudflare Workers Assets or generated Wrangler config
-- optional Node compatibility for async local storage
+- deployment preset/runtime output
+- Cloudflare Workers runtime and generated Wrangler config, if deployed on
+  Workers
+- Node.js server output and process/runtime OpenTelemetry setup, if deployed on
+  the VPS
+- async context behavior for request-local trace context
 
-Observability should be verified against the generated Worker output, not only
-against `vite dev`.
+Observability should be verified against the generated deployment output, not
+only against `vite dev`.
 
 Current `apps/web` notes:
 
@@ -575,15 +699,20 @@ Current `apps/web` notes:
   from the browser
 - `apps/web/src/lib/googleAuth.ts` already models server-side OAuth and backend
   API calls
-- the generated `.output/nitro.json` observed during the spike used the
-  `node-server` preset, so Cloudflare Worker output still needs explicit
-  verification
+- Cloudflare Worker output has been confirmed as one intended deployment target,
+  but Node.js on the VPS can use the same app-owned instrumentation model
+- compiled client output from the spike shows SolidStart server functions use
+  `fetch()` and SolidStart-specific `X-Server-*` headers, not trace headers
+- `apps/api` currently has no OpenTelemetry middleware or exporter
+- the Caddy Ansible role is a placeholder, so the VPS trace sink and Caddy OTLP
+  proxy still need implementation
 
 For the frontend spike's intended shape, move toward:
 
 - `ssr: true` or no `ssr` override
-- Cloudflare module Worker preset
-- `nodejs_compat` if async local storage needs it
+- Cloudflare module Worker preset or Node.js server output, depending on
+  deployment choice
+- `nodejs_compat` if Workers need async local storage
 - server-only Recurring API fetch helper
 - browser calls only same-origin SolidStart routes/server functions
 
@@ -593,22 +722,25 @@ For `apps/web`, choose this:
 
 - browser: OpenTelemetry document-load, fetch, XHR, Web Vitals, and app-owned
   Solid Router navigation spans
-- SolidStart: structured logs in middleware, server functions, API routes, and
-  route-data wrappers
-- Worker: Cloudflare automatic traces and logs with OTLP export
-- propagation: forward incoming `traceparent`/`tracestate` from client-side
-  SolidStart same-origin HTTP requests to the Recurring API; correlate initial
-  SSR route-data API calls by `request_id` and `cf_ray`
+- SolidStart: app-owned OpenTelemetry spans and structured logs in middleware,
+  document handling, server functions, queries, actions, API routes, route-data
+  wrappers, backend fetches, and OAuth routes
+- runtime: use Cloudflare automatic traces/logs when deployed on Workers, or
+  Node.js OpenTelemetry runtime instrumentation when deployed on the VPS
+- propagation: originate trace context in the browser or Solid server, then
+  forward `traceparent` and `tracestate` from Solid server code to the Recurring
+  API
 - backend: OpenTelemetry Go SDK, Echo middleware, PostgreSQL instrumentation,
   and structured logs
-- correlation: `request_id`, `cf_ray`, route, URL, timestamp, and safe user hash
+- correlation: `request_id`, `trace_id`, optional `cf_ray`, route, URL,
+  timestamp, and safe user hash
 
-This gives useful production debugging without betting on unstable framework or
-Worker custom-span support.
+This gives useful production debugging without making Cloudflare automatic
+tracing or runtime-specific custom-span support critical.
 
 If deployment and observability are weighted above keeping SolidStart, compare
 this with the Inertia/Hono spike before standardizing. `@hono/inertia` gives
-Inertia a clearer Worker route boundary and a named page-object protocol, while
+Inertia a clearer server route boundary and a named page-object protocol, while
 SolidStart gives a more framework-native continuation of the current app.
 
 ## Avoid
@@ -616,13 +748,12 @@ SolidStart gives a more framework-native continuation of the current app.
 - treating SolidStart serialization as an Inertia-style page-props protocol
 - assuming SolidStart route wrappers will produce Inertia-like observability
   without explicit labels and log fields
-- relying on Cloudflare Worker traces to automatically parent Go API traces
+- relying on runtime/platform auto spans instead of app-owned Solid spans
 - adding browser calls directly to the Recurring API
 - logging serialized route data, OAuth tokens, session IDs, or Google profile
   payloads
-- building a Worker custom tracing layer before Cloudflare's custom span support
-  is mature
-- assuming `vite dev` observability matches Cloudflare Worker production output
+- making Cloudflare automatic trace propagation critical to correctness
+- assuming `vite dev` observability matches production deployment output
 - adding high-cardinality route params or user identifiers as raw span
   attributes
 
@@ -631,32 +762,42 @@ SolidStart gives a more framework-native continuation of the current app.
 Build a thin vertical slice before standardizing.
 
 1. Switch `apps/web` to the SolidStart shape from `spikes/frontend/solid.md`.
-2. Configure Cloudflare Worker output and Wrangler observability.
-3. Add browser OpenTelemetry with document-load, fetch, and XHR instrumentation.
-4. Add a root route observer that records `solid.route.navigate` spans.
-5. Add a server-only Recurring API fetch helper that forwards `traceparent`.
-6. Move the health check behind a server function or API route.
-7. Add structured logs for document, server function/API route, backend fetch,
-   and OAuth callback paths.
-8. Deploy to a staging Worker.
-9. Verify these flows:
+2. Add browser OpenTelemetry with document-load, fetch, and XHR instrumentation.
+3. Add a root route observer that records `solid.route.navigate` spans.
+4. Add Solid server middleware that creates request IDs, originates or extracts
+   trace context, and records document/API/server-function logs.
+5. Add app-owned spans and structured logs for route data, server functions,
+   actions, API routes, backend fetch, and OAuth callback paths.
+6. Add a server-only Recurring API fetch helper that injects current trace
+   context into API calls.
+7. Move the health check behind a server function or API route.
+8. Deploy an OpenTelemetry Collector on the API VPS and expose only authenticated
+   OTLP HTTP trace/log endpoints through Caddy.
+9. Configure the chosen Solid runtime exporter:
+   Cloudflare Workers Observability destinations for Workers, or Node.js OTLP
+   export for VPS deployment.
+10. Deploy to staging on the intended runtime.
+11. Verify these flows:
    - first document load
    - soft navigation
    - server function/API route call
-   - health API call through Worker to Echo
+   - health API call through Solid server to Echo
    - Google OAuth start and callback failure path
-10. Confirm whether traces join automatically anywhere. If not, document the
-    exact correlation fields needed in the tracing/log backend.
+12. Confirm app-level traces connect through Solid server, Echo, and PostgreSQL.
+    Document runtime/platform span correlation fields separately.
 
 Acceptance criteria:
 
 - browser route span is visible
-- same-origin SolidStart client-side transport fetch/XHR span carries
-  `traceparent`
-- Worker logs include `request_id` and `cf_ray`
-- Worker automatic trace shows handler and outbound `fetch()`
+- same-origin SolidStart client-side server-function `fetch()` span carries
+  `traceparent` after OpenTelemetry fetch instrumentation is configured
+- first document request has a Solid server root span even without browser JS
+- Solid server logs include `request_id`, `trace_id`, route, status, and
+  duration
+- optional Worker or Node runtime spans are visible when enabled
 - Echo API trace continues from forwarded `traceparent`
 - no browser request goes directly to the Recurring API origin
+- no browser request sends collector secrets directly
 - no sensitive OAuth/session values appear in logs
 
 ## Evidence Level
@@ -666,22 +807,34 @@ Known-supported:
 - SolidStart supports SSR, CSR, server functions, serialization, middleware, and
   Nitro deployment presets.
 - SolidStart v2 defaults serialization to JSON for stronger CSP compatibility.
+- SolidStart request context is available on the server through
+  `getRequestEvent()` from `solid-js/web`; the context includes request,
+  response, locals, and the native H3 event.
+- SolidStart alpha 2 client runtime calls browser `fetch()` for client-side
+  server-function transport and does not add `traceparent` itself.
 - Cloudflare documents SolidStart on Workers as beta.
 - Cloudflare Workers automatic tracing captures handler, outbound `fetch()`, and
   supported binding spans.
 - Cloudflare Workers can export OTLP traces and logs.
+- Cloudflare Workers Observability destinations can target OTLP HTTP trace/log
+  endpoints and attach custom headers.
+- Node.js deployments can use the normal OpenTelemetry JavaScript SDK and OTLP
+  exporter path.
+- OTLP HTTP uses `/v1/traces` and `/v1/logs` endpoints by default, and the
+  OpenTelemetry Collector OTLP receiver commonly listens on HTTP port `4318`.
 - OpenTelemetry browser instrumentation supports document-load, fetch, XHR, and
   user-interaction instrumentation, with browser instrumentation still marked
   experimental.
 
 Less proven:
 
-- SolidStart alpha 2 plus `@solidjs/vite-plugin-nitro-2` on Cloudflare Workers
-  as a long-lived production target.
+- SolidStart alpha 2 plus `@solidjs/vite-plugin-nitro-2` as a long-lived
+  production target.
 - A global `clientOnly` route boundary around all app UI.
 - High-quality route navigation spans from Solid Router without app-owned
   wrappers.
-- Clean end-to-end trace parenting through Cloudflare Worker OTLP export.
+- Exact async context behavior across both Workers and Node.js deployment
+  outputs.
 
 Treat the first implementation as a production-oriented spike, not a final
 observability platform.
@@ -696,6 +849,10 @@ observability platform.
   https://docs.solidjs.com/solid-start/reference/server/use-server
 - SolidStart `createMiddleware`:
   https://docs.solidjs.com/solid-start/reference/server/create-middleware
+- SolidStart request events:
+  https://docs.solidjs.com/solid-start/advanced/request-events
+- SolidStart `getServerFunctionMeta`:
+  https://docs.solidjs.com/solid-start/reference/server/get-server-function-meta
 - SolidStart `FileRoutes`:
   https://docs.solidjs.com/solid-start/reference/routing/file-routes
 - Solid Router navigation:
@@ -712,6 +869,22 @@ observability platform.
   https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/
 - OpenTelemetry JavaScript browser:
   https://opentelemetry.io/docs/languages/js/getting-started/browser/
+- OpenTelemetry JavaScript Node.js:
+  https://opentelemetry.io/docs/languages/js/getting-started/nodejs/
+- OpenTelemetry JavaScript exporters:
+  https://opentelemetry.io/docs/languages/js/exporters/
+- OpenTelemetry fetch instrumentation:
+  https://open-telemetry.github.io/opentelemetry-js/modules/_opentelemetry_instrumentation-fetch.html
+- OpenTelemetry propagation:
+  https://opentelemetry.io/docs/languages/js/propagation/
+- OpenTelemetry Collector configuration:
+  https://opentelemetry.io/docs/collector/configuration/
+- OpenTelemetry OTLP specification:
+  https://opentelemetry.io/docs/specs/otlp/
+- SolidStart server-function client runtime source:
+  https://github.com/solidjs/solid-start/blob/main/packages/start/src/server/server-runtime.ts
+- SolidStart server-function handler source:
+  https://github.com/solidjs/solid-start/blob/main/packages/start/src/server/server-functions-handler.ts
 - Frontend SolidStart spike: ../frontend/solid.md
 - Inertia observability spike: ./inertia.md
 - `@hono/inertia`:
