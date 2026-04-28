@@ -7,10 +7,8 @@ tasks:
       - "apps/**/*"
       - "ops/**/*"
 
-  install:
-    desc: Install Bun deps for all workspaces
-    cmds:
-      - bun install
+  deps:bun:
+    cmd: bun update --latest -i --filter "*"
 
   dev:web:
     desc: SolidStart dev server
