@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "dev": "Runs Vite dev server with fast rebuilds and HMR.",
+    "preview": "Serves the production build locally after `vite build`."
+  }
+}

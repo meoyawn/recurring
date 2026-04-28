@@ -153,6 +153,7 @@ Known-supported:
 
 - SolidStart supports SSR, CSR, and server functions.
 - `clientOnly` is documented for components and entire pages.
+- SolidStart 2 is moving to a pure Vite-based system.
 - Community examples use `clientOnly` for browser-only pages/widgets such as
   charts, maps, data grids, and DOM-dependent libraries.
 
@@ -170,8 +171,7 @@ Less proven:
 - Keep `entry-server.tsx` standard.
 - Add a `ClientRoutes` boundary if route data can load after client start.
 - Use per-route wrappers for routes that need first-response props.
-- Configure Nitro for Cloudflare Workers using a Cloudflare worker/module preset
-  rather than the default Node server preset.
+- Use the SolidStart 2 Vite-based deployment path for Cloudflare Workers.
 - Call the API declared by `packages/openapi/spec/recurring.responsible.ts` from
   Cloudflare Worker server code, not from browser code.
 
@@ -183,4 +183,6 @@ Less proven:
   https://docs.solidjs.com/solid-start/advanced/serialization
 - SolidStart `"use server"`:
   https://docs.solidjs.com/solid-start/reference/server/use-server
+- SolidStart 2 public roadmap:
+  https://github.com/solidjs/solid-start/discussions/1960
 - Inertia protocol: https://www.inertiajs.com/the-protocol

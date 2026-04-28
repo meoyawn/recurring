@@ -4,8 +4,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite dev",
-    "preview": "vite preview",
-    "start": "vite start"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@solidjs/meta": "^0.29.4",
@@ -21,5 +20,6 @@
   },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "x-package-json-docs": "docs/package.jsonc"
 }
