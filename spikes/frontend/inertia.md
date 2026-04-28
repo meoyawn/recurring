@@ -28,6 +28,9 @@ This is not blocked by the Cloudflare Workers runtime. The real blockers are
 adapter maturity and migration choices:
 
 - Official Inertia client adapters are React, Vue, and Svelte, not Solid.
+- The current app preference is still to keep Solid and use the community
+  `inertia-adapter-solid` package, accepting fork maintenance and upstream
+  contribution work as an owned project cost.
 - Official Inertia server adapters are Laravel, Rails, Phoenix, and Django.
 - Inertia does not document a first-party Cloudflare Workers server adapter in
   its official server setup path.
@@ -40,10 +43,15 @@ adapter maturity and migration choices:
   deployment wiring.
 - Inertia SSR requires Node.js 22 or higher in the official deployment model.
   That affects component HTML pre-rendering only, not first-response page JSON.
+- The local migration cost looks acceptable because `apps/web` is currently a
+  small SolidStart alpha surface, while `apps/sheets` is already planned as a
+  Bun + Hono service. A Hono-owned web app gives both apps similar request,
+  routing, fetch, and observability boundaries.
 
 Use Inertia on Workers only as a spike unless the team is willing to:
 
-- Use React, Vue, or Svelte, or accept/build a Solid Inertia client adapter.
+- Use the freshest `inertia-adapter-solid` beta and accept maintaining a fork or
+  contributing fixes upstream.
 - Spike experimental `@hono/inertia` and verify the protocol edges needed by
   this app.
 - Move page routing and page data loading into Worker routes.
@@ -225,6 +233,35 @@ Remaining risks:
 - Official client support is still React, Vue, and Svelte. Solid still requires
   community adapter risk.
 
+## Solid Adapter Choice
+
+The current preferred client path is Solid with `inertia-adapter-solid`, not a
+switch to React, Vue, or Svelte.
+
+Use the freshest published beta:
+
+- `inertia-adapter-solid@1.0.0-beta.3`, published April 18, 2026.
+- Do not start from stable `0.3.1` for this spike.
+- Stable `0.3.1` depends on `@inertiajs/core ^1.3.0`.
+- Beta `1.0.0-beta.3` depends on `@inertiajs/core ^2.2.11`.
+- Current Inertia docs are v3, and current `@inertiajs/core` is `3.0.3`, so
+  the spike must verify whether beta behavior is sufficient or whether the fork
+  needs a core-version update.
+
+This changes the risk profile. The Solid adapter is still community software,
+but the team is willing to maintain a fork and contribute upstream. Treat that
+as a known dependency ownership cost, not an automatic blocker.
+
+The Solid adapter spike must verify:
+
+- `createInertiaApp()` boots from the `@hono/inertia` root page payload.
+- `Link` and programmatic visits produce correct Inertia request headers.
+- Router events are available for observability hooks, or can be wrapped through
+  `@inertiajs/core`.
+- Forms, validation errors, redirects, partial reloads, and asset mismatch
+  behavior match the app's needed subset.
+- SSR stays disabled for Worker deployment.
+
 ## Inertia SSR Elsewhere
 
 Use Inertia SSR elsewhere only if server-rendered component HTML matters:
@@ -245,6 +282,8 @@ Known-supported:
 - Inertia official server adapters do not include Cloudflare Workers or Hono.
 - `@hono/inertia` exists as an experimental Hono middleware package and provides
   core Inertia response-mode handling for Hono routes.
+- `inertia-adapter-solid@1.0.0-beta.3` exists and uses the newer
+  `@inertiajs/core` v2 line compared with stable `0.3.1`.
 - Hono supports Cloudflare Workers and exposes Worker bindings through `c.env`.
 - Inertia SSR requires Node.js 22 or higher.
 - Cloudflare Workers support standard Fetch APIs.
@@ -254,7 +293,8 @@ Known-supported:
 Needs project spike:
 
 - `@hono/inertia` integration on Cloudflare Workers.
-- Solid Inertia client adapter suitable for this app.
+- `inertia-adapter-solid@1.0.0-beta.3` suitability for this app, including any
+  fork required for Inertia v3/core compatibility.
 - OAuth, cookies, and Recurring API behavior on preview and production Worker
   domains.
 - Asset version mismatch behavior.
@@ -268,8 +308,7 @@ a viable Hono runtime model with a newly available experimental adapter.
 
 Build the smallest useful Worker-owned Inertia spike:
 
-- Choose client adapter: React/Vue/Svelte for official support, or Solid only if
-  community adapter risk is accepted.
+- Use `inertia-adapter-solid@1.0.0-beta.3` as the client adapter.
 - Start with `@hono/inertia` and keep SSR disabled.
 - Serve Vite-built client assets from the Worker deployment.
 - Port one authenticated page route into a Worker route handler.
@@ -284,11 +323,13 @@ Build the smallest useful Worker-owned Inertia spike:
 - Move data reads and mutations behind Worker-owned Inertia page props or form
   actions.
 - Keep Inertia SSR disabled.
+- Keep any Solid adapter fork small and upstreamable.
 
 Acceptance checks:
 
 - First response includes correct page props.
 - Client navigation requests JSON without full reload.
+- Solid `Link` or programmatic visits send the expected Inertia headers.
 - Browser does not call the Recurring API directly.
 - Asset version mismatch returns the expected Inertia reload behavior.
 - Google OAuth callback sets cookies and redirects on a real Cloudflare preview.
@@ -318,3 +359,6 @@ Acceptance checks:
   https://www.honojs.com/docs/getting-started/cloudflare-workers
 - `@hono/inertia`: https://github.com/honojs/middleware/tree/main/packages/inertia
 - `@hono/inertia` npm: https://www.npmjs.com/package/@hono/inertia
+- `inertia-adapter-solid`: https://github.com/iksaku/inertia-adapter-solid
+- `inertia-adapter-solid` npm:
+  https://www.npmjs.com/package/inertia-adapter-solid
