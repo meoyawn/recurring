@@ -1,7 +1,21 @@
 version: "3"
 
 tasks:
+  build:
+    desc: Build production web app
+    cmds:
+      - bun vite build
+
+  dev:
+    desc: Run Vite dev server
+    cmds:
+      - bun vite dev
+
+  preview:
+    desc: Preview production build
+    cmds:
+      - bun vite preview
+
   clean:
-    dir: "{{.TASKFILE_DIR}}"
     cmds:
       - rm -rf .nitro/ .output/ dist/

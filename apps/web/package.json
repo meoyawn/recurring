@@ -1,11 +1,6 @@
 {
   "name": "@recurring/web",
   "type": "module",
-  "scripts": {
-    "build": "vite build",
-    "dev": "vite dev",
-    "preview": "vite preview"
-  },
   "dependencies": {
     "@solidjs/meta": "^0.29.4",
     "@solidjs/router": "^0.16.1",
