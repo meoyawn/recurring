@@ -13,6 +13,9 @@ served by Cloudflare Workers is:
   ID, route, Inertia component, Inertia request mode, and API target
 - Hono adapter telemetry: structured logging around `@hono/inertia`
   `c.render(component, props)` calls and response-mode decisions
+- shared Hono observability surface with the Bun + Hono `apps/sheets` service:
+  request IDs, request-local context, structured log fields, backend fetch
+  helpers, trace-context forwarding, and API-call summaries
 - API propagation: explicit `traceparent` forwarding from browser Inertia
   requests through Worker API calls
 - transport and routing: OpenTelemetry Collector for app-owned browser/API
@@ -38,6 +41,19 @@ concrete Hono integration point for observability: route handlers call
 `c.render(component, props)`, the middleware chooses HTML, Inertia JSON, or
 props JSON response mode, and asset-version mismatches return `409` with
 `X-Inertia-Location`.
+
+The client adapter choice is also now more concrete. The current app direction
+is Solid with the freshest `inertia-adapter-solid` beta, accepting fork
+maintenance and upstream contributions if protocol or telemetry gaps appear.
+For observability, that means the spike must verify that the Solid adapter
+exposes Inertia router lifecycle events, or that the app can wrap
+`@inertiajs/core` directly.
+
+This Hono shape also aligns the web Worker with the planned Bun + Hono
+`apps/sheets` service. The runtime exporters are different, but a large amount
+of app-owned observability code can be shared: request IDs, context helpers,
+structured log schemas, backend `tracedFetch()`, trace-context propagation,
+and safe API-call summaries.
 
 The blocker is not Inertia. The blocker is the Cloudflare Workers trace context
 gap. Cloudflare Workers automatic tracing is useful for Worker-local handler and
@@ -113,7 +129,7 @@ Browser spans should include:
 - `service.name=recurring-web`
 - `deployment.environment`
 - `app.framework=inertia`
-- `app.frontend_adapter=react|vue|svelte|solid-community`
+- `app.frontend_adapter=solid-community-beta`
 - `app.inertia.component`
 - `app.inertia.visit.method`
 - `app.inertia.visit.url`
@@ -417,14 +433,15 @@ The frontend spike now identifies `@hono/inertia` as the preferred adapter
 candidate:
 
 - no official Solid client adapter
+- current preference is `inertia-adapter-solid@1.0.0-beta.3`
 - no official Inertia Cloudflare Workers server adapter in the Inertia docs
 - experimental Hono-maintained `@hono/inertia` middleware exists
 
 For observability, the adapter choice mostly changes where hooks are installed:
 
 - React/Vue/Svelte official adapters can use official Inertia router events
-- a Solid community adapter must expose equivalent lifecycle events or wrap the
-  core router directly
+- the Solid community beta must expose equivalent lifecycle events or let the
+  app wrap the core router directly
 - `@hono/inertia` exposes the route-level `c.render(component, props)` boundary
   where component name, prop keys, prop byte size, and backend API summaries can
   be logged before returning the response
@@ -436,14 +453,46 @@ boundary explicit. It is still experimental, and the spike should verify that
 telemetry code can see component name, visit URL, partial reload headers,
 response status, response mode, asset mismatch, and redirect behavior.
 
+## Shared Hono Surface
+
+The Inertia Worker and `apps/sheets` should share Hono observability concepts
+where Cloudflare Workers allows it.
+
+Shared code should include:
+
+- request ID creation and propagation
+- request-local context shape
+- structured log field names
+- backend `tracedFetch()` wrapper
+- W3C `traceparent` and `tracestate` forwarding
+- API-call timing and status summaries
+- safe error serialization
+- route and target-service naming conventions
+
+Runtime-specific code should stay separate:
+
+- Cloudflare Worker tracing and OTLP export for the web Worker
+- OpenTelemetry JS SDK plus `@hono/otel` for the Bun + Hono sheets service
+- `@hono/prometheus` and `prom-client` metrics for sheets
+- Cloudflare Worker metrics and logs for web
+
+This keeps the shared layer honest. Share app-owned Hono behavior and telemetry
+schema, not assumptions that Cloudflare Workers and Bun expose the same
+OpenTelemetry runtime.
+
 ## Default Recommendation
 
 For an Inertia-on-Workers spike, choose this:
 
 - browser tracing: OpenTelemetry browser SDK with document-load, fetch, XHR, and
   a small Inertia router event bridge
+- client adapter: `inertia-adapter-solid@1.0.0-beta.3`, with router event
+  verification or a core-router wrapper
 - server adapter: Hono plus experimental `@hono/inertia`, with app-owned
   logging middleware around route handlers and responses
+- shared Hono observability: reuse request IDs, context helpers, structured log
+  fields, backend fetch helpers, and trace propagation with the Bun + Hono
+  sheets service
 - Worker tracing: Cloudflare automatic tracing and OTLP export
 - trace propagation: manually forward incoming `traceparent` from Worker to API
 - Worker logs: structured JSON logs with `request_id`, `cf_ray`, Inertia fields,
@@ -480,6 +529,9 @@ spike:
 - add an `inertiaTelemetry` module that listens to router events
 - create logical `inertia.visit` spans and navigation metrics
 - add Worker request logging around `@hono/inertia`
+- factor shared Hono request context, structured log fields, and backend
+  `tracedFetch()` so `apps/web` and `apps/sheets` can reuse them where their
+  runtimes allow
 - log every `c.render(component, props)` route boundary before returning the
   response
 - log component, request mode, prop keys, prop byte size, asset version, and API
@@ -519,6 +571,8 @@ Known-supported:
 - Inertia v3 documents request and response headers for partial reloads, asset
   versions, redirects, prefetching, and once props.
 - Inertia exposes browser router events that can be used for telemetry hooks.
+- `inertia-adapter-solid@1.0.0-beta.3` exists and is the intended Solid adapter
+  starting point for the app spike.
 - `@hono/inertia` 0.2.0 exists as experimental Hono middleware and provides
   `c.render(component, props)`, `rootView`, `serializePage`, asset version
   mismatch handling, and a Vite page-name generation plugin.
@@ -541,9 +595,11 @@ Known-limited:
 
 Needs project spike:
 
-- whether the chosen Inertia client adapter exposes enough router events
+- whether `inertia-adapter-solid@1.0.0-beta.3` exposes enough router events
 - whether `@hono/inertia` exposes enough protocol state directly, or whether
   app-owned Hono middleware must add response-mode logging around it
+- how much Hono observability code can be shared with the Bun + Hono sheets
+  service without mixing Cloudflare Worker and Bun runtime assumptions
 - whether browser fetch/XHR instrumentation catches the exact Inertia transport
 - whether partial reloads, validation errors, redirects, and shared props are
   visible enough through `@hono/inertia` plus app code
@@ -567,6 +623,10 @@ Needs project spike:
   https://github.com/honojs/middleware/tree/main/packages/inertia
 - `@hono/inertia` npm:
   https://www.npmjs.com/package/@hono/inertia
+- `inertia-adapter-solid`:
+  https://github.com/iksaku/inertia-adapter-solid
+- `inertia-adapter-solid` npm:
+  https://www.npmjs.com/package/inertia-adapter-solid
 - OpenTelemetry browser docs:
   https://opentelemetry.io/docs/languages/js/getting-started/browser/
 - OpenTelemetry context propagation:
