@@ -12,6 +12,7 @@ Web 2.0 app
 
 - never format files. Leave it to humans
 - never `git commit` secrets or IPs. This repo is Open Source
+- never run `bun patch`
 
 ## CLI
 

@@ -1,0 +1,10 @@
+version: "3"
+
+tasks:
+  dev:
+    cmds:
+      - bun --hot src/cmd.ts
+
+  typecheck:
+    cmds:
+      - bun tsc

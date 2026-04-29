@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 import {
   array,
+  GET,
   isoDuration,
   object,
   POST,
   responsibleAPI,
+  resp,
   string,
 } from "@responsibleapi/ts"
 import { YAML } from "bun"
@@ -68,14 +70,22 @@ const api = responsibleAPI({
       version: "1",
     },
   },
-  forEachOp: {
-    req: {
-      mime: "application/json",
-    },
-  },
   routes: {
+    "/healthz": GET({
+      id: "healthCheck",
+      description:
+        "Operational health check for reverse proxies and load balancers.",
+      res: {
+        200: resp({
+          description: "Service is healthy.",
+        }),
+      },
+    }),
     "/exports/workbook": POST("createWorkbookExport", {
-      req: WorkbookExportRequest,
+      req: {
+        mime: "application/json",
+        body: WorkbookExportRequest,
+      },
       res: {
         201: WorkbookExportResponse,
       },

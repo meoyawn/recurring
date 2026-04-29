@@ -9,6 +9,10 @@ includes:
     taskfile: ./apps/web/Taskfile.yaml
     dir: apps/web/
 
+  sheets:
+    taskfile: ./apps/sheets/Taskfile.yaml
+    dir: apps/sheets/
+
   openapi:
     taskfile: ./packages/openapi/Taskfile.yaml
     dir: packages/openapi/
@@ -22,3 +26,9 @@ tasks:
 
   deps:bun:
     cmd: bun update --latest -i --filter "*"
+
+  oxlint:
+    cmd: bun oxlint
+
+  nuke_node_modules:
+    cmd: find . -name node_modules -type d -prune -exec rm -rf {} +

@@ -4,27 +4,33 @@
 
 Adopt Oxlint as the monorepo linter for all TypeScript code.
 
-The monorepo should treat TypeScript source files as the runtime source of truth:
+The monorepo should treat TypeScript source files as the runtime source of
+truth:
 
 - Relative and alias imports must include source extensions.
 - TypeScript modules must be imported as `.ts`.
 - TSX modules must be imported as `.tsx`.
 - Relative `.js`, `.jsx`, `.mjs`, and `.cjs` imports are forbidden.
-- Package imports keep normal bare specifiers, for example `import { createSignal } from "solid-js"`.
+- Package imports keep normal bare specifiers, for example
+  `import { createSignal } from "solid-js"`.
 
 ## Current State
 
 - Root `package.json` has `oxfmt`, but no root `oxlint`.
 - `apps/web/package.json` already has `oxlint`.
-- `apps/web/tsconfig.json` uses `allowJs: true`; this conflicts with the target state that everything in the monorepo is TypeScript.
-- `packages/openapi/tsconfig.json` already uses `allowImportingTsExtensions: true`, `noEmit: true`, and `moduleResolution: "bundler"`.
+- `apps/web/tsconfig.json` uses `allowJs: true`; this conflicts with the target
+  state that everything in the monorepo is TypeScript.
+- `packages/openapi/tsconfig.json` already uses
+  `allowImportingTsExtensions: true`, `noEmit: true`, and
+  `moduleResolution: "bundler"`.
 - `packages/openapi` now imports local shared code with `.ts` suffixes.
 
 ## Target Root Config
 
 Create `oxlint.config.ts` at repo root and make it the only Oxlint config.
 
-Use the shape from `/Users/adelnizamutdinov/projects/responsibleapi/oxlint.config.ts`:
+Use the shape from
+`/Users/adelnizamutdinov/projects/responsibleapi/oxlint.config.ts`:
 
 ```ts
 import { defineConfig } from "oxlint"
@@ -59,7 +65,8 @@ export default defineConfig({
         patterns: [
           {
             regex: "^\\.{1,2}/.*\\.(?:js|jsx|mjs|cjs)$",
-            message: "Use TypeScript source extensions in relative imports: .ts or .tsx.",
+            message:
+              "Use TypeScript source extensions in relative imports: .ts or .tsx.",
           },
         ],
       },
@@ -113,11 +120,7 @@ export default defineConfig({
       },
     },
     {
-      files: [
-        "**/gen/**/*.ts",
-        "**/.nitro/**/*.ts",
-        "**/.output/**/*.ts",
-      ],
+      files: ["**/gen/**/*.ts", "**/.nitro/**/*.ts", "**/.output/**/*.ts"],
       rules: {
         "typescript/no-deprecated": "off",
         "typescript/no-restricted-types": "off",
@@ -132,10 +135,12 @@ export default defineConfig({
 
 This is the import policy enforcement:
 
-- `import/extensions` with `"always"` rejects extensionless imports such as `./shared.responsibe` and `~/routes/index`.
+- `import/extensions` with `"always"` rejects extensionless imports such as
+  `./shared.responsibe` and `~/routes/index`.
 - `ignorePackages: true` keeps bare package imports valid.
 - `checkTypeImports: true` applies the same extension rule to `import type`.
-- `no-restricted-imports` rejects relative JavaScript suffixes, so `./foo.js` cannot satisfy the extension rule in TypeScript source.
+- `no-restricted-imports` rejects relative JavaScript suffixes, so `./foo.js`
+  cannot satisfy the extension rule in TypeScript source.
 
 Examples:
 
@@ -159,7 +164,8 @@ import { x } from "./x.js"
 Move Oxlint ownership to the monorepo root:
 
 - Add `oxlint` to root `devDependencies`.
-- Add `oxlint-tsgolint` to root `devDependencies` if `options.typeAware: true` is kept.
+- Add `oxlint-tsgolint` to root `devDependencies` if `options.typeAware: true`
+  is kept.
 - Remove package-local `oxlint` from `apps/web` after root install works.
 - Keep `oxfmt` at root.
 
@@ -179,9 +185,12 @@ Add root scripts:
 Every package should support source-extension imports:
 
 - Set `allowImportingTsExtensions: true`.
-- Set `noEmit: true` for app/script packages that run or bundle TypeScript directly.
-- Keep `moduleResolution: "bundler"` for Bun, Vite, and SolidStart packages unless a package specifically needs Node's native resolver.
-- Set `allowJs: false` everywhere unless a migration package still contains JavaScript.
+- Set `noEmit: true` for app/script packages that run or bundle TypeScript
+  directly.
+- Keep `moduleResolution: "bundler"` for Bun, Vite, and SolidStart packages
+  unless a package specifically needs Node's native resolver.
+- Set `allowJs: false` everywhere unless a migration package still contains
+  JavaScript.
 
 Initial changes:
 
@@ -213,14 +222,21 @@ bun run --cwd apps/web build
 
 Expected import enforcement test:
 
-- Temporarily change `import { CurrencyCode } from "./shared.responsibe.ts"` to `import { CurrencyCode } from "./shared.responsibe"` in `packages/openapi/spec/sheets.responsible.ts`.
+- Temporarily change `import { CurrencyCode } from "./shared.responsibe.ts"` to
+  `import { CurrencyCode } from "./shared.responsibe"` in
+  `packages/openapi/spec/sheets.responsible.ts`.
 - `bun run lint` must fail on `import/extensions`.
 - Change it to `./shared.responsibe.js`.
 - `bun run lint` must fail on `no-restricted-imports`.
 
 ## References
 
-- Oxlint configuration supports `oxlint.config.ts`, `plugins`, `categories`, `overrides`, and `options`: https://oxc.rs/docs/guide/usage/linter/config
-- Oxlint type-aware linting uses `options.typeAware` and requires `oxlint-tsgolint`: https://oxc.rs/docs/guide/usage/linter/type-aware
-- Oxlint `import/extensions` can require extensions, ignore package imports, and check type imports: https://oxc.rs/docs/guide/usage/linter/rules/import/extensions
-- Oxlint `no-restricted-imports` supports static import restrictions: https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-restricted-imports
+- Oxlint configuration supports `oxlint.config.ts`, `plugins`, `categories`,
+  `overrides`, and `options`: https://oxc.rs/docs/guide/usage/linter/config
+- Oxlint type-aware linting uses `options.typeAware` and requires
+  `oxlint-tsgolint`: https://oxc.rs/docs/guide/usage/linter/type-aware
+- Oxlint `import/extensions` can require extensions, ignore package imports, and
+  check type imports:
+  https://oxc.rs/docs/guide/usage/linter/rules/import/extensions
+- Oxlint `no-restricted-imports` supports static import restrictions:
+  https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-restricted-imports
