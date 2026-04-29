@@ -830,7 +830,6 @@ Less proven:
 
 - SolidStart alpha 2 plus `@solidjs/vite-plugin-nitro-2` as a long-lived
   production target.
-- A global `clientOnly` route boundary around all app UI.
 - High-quality route navigation spans from Solid Router without app-owned
   wrappers.
 - Exact async context behavior across both Workers and Node.js deployment
