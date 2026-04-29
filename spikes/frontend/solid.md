@@ -11,6 +11,8 @@ Desired behavior:
 - Server can run request-scoped logic.
 - Server can use SolidStart data APIs and server functions.
 - Initial route data can be serialized through SolidStart.
+- Response headers can expose safe correlation handles for browser and
+  Playwright-driven trace lookup.
 - Server does not render the app body DOM.
 - Browser renders the interactive DOM client-side.
 - Browser avoids hydrating a server-rendered app body.
@@ -116,6 +118,97 @@ arbitrary page-props channel in the document.
 First-load data should be expressed as SolidStart queries/server functions under
 `ssr: true`, with server wrappers only where the first HTML response needs
 serialized route data.
+
+## Response Headers For Trace Discovery
+
+SolidStart can set response headers without making every `query()` throw or
+return a `Response`.
+
+Use response headers for the agent lookup handle:
+
+- `x-trace-id`
+- `x-span-id`
+- `x-request-id`
+
+Use `traceparent` for request propagation. Optionally expose `traceparent` as a
+debug response header, but do not make it the primary human or Playwright lookup
+handle.
+
+The ergonomic pattern is request-scoped, not query-scoped:
+
+- Create or extract the request trace context once at the SolidStart request
+  boundary.
+- Store `trace_id`, `span_id`, and `request_id` on the request event or
+  request-local context.
+- Set safe response headers centrally from middleware or a small server-only
+  helper.
+- Keep route `query()` functions returning plain serializable app data.
+- Forward `traceparent`, `tracestate`, and `x-request-id` from the server-only
+  Recurring API facade to the Go API.
+
+SolidStart alpha 2 exposes `setResponseHeader()` / `setHeader()` from
+`@solidjs/start/http`. These write to the current H3 response headers through
+`getRequestEvent()`.
+
+```ts
+import { setResponseHeader } from "@solidjs/start/http"
+
+export const exposeTraceHeaders = (ids: {
+  traceID: string
+  spanID: string
+  requestID: string
+}) => {
+  setResponseHeader("x-trace-id", ids.traceID)
+  setResponseHeader("x-span-id", ids.spanID)
+  setResponseHeader("x-request-id", ids.requestID)
+}
+```
+
+For request-wide coverage, configure SolidStart middleware in
+`vite.config.ts`:
+
+```ts
+solidStart({
+  ssr: true,
+  middleware: "./src/middleware.ts",
+})
+```
+
+```ts
+// src/middleware.ts
+import { createMiddleware } from "@solidjs/start/middleware"
+
+export default createMiddleware({
+  onRequest(event) {
+    const ids = getOrCreateTraceIDs(event)
+    const locals = event.locals as { trace?: typeof ids }
+    locals.trace = ids
+    event.response.headers.set("x-trace-id", ids.traceID)
+    event.response.headers.set("x-span-id", ids.spanID)
+    event.response.headers.set("x-request-id", ids.requestID)
+  },
+})
+```
+
+`query()` can also merge headers when it returns or throws a `Response`, but
+that should be treated as an escape hatch for redirects, status changes, and
+unusual response protocol needs. Do not use that as the normal trace header
+mechanism.
+
+This keeps Playwright simple:
+
+```text
+click -> observe document/fetch response -> read x-trace-id -> query trace backend
+```
+
+For first document visits, the Solid server may originate the trace because the
+browser has not yet injected `traceparent`. For later browser-initiated
+server-function or API-route calls, browser OpenTelemetry fetch/XHR
+instrumentation can send `traceparent`; the Solid server should continue that
+trace and expose the resulting `x-trace-id` response header.
+
+Never expose secrets, cookies, OAuth codes, tokens, private IPs, or unsafe SQL
+text in trace response headers.
 
 ## Constraint Learned From Spike
 
@@ -271,6 +364,10 @@ Known-supported:
 - SolidStart supports SSR, CSR, and server functions.
 - `clientOnly` is documented for components and entire pages.
 - SolidStart 2 is moving to a pure Vite-based system.
+- SolidStart alpha 2 exposes response header helpers from
+  `@solidjs/start/http`; route `query()` can also merge headers from returned
+  or thrown `Response` objects, but that is less ergonomic for request-wide
+  trace headers.
 - Community examples use `clientOnly` for browser-only pages/widgets such as
   charts, maps, data grids, and DOM-dependent libraries.
 - Hackers Pub `web-next` validates the SolidStart 2 shape of Vite plugin, Nitro
@@ -301,6 +398,9 @@ Rejected by local spike:
   wrappers.
 - Add a server-only Recurring API facade and call it from SolidStart queries,
   server functions, or route API handlers.
+- Add SolidStart middleware or a server-only response helper that exposes
+  `x-trace-id`, `x-span-id`, and `x-request-id` without making each route
+  `query()` return or throw `Response`.
 - Use the SolidStart 2 Vite-based deployment path for Cloudflare Workers.
 - Call the API declared by `packages/openapi/spec/recurring.responsible.ts` from
   Cloudflare Worker server code, not from browser code.
@@ -313,6 +413,10 @@ Rejected by local spike:
   https://docs.solidjs.com/solid-start/advanced/serialization
 - SolidStart `"use server"`:
   https://docs.solidjs.com/solid-start/reference/server/use-server
+- SolidStart `createMiddleware`:
+  https://docs.solidjs.com/solid-start/reference/server/create-middleware
+- SolidStart HTTP header helpers:
+  https://github.com/solidjs/solid-start/tree/main/packages/start/src/http
 - SolidStart 2 public roadmap:
   https://github.com/solidjs/solid-start/discussions/1960
 - Hackers Pub `web-next` studied source:

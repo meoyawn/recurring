@@ -61,8 +61,8 @@ Use `traceparent` for request propagation. Use `x-trace-id` as the agent and
 human lookup handle.
 
 This weakens the need for SQL as the primary lookup mechanism. It does not
-remove SQL's value for fallback queries, missing-span analysis, latency
-rollups, and ad hoc agent questions.
+remove SQL's value for fallback queries, missing-span analysis, latency rollups,
+and ad hoc agent questions.
 
 ## Trace Correlation Attributes
 
@@ -169,8 +169,8 @@ Suggested layout:
 - config: `/etc/recurring/jaeger.yaml`
 - data: `/var/lib/jaeger`
 - user: dedicated unprivileged `jaeger`
-- OTLP HTTP: `127.0.0.1:4318`
-- OTLP gRPC: `127.0.0.1:4317` if needed
+- OTLP HTTP: `localhost:4318`
+- OTLP gRPC: `localhost:4317` if needed
 - query UI/API: loopback, optionally Caddy-proxied behind auth
 - retention: start at 48 hours
 
@@ -244,9 +244,8 @@ Suggested layout:
 - OTLP ingest: loopback for local producers
 - remote ingest: Caddy path allowlist and auth header if needed
 
-OpenObserve can become the single observability UI later if logs and metrics
-are intentionally sent there. For v1, it can still be used as trace-first
-storage.
+OpenObserve can become the single observability UI later if logs and metrics are
+intentionally sent there. For v1, it can still be used as trace-first storage.
 
 ## Candidate: Tempo with Grafana
 
@@ -385,12 +384,19 @@ Checked April 29, 2026:
 
 - Jaeger v2 APIs: https://www.jaegertracing.io/docs/2.17/architecture/apis/
 - Jaeger Badger storage: https://www.jaegertracing.io/docs/2.17/storage/badger/
-- Jaeger Badger config sample: https://github.com/jaegertracing/jaeger/blob/v2.17.0/cmd/jaeger/config-badger.yaml
-- Jaeger deployment/configuration: https://www.jaegertracing.io/docs/2.17/deployment/configuration/
+- Jaeger Badger config sample:
+  https://github.com/jaegertracing/jaeger/blob/v2.17.0/cmd/jaeger/config-badger.yaml
+- Jaeger deployment/configuration:
+  https://www.jaegertracing.io/docs/2.17/deployment/configuration/
 - OpenObserve architecture: https://openobserve.ai/docs/architecture/
-- OpenObserve environment variables: https://openobserve.ai/docs/administration/configuration/environment-variables/
-- OpenObserve trace API: https://openobserve.ai/docs/reference/api/traces/trace-search-api/
+- OpenObserve environment variables:
+  https://openobserve.ai/docs/administration/configuration/environment-variables/
+- OpenObserve trace API:
+  https://openobserve.ai/docs/reference/api/traces/trace-search-api/
 - OpenObserve license: https://github.com/openobserve/openobserve
-- OpenTelemetry session semantic conventions: https://opentelemetry.io/docs/specs/semconv/general/session/
-- Elastic APM with OpenTelemetry: https://www.elastic.co/guide/en/apm/guide/current/open-telemetry.html/
-- Elastic APM Server setup: https://www.elastic.co/docs/solutions/observability/apm/apm-server/setup
+- OpenTelemetry session semantic conventions:
+  https://opentelemetry.io/docs/specs/semconv/general/session/
+- Elastic APM with OpenTelemetry:
+  https://www.elastic.co/guide/en/apm/guide/current/open-telemetry.html/
+- Elastic APM Server setup:
+  https://www.elastic.co/docs/solutions/observability/apm/apm-server/setup
