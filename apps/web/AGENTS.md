@@ -6,3 +6,4 @@
 ## Rules
 
 - Never use `node`, use `bun` for everything.
+- Never start a dev server, it's already running

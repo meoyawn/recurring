@@ -1,5 +1,18 @@
 version: "3"
 
+includes:
+  api:
+    taskfile: ./apps/api/Taskfile.yaml
+    dir: apps/api/
+
+  web:
+    taskfile: ./apps/web/Taskfile.yaml
+    dir: apps/web/
+
+  openapi:
+    taskfile: ./packages/openapi/Taskfile.yaml
+    dir: packages/openapi/
+
 tasks:
   reindex:
     cmd: uvx code-review-graph build
@@ -9,24 +22,3 @@ tasks:
 
   deps:bun:
     cmd: bun update --latest -i --filter "*"
-
-  dev:web:
-    desc: SolidStart dev server
-    cmds:
-      - cd apps/web && bun run dev
-
-  openapi:gen:client:
-    desc: Generate TypeScript client into apps/web/gen
-    cmds:
-      - cd packages/openapi && bun run generate:client
-
-  openapi:gen:server-stubs:
-    desc: Generate Go server stubs into apps/api/gen
-    cmds:
-      - cd packages/openapi && bun run generate:server-stubs
-
-  openapi:gen:
-    desc: Client + optional Go stubs
-    cmds:
-      - task openapi:gen:client
-      - task openapi:gen:server-stubs

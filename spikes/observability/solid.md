@@ -23,9 +23,9 @@ the VPS, is:
 - transport and routing: export OTLP directly to one trace backend for v1:
   Jaeger v2 with Badger or OpenObserve single-node local mode; add a Collector
   only after direct OTLP proves insufficient
-- metrics: Web Vitals and route navigation measures from the browser,
-  Solid server request metrics, runtime/platform metrics, API metrics, and
-  database metrics from the backend
+- metrics: Web Vitals and route navigation measures from the browser, Solid
+  server request metrics, runtime/platform metrics, API metrics, and database
+  metrics from the backend
 - tracing backend: keep the decision between Jaeger v2 with Badger and
   OpenObserve until both are measured with the same Playwright click flow
 - log correlation: use structured app logs with `request_id`, `trace_id`,
@@ -426,18 +426,18 @@ For browser-initiated same-origin HTTP requests:
 - Solid server runtime receives `traceparent`
 - SolidStart server function, `query()`, `action()`, or API route runs in the
   Solid server runtime
-- server functions, queries, and actions read headers through `getRequestEvent()`
-  while API routes receive `APIEvent`
-- Solid server backend-fetch helper forwards `traceparent` and `tracestate`
-  when calling the Recurring API
+- server functions, queries, and actions read headers through
+  `getRequestEvent()` while API routes receive `APIEvent`
+- Solid server backend-fetch helper forwards `traceparent` and `tracestate` when
+  calling the Recurring API
 - Echo extracts it and creates downstream spans
 - PostgreSQL spans attach under the API request span
 
 For Solid server-originated work:
 
 - middleware starts a request root span when no incoming trace context exists
-- document SSR, route queries, API routes, OAuth routes, and backend fetches
-  run under that request context
+- document SSR, route queries, API routes, OAuth routes, and backend fetches run
+  under that request context
 - the backend-fetch helper injects the current context into Recurring API
   requests
 - Echo extracts it and creates downstream spans
@@ -790,16 +790,17 @@ Build a thin vertical slice before standardizing.
 7. Add a root route observer that records `solid.route.navigate` spans.
 8. Run Jaeger v2 with Badger and OpenObserve single-node local mode one at a
    time as direct OTLP trace sinks.
-9. Configure the Solid runtime exporter:
-   Cloudflare Workers Observability destinations for Workers, or Node.js direct
-   OTLP export for VPS deployment.
+9. Configure the Solid runtime exporter: Cloudflare Workers Observability
+   destinations for Workers, or Node.js direct OTLP export for VPS deployment.
 10. Deploy to staging on the intended runtime.
 11. Verify these flows against both trace backend candidates:
-   - first document load
-   - soft navigation
-   - server function/API route call
-   - health API call through Solid server to Echo
-   - Google OAuth start and callback failure path
+
+- first document load
+- soft navigation
+- server function/API route call
+- health API call through Solid server to Echo
+- Google OAuth start and callback failure path
+
 12. Confirm app-level traces connect through Solid server, Echo, and PostgreSQL.
     Document runtime/platform span correlation fields separately.
 13. Choose Jaeger if exact trace lookup is enough; choose OpenObserve if its
@@ -899,12 +900,9 @@ observability platform.
   https://open-telemetry.github.io/opentelemetry-js/modules/_opentelemetry_instrumentation-fetch.html
 - OpenTelemetry propagation:
   https://opentelemetry.io/docs/languages/js/propagation/
-- OpenTelemetry OTLP specification:
-  https://opentelemetry.io/docs/specs/otlp/
-- Jaeger v2 APIs:
-  https://www.jaegertracing.io/docs/2.17/architecture/apis/
-- Jaeger Badger storage:
-  https://www.jaegertracing.io/docs/2.17/storage/badger/
+- OpenTelemetry OTLP specification: https://opentelemetry.io/docs/specs/otlp/
+- Jaeger v2 APIs: https://www.jaegertracing.io/docs/2.17/architecture/apis/
+- Jaeger Badger storage: https://www.jaegertracing.io/docs/2.17/storage/badger/
 - OpenObserve trace API:
   https://openobserve.ai/docs/reference/api/traces/trace-search-api/
 - SolidStart server-function client runtime source:

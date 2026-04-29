@@ -1,8 +1,12 @@
 version: "3"
 
 tasks:
+  dev:
+    desc: Run API dev server
+    cmds:
+      - go run ./cmd/api
+
   build:
-    dir: "{{.TASKFILE_DIR}}"
     vars:
       BIN: dist/recurring-api-linux-arm64
     cmds:
