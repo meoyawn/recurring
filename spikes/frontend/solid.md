@@ -164,8 +164,7 @@ export const exposeTraceHeaders = (ids: {
 }
 ```
 
-For request-wide coverage, configure SolidStart middleware in
-`vite.config.ts`:
+For request-wide coverage, configure SolidStart middleware in `vite.config.ts`:
 
 ```ts
 solidStart({
@@ -364,10 +363,9 @@ Known-supported:
 - SolidStart supports SSR, CSR, and server functions.
 - `clientOnly` is documented for components and entire pages.
 - SolidStart 2 is moving to a pure Vite-based system.
-- SolidStart alpha 2 exposes response header helpers from
-  `@solidjs/start/http`; route `query()` can also merge headers from returned
-  or thrown `Response` objects, but that is less ergonomic for request-wide
-  trace headers.
+- SolidStart alpha 2 exposes response header helpers from `@solidjs/start/http`;
+  route `query()` can also merge headers from returned or thrown `Response`
+  objects, but that is less ergonomic for request-wide trace headers.
 - Community examples use `clientOnly` for browser-only pages/widgets such as
   charts, maps, data grids, and DOM-dependent libraries.
 - Hackers Pub `web-next` validates the SolidStart 2 shape of Vite plugin, Nitro
