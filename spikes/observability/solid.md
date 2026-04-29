@@ -1,6 +1,6 @@
 # Recommended Observability Stack for SolidStart Alpha 2
 
-As of April 28, 2026, the recommended production setup for `apps/web` as a
+As of April 29, 2026, the recommended production setup for `apps/web` as a
 SolidStart alpha 2 app, whether served by Cloudflare Workers or by Node.js on
 the VPS, is:
 
@@ -18,15 +18,19 @@ the VPS, is:
   IDs such as Cloudflare Ray ID when present
 - API propagation: originate trace context in the Solid client or Solid server,
   then explicitly forward `traceparent` and `tracestate` to the Recurring API
-- transport and routing: OpenTelemetry Collector for app-owned browser, Solid
-  server, and API telemetry, preferably on the same VPS as `apps/api` behind
-  Caddy; add Cloudflare OTLP export only when deploying on Workers
+- trace discovery: expose safe response headers from the Solid server:
+  `x-trace-id`, `x-span-id`, and `x-request-id`
+- transport and routing: export OTLP directly to one trace backend for v1:
+  Jaeger v2 with Badger or OpenObserve single-node local mode; add a Collector
+  only after direct OTLP proves insufficient
 - metrics: Web Vitals and route navigation measures from the browser,
   Solid server request metrics, runtime/platform metrics, API metrics, and
   database metrics from the backend
-- tracing backend: Tempo, Jaeger, Honeycomb, Sentry, Axiom, or another
-  OTLP-compatible tracing system
-- log backend: Loki, Elasticsearch, OpenSearch, or another log store
+- tracing backend: keep the decision between Jaeger v2 with Badger and
+  OpenObserve until both are measured with the same Playwright click flow
+- log correlation: use structured app logs with `request_id`, `trace_id`,
+  `span_id`, route, and safe user/session markers; add a log backend later only
+  if compose or journald lookup becomes insufficient
 
 ## Verdict
 
@@ -54,7 +58,7 @@ the app runs on Workers, platform spans supplement the app-owned Solid spans. If
 the app runs on Node.js on the VPS, the same app-owned spans export through the
 normal OpenTelemetry JavaScript SDK path.
 
-As of April 28, 2026, Hono now has experimental `@hono/inertia` middleware. That
+As of April 29, 2026, Hono now has experimental `@hono/inertia` middleware. That
 gives Inertia a concrete Hono integration point for route, component, prop-key,
 and response-mode logging when the desired app model is Inertia-style page
 props. SolidStart can still be observed well, but it needs more app-owned
@@ -199,12 +203,13 @@ Configure fetch/XHR propagation only for app traffic:
 For this app's intended shape, browser application traffic should only call the
 web origin. The browser should not call the Recurring API directly.
 
-Avoid direct browser export to the VPS collector unless the endpoint is designed
-for public browser ingestion. Browser code cannot safely hold collector
-authentication secrets. Prefer a same-origin telemetry proxy route in the Solid
-server runtime that forwards OTLP payloads to the Caddy-protected collector with
-a server-side secret. Configure browser OTel `ignoreUrls` so exporter calls to
-that telemetry endpoint do not generate recursive spans or inject trace context.
+Avoid direct browser export to the trace backend or any remote OTLP endpoint
+unless the endpoint is designed for public browser ingestion. Browser code
+cannot safely hold ingestion secrets. Prefer a same-origin telemetry proxy route
+in the Solid server runtime that forwards OTLP payloads to the protected
+server-side endpoint with a server-side secret. Configure browser OTel
+`ignoreUrls` so exporter calls to that telemetry endpoint do not generate
+recursive spans or inject trace context.
 
 ## Solid Router Navigation Spans
 
@@ -375,18 +380,20 @@ volume proves that it needs a separate host.
 
 Recommended shape:
 
-- OpenTelemetry Collector listens on loopback for local API telemetry:
-  `127.0.0.1:4318`
-- Caddy exposes HTTPS OTLP HTTP endpoints for remote runtime export:
-  `/v1/traces` and `/v1/logs`
-- Cloudflare Workers Observability destinations, if used, point at the Caddy
-  HTTPS endpoints and include an ingestion secret as a custom header
+- Run one trace backend first: Jaeger v2 with Badger or OpenObserve single-node
+  local mode.
+- The backend receives OTLP directly on loopback or the private app network.
+- Caddy exposes HTTPS OTLP HTTP endpoints only when remote producers need them:
+  usually `/v1/traces`, and `/v1/logs` only if logs are intentionally ingested.
+- Cloudflare Workers Observability destinations, if used, point at the
+  Caddy-protected OTLP endpoints and include an ingestion secret as a custom
+  header.
 - Node.js Solid server export can use loopback when it runs on the same VPS, or
-  the same Caddy-protected OTLP endpoint when it runs elsewhere
-- `apps/api` exports traces to the local collector over OTLP HTTP and does not
-  need to cross Caddy
-- browser telemetry goes to a same-origin Solid server telemetry proxy, or is
-  disabled until a public-safe browser ingestion path exists
+  the same Caddy-protected OTLP endpoint when it runs elsewhere.
+- `apps/api` exports traces directly to the trace backend over OTLP HTTP and
+  does not need to cross Caddy when colocated.
+- Browser telemetry goes to a same-origin Solid server telemetry proxy, or stays
+  disabled until a public-safe browser ingestion path exists.
 
 Current repo shape supports this direction but does not implement it yet:
 
@@ -394,10 +401,15 @@ Current repo shape supports this direction but does not implement it yet:
 - `apps/api/README.md` already says production API is behind Caddy
 - `ops/ansible/roles/caddy/tasks/main.yml` is still a placeholder
 
-Do not expose the collector's raw HTTP receiver broadly without authentication.
-If Caddy terminates TLS for public OTLP ingestion, restrict accepted paths to
-OTLP endpoints and require a secret header. Keep the collector receiver itself
+Do not expose a raw OTLP receiver broadly without authentication. If Caddy
+terminates TLS for public OTLP ingestion, restrict accepted paths to OTLP
+endpoints and require a secret header. Keep the trace backend receiver itself
 bound to loopback or a private interface.
+
+Do not require a separate OpenTelemetry Collector for v1. Add one later only if
+the project needs centralized redaction, tail sampling, multi-backend fanout,
+buffering/retry policy independent from the backend, metrics conversion through
+spanmetrics, or per-source routing.
 
 ## Trace Propagation
 
@@ -732,6 +744,10 @@ For `apps/web`, choose this:
   API
 - backend: OpenTelemetry Go SDK, Echo middleware, PostgreSQL instrumentation,
   and structured logs
+- trace sink: run the same browser proof against Jaeger v2 with Badger and
+  OpenObserve single-node local mode before choosing one
+- collector: skip a separate OpenTelemetry Collector for v1 unless direct OTLP
+  export cannot satisfy routing, buffering, redaction, or fanout requirements
 - correlation: `request_id`, `trace_id`, optional `cf_ray`, route, URL,
   timestamp, and safe user hash
 
@@ -762,22 +778,23 @@ SolidStart gives a more framework-native continuation of the current app.
 Build a thin vertical slice before standardizing.
 
 1. Switch `apps/web` to the SolidStart shape from `spikes/frontend/solid.md`.
-2. Add browser OpenTelemetry with document-load, fetch, and XHR instrumentation.
-3. Add a root route observer that records `solid.route.navigate` spans.
-4. Add Solid server middleware that creates request IDs, originates or extracts
-   trace context, and records document/API/server-function logs.
+2. Add Solid server middleware that creates request IDs, originates or extracts
+   trace context, exposes `x-trace-id`, `x-span-id`, and `x-request-id`, and
+   records document/API/server-function logs.
+3. Add a server-only Recurring API fetch helper that injects current
+   `traceparent`, `tracestate`, and `x-request-id` into API calls.
+4. Move the health check behind a server function or API route.
 5. Add app-owned spans and structured logs for route data, server functions,
    actions, API routes, backend fetch, and OAuth callback paths.
-6. Add a server-only Recurring API fetch helper that injects current trace
-   context into API calls.
-7. Move the health check behind a server function or API route.
-8. Deploy an OpenTelemetry Collector on the API VPS and expose only authenticated
-   OTLP HTTP trace/log endpoints through Caddy.
-9. Configure the chosen Solid runtime exporter:
-   Cloudflare Workers Observability destinations for Workers, or Node.js OTLP
-   export for VPS deployment.
+6. Add browser OpenTelemetry with document-load, fetch, and XHR instrumentation.
+7. Add a root route observer that records `solid.route.navigate` spans.
+8. Run Jaeger v2 with Badger and OpenObserve single-node local mode one at a
+   time as direct OTLP trace sinks.
+9. Configure the Solid runtime exporter:
+   Cloudflare Workers Observability destinations for Workers, or Node.js direct
+   OTLP export for VPS deployment.
 10. Deploy to staging on the intended runtime.
-11. Verify these flows:
+11. Verify these flows against both trace backend candidates:
    - first document load
    - soft navigation
    - server function/API route call
@@ -785,9 +802,14 @@ Build a thin vertical slice before standardizing.
    - Google OAuth start and callback failure path
 12. Confirm app-level traces connect through Solid server, Echo, and PostgreSQL.
     Document runtime/platform span correlation fields separately.
+13. Choose Jaeger if exact trace lookup is enough; choose OpenObserve if its
+    SQL/search surface materially improves missing-span, fallback, or agent
+    analysis without unacceptable resource cost.
 
 Acceptance criteria:
 
+- Playwright can read `x-trace-id`, `x-span-id`, and `x-request-id` from the
+  document or same-origin fetch response after a click
 - browser route span is visible
 - same-origin SolidStart client-side server-function `fetch()` span carries
   `traceparent` after OpenTelemetry fetch instrumentation is configured
@@ -797,7 +819,7 @@ Acceptance criteria:
 - optional Worker or Node runtime spans are visible when enabled
 - Echo API trace continues from forwarded `traceparent`
 - no browser request goes directly to the Recurring API origin
-- no browser request sends collector secrets directly
+- no browser request sends trace backend or collector secrets directly
 - no sensitive OAuth/session values appear in logs
 
 ## Evidence Level
@@ -820,8 +842,9 @@ Known-supported:
   endpoints and attach custom headers.
 - Node.js deployments can use the normal OpenTelemetry JavaScript SDK and OTLP
   exporter path.
-- OTLP HTTP uses `/v1/traces` and `/v1/logs` endpoints by default, and the
-  OpenTelemetry Collector OTLP receiver commonly listens on HTTP port `4318`.
+- OTLP HTTP uses `/v1/traces` and `/v1/logs` endpoints by default.
+- Jaeger v2 and OpenObserve can receive OTLP directly, so a separate Collector
+  is not required for the first trace backend proof.
 - OpenTelemetry browser instrumentation supports document-load, fetch, XHR, and
   user-interaction instrumentation, with browser instrumentation still marked
   experimental.
@@ -876,15 +899,20 @@ observability platform.
   https://open-telemetry.github.io/opentelemetry-js/modules/_opentelemetry_instrumentation-fetch.html
 - OpenTelemetry propagation:
   https://opentelemetry.io/docs/languages/js/propagation/
-- OpenTelemetry Collector configuration:
-  https://opentelemetry.io/docs/collector/configuration/
 - OpenTelemetry OTLP specification:
   https://opentelemetry.io/docs/specs/otlp/
+- Jaeger v2 APIs:
+  https://www.jaegertracing.io/docs/2.17/architecture/apis/
+- Jaeger Badger storage:
+  https://www.jaegertracing.io/docs/2.17/storage/badger/
+- OpenObserve trace API:
+  https://openobserve.ai/docs/reference/api/traces/trace-search-api/
 - SolidStart server-function client runtime source:
   https://github.com/solidjs/solid-start/blob/main/packages/start/src/server/server-runtime.ts
 - SolidStart server-function handler source:
   https://github.com/solidjs/solid-start/blob/main/packages/start/src/server/server-functions-handler.ts
 - Frontend SolidStart spike: ../frontend/solid.md
+- Agent-loop trace backend spike: ./agent-loop.md
 - Inertia observability spike: ./inertia.md
 - `@hono/inertia`:
   https://github.com/honojs/middleware/tree/main/packages/inertia
