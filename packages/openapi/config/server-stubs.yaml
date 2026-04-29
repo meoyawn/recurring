@@ -1,6 +1,6 @@
 generatorName: go-server
 inputSpec: spec/recurring.openapi.yaml
-output: ../../apps/api/gen
+output: ../../apps/api/gen/
 additionalProperties:
   packageName: gen
   sourceFolder: .

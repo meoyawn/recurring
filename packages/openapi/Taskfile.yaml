@@ -1,18 +1,31 @@
 version: "3"
 
 tasks:
-  compile:
-    dir: "{{.TASKFILE_DIR}}"
+  typecheck:
+    cmds:
+      - bun tsc
+
+  compile:recurring:
     cmds:
       - bun spec/recurring.responsible.ts > spec/recurring.openapi.yaml
+
+  compile:sheets:
+    cmds:
       - bun spec/sheets.responsible.ts > spec/sheets.openapi.yaml
 
+  compile:
+    deps:
+      - compile:recurring
+      - compile:sheets
+
   generate:client:
-    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - compile:recurring
     cmds:
-      - ./node_modules/.bin/openapi-generator-cli generate -c config/client.yaml
+      - bun openapi-generator-cli generate -c config/client.yaml
 
   generate:server-stubs:
-    dir: "{{.TASKFILE_DIR}}"
+    deps:
+      - compile:recurring
     cmds:
-      - ./node_modules/.bin/openapi-generator-cli generate -c config/server-stubs.yaml
+      - bun openapi-generator-cli generate -c config/server-stubs.yaml

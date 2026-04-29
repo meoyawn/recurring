@@ -2,19 +2,19 @@ version: "3"
 
 includes:
   api:
-    taskfile: ./apps/api/Taskfile.yaml
+    taskfile: apps/api/Taskfile.yaml
     dir: apps/api/
 
   web:
-    taskfile: ./apps/web/Taskfile.yaml
+    taskfile: apps/web/Taskfile.yaml
     dir: apps/web/
 
   sheets:
-    taskfile: ./apps/sheets/Taskfile.yaml
+    taskfile: apps/sheets/Taskfile.yaml
     dir: apps/sheets/
 
   openapi:
-    taskfile: ./packages/openapi/Taskfile.yaml
+    taskfile: packages/openapi/Taskfile.yaml
     dir: packages/openapi/
 
 tasks:
@@ -23,6 +23,7 @@ tasks:
     sources:
       - "apps/**/*"
       - "ops/**/*"
+      - "packages/**/*"
 
   deps:bun:
     cmd: bun update --latest -i --filter "*"

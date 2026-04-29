@@ -41,7 +41,7 @@
       "name": "@recurring/openapi",
       "devDependencies": {
         "@openapitools/openapi-generator-cli": "^2.32.0",
-        "@responsibleapi/ts": "^1.0.6",
+        "@responsibleapi/ts": "^1.0.7",
         "@types/bun": "^1.3.13",
         "typescript": "^6.0.3",
       },
@@ -414,7 +414,7 @@
 
     "@recurring/web-inertia": ["@recurring/web-inertia@workspace:apps/web-inertia"],
 
-    "@responsibleapi/ts": ["@responsibleapi/ts@1.0.6", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "openapi3-ts": "^4.5.0" } }, "sha512-fm0qzbEOWLoVgMo5ld7N9KkV6UigyyWA9WOxAQOouuR4LEw7bd8hwz50LELgA9anHoESiij/XmEgbtWktKNPsQ=="],
+    "@responsibleapi/ts": ["@responsibleapi/ts@1.0.7", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "openapi3-ts": "^4.5.0" } }, "sha512-8rxOFQhxvIXHI209nS+9anJwuxmS0DKiGNnVGe9FtWa32jlhH6qfBTxvd9EPN07+6pGGqpZV8+OIhGlu1GtEBg=="],
 
     "@rolldown/binding-android-arm64": ["@rolldown/binding-android-arm64@1.0.0-rc.17", "", { "os": "android", "cpu": "arm64" }, "sha512-s70pVGhw4zqGeFnXWvAzJDlvxhlRollagdCCKRgOsgUOH3N1l0LIxf83AtGzmb5SiVM4Hjl5HyarMRfdfj3DaQ=="],
 
