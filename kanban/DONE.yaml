@@ -10,3 +10,7 @@ t_2:
 t_4:
   title: pick golang migrator lib
   finish: 2026-05-01T00:51:29+0300
+
+t_5:
+  title: design migrations in a way that support zero downtime deployments
+  finish: 2026-05-01T01:13:58+0300
