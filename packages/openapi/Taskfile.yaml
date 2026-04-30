@@ -29,3 +29,7 @@ tasks:
       - compile:recurring
     cmds:
       - bun openapi-generator-cli generate -c config/server-stubs.yaml
+
+  typecheck:
+    cmds:
+      - bun tsc

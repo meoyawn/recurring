@@ -83,8 +83,7 @@ const api = responsibleAPI({
     }),
     "/exports/workbook": POST("createWorkbookExport", {
       req: {
-        mime: "application/json",
-        body: WorkbookExportRequest,
+        body: { "application/json": WorkbookExportRequest },
       },
       res: {
         201: WorkbookExportResponse,

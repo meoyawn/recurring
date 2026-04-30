@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@responsibleapi/hono": "^1.1.1",
     "hono": "^4.10.7"
   },
   "devDependencies": {

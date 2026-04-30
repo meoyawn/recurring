@@ -2,11 +2,7 @@
   "name": "@recurring/openapi",
   "private": true,
   "type": "module",
-  "scripts": {
-    "generate:client": "openapi-generator-cli generate -c config/client.yaml",
-    "generate:server-stubs": "openapi-generator-cli generate -c config/server-stubs.yaml",
-    "tsc": "tsc -p tsconfig.json"
-  },
+  "scripts": {},
   "devDependencies": {
     "@openapitools/openapi-generator-cli": "^2.32.0",
     "@responsibleapi/ts": "^1.0.7",
