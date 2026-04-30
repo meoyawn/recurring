@@ -140,6 +140,28 @@ const Money = () =>
   })
 ```
 
+## Shared Contract Vocabulary
+
+Microservices should not share implementation models, but they can share
+contract vocabulary. Put boundary concepts such as `Money`, `CurrencyCode`,
+error shapes, pagination, and file responses in a shared TypeScript module like
+`packages/openapi/spec/shared.responsibe.ts`.
+
+Rules:
+
+- Export reusable schema or response thunks, for example `Money` or
+  `WorkbookExportResponse`.
+- Import those thunks into each service's `*.responsible.ts` file and pass the
+  thunk itself when nesting it.
+- Keep service-specific request and response objects in the service file; only
+  promote stable cross-service vocabulary to the shared module.
+- Prefer stable named contract concepts that compile into each service
+  document's local `components.schemas` or `components.responses`.
+- Do not use `$defs` as the public shared model namespace for generated SDKs;
+  OpenAPI 3.1 allows it, but local `#/components/...` refs are more reliable.
+- Do not put shared contracts in `partialDoc.components`; let the DSL discover
+  usage and emit local components for each service document.
+
 ## Root Structure
 
 ```ts

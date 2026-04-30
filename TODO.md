@@ -1,7 +1,6 @@
 # TODO
 
 - fix responsible hono
-- incorporate `packages/openapi/spec/` schema sharing approach in SKILL.md
 - gen ts client
 - postgres compose
 - pick golang migrator lib
