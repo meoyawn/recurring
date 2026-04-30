@@ -1,0 +1,18 @@
+t_3:
+  title: postgres compose
+
+t_5:
+  title: design migrations in a way that support zero downtime deployments
+
+t_6:
+  title: test google auth
+
+t_7:
+  title: implement `/healthz` in api
+  depends_on:
+    - t_3
+
+t_8:
+  title: "`task web:dev` starts"
+  depends_on:
+    - t_7

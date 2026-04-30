@@ -1,0 +1,12 @@
+t_1:
+  title: fix responsible hono
+  start: 2026-04-30T12:02:00+0300
+  finish: 2026-04-30T15:38:39+0300
+
+t_2:
+  title: gen ts client
+  finish: 2026-05-01T00:44:48+0300
+
+t_4:
+  title: pick golang migrator lib
+  finish: 2026-05-01T00:51:29+0300
