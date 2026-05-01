@@ -1,0 +1,7 @@
+version: "3"
+
+tasks:
+  dev:
+    desc: Run Postgres dev database
+    cmds:
+      - docker compose up -d postgres

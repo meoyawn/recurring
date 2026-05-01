@@ -1,5 +1,8 @@
+name: recurring
+
 services:
   postgres:
+    # latest as of may 2026
     image: postgres:18-alpine
     ports:
       - "5432:5432"

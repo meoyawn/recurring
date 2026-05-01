@@ -1,19 +1,16 @@
-t_3:
-  title: postgres compose
-
 t_7:
   title: implement `/healthz` in api
-  depends_on:
+  deps:
     - t_3
 
 t_8:
   title: "`task web:dev` starts"
-  depends_on:
+  deps:
     - t_7
 
 t_6:
   title: test google auth
-  depends_on:
+  deps:
     - t_8
 
 t_9:
