@@ -1,3 +1,9 @@
+t_12:
+  title: implement migration schema - spikes/backend/migration.md
+  success_criteria: see spikes/backend/migration.md
+  start: 2026-05-01T18:28:45+0300
+  finish: 2026-05-01T18:34:21+0300
+
 t_3:
   title: postgres compose
   start: 2026-05-01T11:40:07+0300

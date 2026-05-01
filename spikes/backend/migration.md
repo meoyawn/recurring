@@ -12,9 +12,17 @@ test.
 
 The v1 migration is verified by a disposable Postgres migration test.
 
-Status: unresolved until `apps/api/migrations/00001_init.sql` exists and a Go
-test starts disposable Postgres with Testcontainers, migrates to goose version
-`00001`, and verifies the resulting schema and insert-time behavior.
+Priority 1: pass the Testcontainers for Go migration test. This is the
+agent-verifiable success criterion.
+
+Priority 2: keep migrated `compose/` usable for human verification. A human
+verifies Compose, so an agent cannot loop on Compose until it reaches the
+success criterion. The agent loop targets Priority 1.
+
+Status: answered. `apps/api/migrations/00001_init.sql` exists and
+`apps/api/migrations/migration_test.go` starts disposable Postgres with
+Testcontainers, migrates to goose version `00001`, and verifies the resulting
+schema and insert-time behavior.
 
 Implementation success criteria:
 
@@ -54,6 +62,16 @@ Local evidence:
 - `spikes/backend/postgres.md` decides on `pgx`, `pgxpool`, `goose`, SQL
   migrations in `apps/api/migrations`, and startup migrations before serving
   requests.
+- `apps/api/migrations/00001_init.sql` creates `pgcrypto` and
+  `public.expenses`.
+- `apps/api/migrations/migration_test.go` applies goose target version `00001`,
+  asserts the goose version row, checks `information_schema.columns` and
+  `pg_constraint`, and verifies generated id plus rejected invalid inserts.
+- `go test ./...` from `apps/api` passed.
+- `docker compose -f compose/docker-compose.yml up -d postgres` started the
+  local Compose Postgres service.
+- `task api:migrate:local` passed with a caller-supplied local
+  `GOOSE_DBSTRING`; goose reported `00001_init.sql` and database version `1`.
 
 External evidence:
 
@@ -117,9 +135,8 @@ None.
 ## Criterion Status
 
 `The v1 migration is verified by a disposable Postgres migration test`:
-unresolved.
+answered.
 
-It is answered when a Testcontainers-backed Go test applies
+`apps/api/migrations/migration_test.go` applies
 `apps/api/migrations/00001_init.sql` to goose version `00001` and verifies the
-`expenses` table schema and insert-time behavior against that disposable
-database.
+`expenses` table schema and insert-time behavior against disposable Postgres.

@@ -18,7 +18,8 @@ username, password, etc.
 Status: answered. The API should load Postgres host, port, database, user,
 password, ssl mode, and pool size from committed dev YAML, derive the Postgres
 URL in memory, run goose migrations, then open pgxpool. No database endpoint or
-credential should be hardcoded in Go.
+credential should be hardcoded in Go. Automated verification should run through
+`go test ./...` with `testcontainers-go`, not through `task api:dev`.
 
 Implementation success criteria:
 
@@ -29,8 +30,10 @@ Implementation success criteria:
 - Startup derives the Postgres URL in memory, opens a short-lived migration
   connection, runs goose migrations, closes that connection, then opens
   `pgxpool`.
-- The first migration defines the `expenses` table and is wired into startup;
-  applying it to local Compose Postgres is verified by launching `task api:dev`.
+- `go test ./...` starts Postgres with `testcontainers-go`, launches the API
+  server in-process using structured config derived from the container endpoint,
+  verifies the server stays running long enough to answer `/healthz`, then
+  tears the server and container down.
 - The full Postgres URL and password are never logged or passed as command-line
   flags.
 
@@ -42,6 +45,8 @@ Local evidence:
   database, user, and password all set to `recurring`.
 - `apps/api/cmd/api/main.go` currently reads only `RECURRING_API_ADDR`, so it
   needs a real config system before Postgres wiring.
+- `apps/api/migrations/migration_test.go` uses testcontainers and currently
+  repeats the local database name, user, and password in Go.
 - `spikes/backend/postgres.md` already decides on `pgx`, `pgxpool`, and `goose`,
   and startup migrations before serving requests.
 - `spikes/backend/linux.md` already decides on systemd socket activation in
@@ -106,6 +111,12 @@ apps/api/config/dev.yaml
 
 This file must be committed and safe for an open source clone. It should point
 at local Compose services.
+
+For now, local Go tests may also read this file when they need the shared local
+database identity values: database name, user, password, SSL mode, and pool
+limit. Do not add a separate test YAML yet. Tests that start their own
+testcontainers Postgres should still get the actual host and port from the
+container because those endpoint values are dynamic.
 
 Production source config:
 
@@ -235,6 +246,30 @@ can talk to Postgres, and opening the pool is part of normal startup.
 If migrations fail, startup fails. The process exits non-zero. In systemd
 production, the service does not announce readiness.
 
+## Integration Test Verification
+
+Do not use `task api:dev` as the automated verification path. Keep it as a
+human development workflow.
+
+Use one dedicated package for full API startup tests so it can own a
+package-scoped `TestMain` fixture. That fixture should start Postgres with
+`testcontainers-go` once, launch the API server in-process, run tests against
+that server, then stop the server and terminate containers after `m.Run()`.
+
+The integration test should run under normal `go test ./...`. Do not require a
+prestarted Compose stack on the host.
+
+The test config should use the same structured config path as production code:
+write a temporary YAML file from the container host and port plus the configured
+database identity values, set `RECURRING_CONFIG` to that file, and let startup
+load config normally.
+
+Later, when API startup includes more dependencies such as observability, add
+those dependencies to the same package-scoped fixture. Do not treat `/healthz`
+success as proof that non-critical background exports such as traces were
+delivered; add direct fixture-level checks for those systems when they become
+part of the startup contract.
+
 ## Migration Schema
 
 Migration schema design lives in [migration.md](migration.md). This config
@@ -329,5 +364,10 @@ answered.
 
 Implementation should satisfy it by committing `apps/api/config/dev.yaml`, using
 `RECURRING_CONFIG=config/dev.yaml` in `task api:dev`, deriving the Postgres URL
-from structured YAML, running goose migrations against Compose Postgres, and
-opening pgxpool with the configured pool limit.
+from structured YAML, running goose migrations, and opening pgxpool with the
+configured pool limit.
+
+Automated verification should run through normal `go test ./...`: a
+package-scoped integration test starts Postgres with `testcontainers-go`, writes
+temporary YAML for that container endpoint, launches the API server in-process,
+checks `/healthz`, then tears everything down.
