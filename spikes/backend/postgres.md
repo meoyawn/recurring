@@ -15,6 +15,10 @@
 - Ordinary build should not require a running Postgres server.
 - Query tests use sandboxed Postgres transactions.
 - E2E tests may use `testcontainers-go` to own a full temporary Postgres server.
+- API runtime config comes from structured YAML selected by `RECURRING_CONFIG`.
+- The Postgres URL is derived in memory from config fields, not supplied as the
+  public API config interface.
+- Runtime pool size comes from `db.max_conns`.
 
 ## Why `pggen`
 
@@ -90,14 +94,18 @@ API server runs migrations during startup, before serving requests.
 
 Startup order:
 
-1. Read config.
-2. Open short-lived `database/sql` connection from `DATABASE_URL` using pgx
-   stdlib.
-3. Ping database.
-4. Run `goose up`.
-5. Close migration connection.
-6. Open long-lived `pgxpool.Pool` from `DATABASE_URL`.
-7. Start serving HTTP requests.
+1. Load dynamic config from `RECURRING_CONFIG`.
+2. Validate structured DB fields.
+3. Derive the Postgres connection URL in memory.
+4. Open short-lived `database/sql` connection using pgx stdlib.
+5. Run `goose up`.
+6. Close migration connection.
+7. Open long-lived `pgxpool.Pool` with `MaxConns` from config.
+8. Start serving HTTP requests.
+
+Do not log the derived Postgres URL because it contains the password. Do not add
+an explicit startup ping; `goose up` proves the migration connection can talk to
+Postgres, and opening the pool is part of normal startup.
 
 If migration fails, process exits non-zero. Systemd/deploy tooling can retry
 after the issue is fixed.
@@ -120,11 +128,14 @@ disconnect or when the HTTP shutdown timeout expires.
 
 Local/codegen flow:
 
-1. Start Compose Postgres or provide a local `DATABASE_URL`.
-2. Run goose migrations against the codegen database.
-3. Run `pggen` against the migrated database and SQL query files.
-4. Commit generated Go code.
-5. Run Go tests.
+1. Start Compose Postgres or provide another local Postgres instance.
+2. Select a config file with `RECURRING_CONFIG`, usually
+   `apps/api/config/dev.yaml`.
+3. Derive the local codegen Postgres URL from structured config.
+4. Run goose migrations against the codegen database.
+5. Run `pggen` against the migrated database and SQL query files.
+6. Commit generated Go code.
+7. Run Go tests.
 
 Generation should use the same migration files as runtime startup.
 
@@ -186,7 +197,9 @@ Query/data-layer tests should not care how Postgres is provisioned.
 
 Supported options:
 
-- External `DATABASE_URL`, usually Compose Postgres.
+- `RECURRING_TEST_DATABASE_URL` for an explicit external test database.
+- Structured config selected by `RECURRING_CONFIG`, usually Compose Postgres for
+  local development.
 - One automatically started Postgres container per package or suite.
 
 E2E tests may use `testcontainers-go` because E2E tests benefit from owning
@@ -196,18 +209,22 @@ Do not start one container per test.
 
 ## Future Ops Execution Model
 
-Keep migration files compatible with goose CLI so execution can move out of API
-code later.
+Keep migration files compatible with goose so execution can move out of API code
+later.
 
-Future ops command shape:
+Future ops shape should prefer a small migration command that loads
+`RECURRING_CONFIG`, derives the Postgres URL in memory, and calls
+`goose.UpContext` / status-equivalent code.
 
-```bash
-goose -dir apps/api/migrations postgres "$DATABASE_URL" up
-goose -dir apps/api/migrations postgres "$DATABASE_URL" status
+```text
+RECURRING_CONFIG=/etc/recurring/api.yaml recurring-api-migrate up
+RECURRING_CONFIG=/etc/recurring/api.yaml recurring-api-migrate status
 ```
 
 Migration ownership can move from API startup to Ansible, CI, or a one-shot
-systemd unit without rewriting migration files.
+systemd unit without rewriting migration files. Direct goose CLI usage remains
+acceptable for local throwaway databases, but production should not pass a DB
+password through command-line arguments.
 
 ## File Layout
 
@@ -238,19 +255,30 @@ apps/api/internal/testdb/
 Use one SQL file per migration:
 
 ```text
-20260426120000_create_accounts.sql
+20260426120000_create_expenses.sql
 ```
 
 Migration file format:
 
 ```sql
 -- +goose Up
-CREATE TABLE accounts (
-  id uuid PRIMARY KEY
+CREATE TABLE expenses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL CHECK (length(name) > 0),
+  amount_minor bigint NOT NULL CHECK (amount_minor >= 0),
+  currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+  recurring text NOT NULL CHECK (length(recurring) > 0),
+  started_at timestamptz NOT NULL,
+  category text CHECK (category IS NULL OR length(category) > 0),
+  comment text CHECK (comment IS NULL OR length(comment) > 0),
+  cancel_url text,
+  canceled_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- +goose Down
-DROP TABLE accounts;
+DROP TABLE expenses;
 ```
 
 ## Go Package Shape
@@ -259,6 +287,7 @@ When implemented:
 
 ```text
 apps/api/internal/db/
+apps/api/internal/config/
 apps/api/internal/migrator/
 apps/api/internal/store/
 apps/api/internal/testdb/
@@ -266,11 +295,19 @@ apps/api/migrations/
 apps/api/queries/
 ```
 
+`internal/config`:
+
+- Reads `RECURRING_CONFIG`.
+- Loads structured YAML.
+- Validates required DB fields.
+- Builds the Postgres URL in memory.
+- Does not log the full URL.
+
 `internal/db`:
 
 - Opens runtime `pgxpool.Pool`.
-- Requires `DATABASE_URL`.
-- Pings before returning.
+- Accepts structured DB config or a derived in-memory connection URL.
+- Applies `db.max_conns` through `pgxpool.ParseConfig`.
 - Owns pool close at API shutdown.
 - Closes the pool after HTTP drain or shutdown timeout, not before handlers have
   had a chance to finish.
@@ -278,6 +315,7 @@ apps/api/queries/
 `internal/migrator`:
 
 - Opens short-lived `database/sql` handle using pgx stdlib.
+- Accepts the derived in-memory connection URL from `internal/config`.
 - Imports embedded migration FS.
 - Sets goose dialect to `postgres`.
 - Runs `goose.UpContext`.
@@ -298,7 +336,8 @@ apps/api/queries/
 - Runs migrations once per test database.
 - Opens one transaction per test.
 - Rolls back each test transaction during cleanup.
-- May connect to external `DATABASE_URL` or use one suite container.
+- May connect to `RECURRING_TEST_DATABASE_URL`, a config-derived local database,
+  or one suite container.
 
 `apps/api/migrations`:
 
@@ -312,13 +351,32 @@ apps/api/queries/
 
 ## Config
 
-Required for runtime:
+Runtime DB config lives in the YAML file selected by:
 
 ```text
-DATABASE_URL=postgres://recurring:recurring@127.0.0.1:5432/recurring?sslmode=disable
+RECURRING_CONFIG
 ```
 
-HTTP listen configuration is owned by the API and Linux runtime docs.
+Recommended development shape:
+
+```yaml
+db:
+  host: localhost
+  port: 5432
+  name: recurring
+  user: recurring
+  password: recurring
+  sslmode: disable
+  max_conns: 4
+```
+
+`internal/config` owns reading this file, validating these fields, deriving the
+Postgres URL in memory, and passing runtime DB settings to `internal/migrator`
+and `internal/db`.
+
+No runtime code should read `DATABASE_URL` directly. No database endpoint or
+credential should be hardcoded in Go. HTTP listen configuration is loaded from
+the same YAML config but is owned by the API and Linux runtime docs.
 
 Optional future escape hatch:
 
@@ -334,8 +392,32 @@ Optional for tests:
 RECURRING_TEST_DATABASE_URL=postgres://recurring:recurring@127.0.0.1:5432/recurring_test?sslmode=disable
 ```
 
-If omitted, test helper may use `DATABASE_URL` for local query tests or start an
-E2E-owned container when that test mode is selected.
+If omitted, test helper may use the structured config selected by
+`RECURRING_CONFIG` for local query tests or start an E2E-owned container when
+that test mode is selected.
+
+Production config should be deployed as a YAML file at `/etc/recurring/api.yaml`
+from Ansible Vault ciphertext. Do not commit plaintext production config, real
+production IPs, or secrets. Do not pass DB passwords through command-line flags.
+
+## First Migration
+
+Do not leave migrations empty. Add a first SQL migration with at least an
+`expenses` table based on `recurring.responsible.ts`.
+
+Mapping:
+
+- API `money.amount` becomes `amount_minor bigint`.
+- API `money.currency` becomes `currency char(3)`.
+- API `recurring` remains text; app-level validation should enforce RFC 3339
+  duration semantics.
+- API Unix millisecond timestamps are represented in Postgres as `timestamptz`
+  and converted at the API boundary.
+- `created_at` and `updated_at` come from the existing `DbTimestamps` shape.
+
+Ownership/session foreign keys can be added with the auth/session migration once
+the signup/session schema is designed. The first migration only needs to prove
+migration plumbing and create the core expense storage.
 
 ## Zero Downtime Rules
 
@@ -379,18 +461,22 @@ Use expand/contract.
 
 ## Immediate Implementation Steps
 
-1. Add `github.com/pressly/goose/v3`.
-2. Add `github.com/jackc/pgx/v5`.
-3. Add `github.com/jackc/pgx/v5/stdlib`.
-4. Add `internal/migrator` with short-lived migration handle.
-5. Add `internal/db` with runtime `pgxpool`.
-6. Wire `cmd/api/main.go` to run migrations before opening runtime pool and
-   listening.
-7. Add `apps/api/queries`.
-8. Add `pggen` generation command after first table/query exists.
-9. Commit generated query Go code.
-10. Add `internal/testdb` with migrate-once and transaction-per-test helpers.
-11. Add first real migration when first table is designed.
-12. Add `go test ./...` verification.
-13. Add codegen verification task that starts/migrates Postgres, runs `pggen`,
+1. Add `github.com/knadh/koanf/v2` and YAML parser dependency.
+2. Add `github.com/pressly/goose/v3`.
+3. Add `github.com/jackc/pgx/v5`.
+4. Add `github.com/jackc/pgx/v5/stdlib`.
+5. Add `internal/config` to load `RECURRING_CONFIG`, validate `db`, and derive
+   the Postgres URL in memory.
+6. Commit `apps/api/config/dev.yaml` with Compose-safe local DB settings.
+7. Add `internal/migrator` with short-lived migration handle.
+8. Add `internal/db` with runtime `pgxpool` and configured `MaxConns`.
+9. Wire `cmd/api/main.go` to load config, run migrations, open runtime pool,
+   and then listen.
+10. Add `apps/api/queries`.
+11. Add `pggen` generation command after first table/query exists.
+12. Commit generated query Go code.
+13. Add `internal/testdb` with migrate-once and transaction-per-test helpers.
+14. Add the first `expenses` migration.
+15. Add `go test ./...` verification.
+16. Add codegen verification task that starts/migrates Postgres, runs `pggen`,
     and fails on generated-code diff.

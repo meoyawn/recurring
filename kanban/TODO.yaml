@@ -1,5 +1,5 @@
 t_10:
-  title: implement env passing
+  title: implement env passing - spikes/backend/env.md
   success_criteria: apps/api can talk to local compose postgres without hardcoding host, port, username, password, etc.
 
 t_7:
