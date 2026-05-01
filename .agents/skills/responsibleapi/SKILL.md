@@ -101,6 +101,8 @@ Rules:
 - Required object keys are plain keys.
 - Optional object keys end with `?`, quoted as needed for TypeScript object
   syntax, for example `"nickname?"`.
+- Optional means the property may be absent. Do not use `nullable()` for
+  optional fields unless the user explicitly asks to allow JSON `null`.
 - For reusable schemas, pass the thunk itself, not `Thunk()`, when nesting it in
   another schema, request, response, or parameter map. Call the thunk only when
   defining it or when intentionally inlining a one-off schema.

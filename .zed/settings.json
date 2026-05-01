@@ -28,6 +28,13 @@
           "name": "gopls"
         }
       }
+    },
+    "SQL": {
+      "formatter": {
+        "language_server": {
+          "name": "sqruff"
+        }
+      }
     }
   }
 }

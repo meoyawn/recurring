@@ -20,6 +20,20 @@ password, ssl mode, and pool size from committed dev YAML, derive the Postgres
 URL in memory, run goose migrations, then open pgxpool. No database endpoint or
 credential should be hardcoded in Go.
 
+Implementation success criteria:
+
+- `task api:dev` sets `RECURRING_CONFIG=config/dev.yaml`.
+- API loads DB host, port, name, user, password, ssl mode, and max connection
+  count from `apps/api/config/dev.yaml`.
+- Go code contains no hardcoded Postgres endpoint or credential values.
+- Startup derives the Postgres URL in memory, opens a short-lived migration
+  connection, runs goose migrations, closes that connection, then opens
+  `pgxpool`.
+- The first migration defines the `expenses` table and is wired into startup;
+  applying it to local Compose Postgres is verified by launching `task api:dev`.
+- The full Postgres URL and password are never logged or passed as command-line
+  flags.
+
 ## Sources
 
 Local evidence:
@@ -32,10 +46,7 @@ Local evidence:
   and startup migrations before serving requests.
 - `spikes/backend/linux.md` already decides on systemd socket activation in
   production and app-owned local listeners in development.
-- `packages/openapi/spec/recurring.responsible.ts` defines the expense shape
-  exposed by `/v1/session/expenses`.
-- `packages/openapi/spec/shared.responsibe.ts` defines money as minor-unit
-  `int64` amount plus ISO-style three-letter currency.
+- `spikes/backend/migration.md` owns the first migration schema design.
 
 External evidence:
 
@@ -130,7 +141,7 @@ Environment=RECURRING_CONFIG=/etc/recurring/api.yaml
 
 No templates are part of this decision.
 
-## Schema
+## Config Schema
 
 Do not include `env` or `environment` fields. Behavior should come from explicit
 config fields, not branching on an environment name.
@@ -224,43 +235,15 @@ can talk to Postgres, and opening the pool is part of normal startup.
 If migrations fail, startup fails. The process exits non-zero. In systemd
 production, the service does not announce readiness.
 
-## First Migration
+## Migration Schema
 
-Do not leave migrations empty. Add a first SQL migration with at least an
-`expenses` table based on `recurring.responsible.ts`.
+Migration schema design lives in [migration.md](migration.md). This config
+decision only requires the API to run goose migrations from
+`apps/api/migrations` before opening `pgxpool`.
 
-Suggested table shape:
-
-```sql
-CREATE TABLE expenses (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL CHECK (length(name) > 0),
-  amount_minor bigint NOT NULL CHECK (amount_minor >= 0),
-  currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
-  recurring text NOT NULL CHECK (length(recurring) > 0),
-  started_at timestamptz NOT NULL,
-  category text CHECK (category IS NULL OR length(category) > 0),
-  comment text CHECK (comment IS NULL OR length(comment) > 0),
-  cancel_url text,
-  canceled_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-```
-
-Mapping:
-
-- API `money.amount` becomes `amount_minor bigint`.
-- API `money.currency` becomes `currency char(3)`.
-- API `recurring` remains text; app-level validation should enforce RFC 3339
-  duration semantics.
-- API Unix millisecond timestamps are represented in Postgres as `timestamptz`
-  and converted at the API boundary.
-- `created_at` and `updated_at` come from the existing `DbTimestamps` shape.
-
-Ownership/session foreign keys can be added with the auth/session migration once
-the signup/session schema is designed. The first migration only needs to prove
-migration plumbing and create the core expense storage.
+Do not leave migrations empty. The first migration should prove startup
+migration plumbing by creating the core expense storage selected in
+[migration.md](migration.md).
 
 ## Task Wiring
 

@@ -45,7 +45,7 @@ const Expense = () =>
   object({
     name: NonEmptyString,
     money: Money,
-    recurring: RecurringInterval,
+    "recurring?": RecurringInterval,
     started_at: ref(unixMillis, { description: "when Subscription start" }),
     "category?": NonEmptyString,
     "comment?": NonEmptyString,
@@ -60,7 +60,7 @@ const CreateExpense = () =>
     started_at: ref(unixMillis, { description: "when Subscription start" }),
     name: NonEmptyString,
     money: Money,
-    recurring: RecurringInterval,
+    "recurring?": RecurringInterval,
     "category?": NonEmptyString,
     "comment?": NonEmptyString,
     "cancel_url?": httpURL,

@@ -2,6 +2,10 @@ t_10:
   title: implement env passing - spikes/backend/env.md
   success_criteria: apps/api can talk to local compose postgres without hardcoding host, port, username, password, etc.
 
+t_12:
+  title: implement migration schema - spikes/backend/migration.md
+  success_criteria: local compose postgres is successfully migrated with the goose CLI
+
 t_7:
   title: implement `/healthz` in api
   deps:

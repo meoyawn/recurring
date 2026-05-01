@@ -1,0 +1,16 @@
+[sqruff]
+dialect = postgres
+
+[sqruff:indentation]
+indent_unit = space
+tab_space_size = 4
+
+[sqruff:layout:type:data_type]
+spacing_before = align
+align_within = bracketed
+align_scope = statement
+
+[sqruff:layout:type:column_constraint_segment]
+spacing_before = align
+align_within = bracketed
+align_scope = statement
