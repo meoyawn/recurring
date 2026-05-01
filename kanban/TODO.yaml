@@ -1,7 +1,12 @@
+t_10:
+  title: implement env passing
+  success_criteria: apps/api can talk to local compose postgres without hardcoding host, port, username, password, etc.
+
 t_7:
   title: implement `/healthz` in api
   deps:
     - t_3
+    - t_10
 
 t_8:
   title: "`task web:dev` starts"
@@ -15,3 +20,7 @@ t_6:
 
 t_9:
   title: forward W3C `traceparent` and `tracestate` from Solid server requests to Recurring API requests
+
+t_11:
+  title: create spike for api static config shape
+  success_criteria: project spike markdown
