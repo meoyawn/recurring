@@ -26,16 +26,22 @@ Implementation success criteria:
 - `task api:dev` sets `RECURRING_CONFIG=config/dev.yaml`.
 - API loads DB host, port, name, user, password, ssl mode, and max connection
   count from `apps/api/config/dev.yaml`.
-- Go code contains no hardcoded Postgres endpoint or credential values.
+- `apps/api/config/schema.yaml` is committed as a JSON Schema for
+  `apps/api/config/dev.yaml`.
+- `go test ./...` includes a focused test that validates
+  `apps/api/config/dev.yaml` against `apps/api/config/schema.yaml`.
+- Development and test code both use `apps/api/config/dev.yaml` for local
+  Postgres identity values instead of repeating database name, user, password,
+  SSL mode, or pool limit in Go.
+- Production Go code contains no hardcoded Postgres endpoint or credential
+  values.
 - Startup derives the Postgres URL in memory, opens a short-lived migration
   connection, runs goose migrations, closes that connection, then opens
   `pgxpool`.
 - `go test ./...` starts Postgres with `testcontainers-go`, launches the API
   server in-process using structured config derived from the container endpoint,
-  verifies the server stays running long enough to answer `/healthz`, then
+  performs an HTTP `GET /healthz`, expects `200 OK`, then cancels the server and
   tears the server and container down.
-- The full Postgres URL and password are never logged or passed as command-line
-  flags.
 
 ## Sources
 
@@ -112,9 +118,20 @@ apps/api/config/dev.yaml
 This file must be committed and safe for an open source clone. It should point
 at local Compose services.
 
-For now, local Go tests may also read this file when they need the shared local
-database identity values: database name, user, password, SSL mode, and pool
-limit. Do not add a separate test YAML yet. Tests that start their own
+Development config schema:
+
+```text
+apps/api/config/schema.yaml
+```
+
+This file must be committed as a JSON Schema for `config/dev.yaml`. Automated
+tests should validate `config/dev.yaml` against this schema. Runtime validation
+wiring against the schema is a later implementation step and is not part of this
+spike.
+
+For now, local Go tests should also read this file when they need the shared
+local database identity values: database name, user, password, SSL mode, and
+pool limit. Do not add a separate test YAML yet. Tests that start their own
 testcontainers Postgres should still get the actual host and port from the
 container because those endpoint values are dynamic.
 
@@ -156,6 +173,12 @@ No templates are part of this decision.
 
 Do not include `env` or `environment` fields. Behavior should come from explicit
 config fields, not branching on an environment name.
+
+Write `apps/api/config/schema.yaml` as a JSON Schema expressed in YAML. The
+schema should describe the dynamic config shape used by `config/dev.yaml`,
+including listener and database fields. Add a test that validates
+`config/dev.yaml` against this schema. Keep runtime schema validation wiring out
+of this spike; runtime validation still uses typed Go validation.
 
 Recommended dev config:
 
@@ -248,8 +271,8 @@ production, the service does not announce readiness.
 
 ## Integration Test Verification
 
-Do not use `task api:dev` as the automated verification path. Keep it as a
-human development workflow.
+Do not use `task api:dev` as the automated verification path. Keep it as a human
+development workflow.
 
 Use one dedicated package for full API startup tests so it can own a
 package-scoped `TestMain` fixture. That fixture should start Postgres with
@@ -362,12 +385,19 @@ Examples:
 `apps/api can talk to local compose postgres without hardcoding host, port, username, password, etc.`:
 answered.
 
-Implementation should satisfy it by committing `apps/api/config/dev.yaml`, using
-`RECURRING_CONFIG=config/dev.yaml` in `task api:dev`, deriving the Postgres URL
-from structured YAML, running goose migrations, and opening pgxpool with the
-configured pool limit.
+Implementation should satisfy it by committing `apps/api/config/dev.yaml`,
+committing `apps/api/config/schema.yaml` as a JSON Schema for that dev config,
+using `RECURRING_CONFIG=config/dev.yaml` in `task api:dev`, deriving the
+Postgres URL from structured YAML, running goose migrations, opening pgxpool
+with the configured pool limit, using the same `config/dev.yaml` local database
+identity values in tests, and adding an automated schema test. Runtime schema
+validation is later work.
 
 Automated verification should run through normal `go test ./...`: a
 package-scoped integration test starts Postgres with `testcontainers-go`, writes
 temporary YAML for that container endpoint, launches the API server in-process,
-checks `/healthz`, then tears everything down.
+performs an HTTP `GET /healthz`, expects `200 OK`, then cancels the server and
+tears everything down. The same `go test ./...` run should also include a
+focused schema test that validates `apps/api/config/dev.yaml` against
+`apps/api/config/schema.yaml`. The "do not log URL/password" rule is
+review-enforced.
