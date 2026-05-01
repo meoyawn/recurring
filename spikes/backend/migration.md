@@ -1,122 +1,125 @@
-# API Migration Schema Decision
+# V1 Expenses Migration
 
-Decision: the first goose migration creates the core `expenses` table and is
-verified against local Compose Postgres with the goose CLI.
+Decision: write the first goose SQL migration under `apps/api/migrations`.
+It creates the core `expenses` table for `/v1/session/expenses`.
 
-Runtime migration setup belongs to [env.md](env.md): API config loading,
-Postgres URL derivation, pgx stdlib migration connection, goose startup
-execution, and pgxpool startup. This spike owns schema design.
+Runtime migration wiring belongs to [env.md](env.md): config loading, Postgres
+URL derivation, pgx stdlib migration connection, goose startup execution, and
+pgxpool startup. This spike owns only the v1 migration SQL and its migration
+test.
 
 ## Success Criteria
 
-Local Compose Postgres is successfully migrated with the goose CLI.
+The v1 migration is verified by a disposable Postgres migration test.
 
-Status: unresolved until the first SQL migration exists under
-`apps/api/migrations` and `goose up` has been run against the local Compose
-database.
+Status: unresolved until `apps/api/migrations/00001_init.sql` exists and a Go
+test starts disposable Postgres with Testcontainers, migrates to goose version
+`00001`, and verifies the resulting schema and insert-time behavior.
 
 Implementation success criteria:
 
-- `apps/api/migrations` contains a non-empty SQL migration for `expenses`.
-- The migration applies cleanly to `compose/docker-compose.yml` Postgres.
-- Goose records the applied migration in its version table.
-- The resulting database contains the `expenses` table with constraints matching
-  the API shape.
-- Verification uses local throwaway/dev credentials only and does not put the
-  expanded Postgres URL in committed tasks, docs, or logs.
+- `apps/api/migrations/00001_init.sql` is a non-empty goose SQL migration.
+- The migration creates `pgcrypto`.
+- The migration creates `public.expenses` with this v1 schema:
+  `id text PRIMARY KEY DEFAULT 'exp_' || encode(gen_random_bytes(16), 'hex')`
+  constrained by `^exp_[0-9a-f]{32}$`; `name text NOT NULL` constrained to
+  non-empty; `amount_minor bigint NOT NULL` constrained to `>= 0`;
+  `currency char(3) NOT NULL` constrained by `^[A-Z]{3}$`;
+  `recurring interval NULL` constrained to positive values when present;
+  `started_at timestamptz NOT NULL`; nullable `category text` and `comment text`
+  constrained to non-empty values when present; nullable `cancel_url text`;
+  nullable `canceled_at timestamptz`; `created_at timestamptz NOT NULL DEFAULT
+  now()`; and `updated_at timestamptz NOT NULL DEFAULT now()`.
+- A Go test starts disposable Postgres with Testcontainers.
+- The test applies exact goose target version `00001`.
+- The test verifies goose records version `00001` as applied.
+- The test verifies `public.expenses` columns, nullability, types, defaults,
+  and constraints match the API shape.
+- The test verifies representative insert behavior: generated ids match
+  `^exp_[0-9a-f]{32}$`, negative `amount_minor` is rejected, lowercase
+  `currency` is rejected, empty `name` is rejected, empty `category` is
+  rejected, and empty `comment` is rejected.
+- Verification uses only throwaway/dev credentials and never commits expanded
+  Postgres URLs in tasks, docs, tests, or logs.
 
-## Sources
+## Evidence
 
 Local evidence:
 
-- `compose/docker-compose.yml` defines local Postgres on host port `5432` with
-  database, user, and password all set to `recurring`.
-- `packages/openapi/spec/recurring.responsible.ts` defines the expense shape
-  exposed by `/v1/session/expenses`.
-- `packages/openapi/spec/shared.responsibe.ts` defines money as minor-unit
-  `int64` amount plus ISO-style three-letter currency.
-- [env.md](env.md) decides that API startup derives the Postgres URL in memory,
-  runs goose migrations, closes the migration connection, then opens `pgxpool`.
+- `packages/openapi/spec/recurring.responsible.ts` defines
+  `/v1/session/expenses`.
+- `packages/openapi/spec/shared.responsibe.ts` defines money as non-negative
+  minor-unit `int64` plus uppercase three-letter currency.
+- `spikes/backend/init.sql` contains the proposed v1 `expenses` table body.
 - `spikes/backend/postgres.md` decides on `pgx`, `pgxpool`, `goose`, SQL
   migrations in `apps/api/migrations`, and startup migrations before serving
   requests.
 
 External evidence:
 
-- `goose up` applies all available migrations:
-  https://pressly.github.io/goose/documentation/cli-commands/#up
-- PostgreSQL 18 stores both `timestamp` and `timestamp with time zone` in 8
-  bytes with 1 microsecond resolution, stores `interval` in 16 bytes, stores
-  timezone-aware timestamps internally in UTC, and converts them to the session
-  timezone for output:
+- Goose Provider runs migrations from Go with a `database/sql` handle and
+  exposes version inspection:
+  https://pressly.github.io/goose/documentation/provider/
+- Goose documents ordinary migration integration tests against ephemeral
+  Postgres containers: https://pressly.github.io/goose/blog/2021/better-tests/
+- Testcontainers for Go has a Postgres module that starts disposable Postgres
+  and returns connection strings:
+  https://golang.testcontainers.org/modules/postgres/
+- PostgreSQL `information_schema` and `pg_constraint` expose table, column, and
+  constraint metadata:
+  https://www.postgresql.org/docs/18/information-schema.html
+  https://www.postgresql.org/docs/current/catalog-pg-constraint.html
+- PostgreSQL stores `timestamptz` instants internally in UTC:
   https://www.postgresql.org/docs/current/datatype-datetime.html
-- PostgreSQL 18 stores `bigint` in 8 bytes, with signed range
-  `-9223372036854775808` to `+9223372036854775807`:
-  https://www.postgresql.org/docs/current/datatype-numeric.html
-- Stripe uses string object ids such as customer `cus_...` and subscription
-  `sub_...`; its API docs define these ids as strings:
-  https://docs.stripe.com/api/customers/object and
-  https://docs.stripe.com/api/subscriptions/object
 
 ## Table Shape
 
-Do not leave migrations empty. Add a first SQL migration with at least an
-`expenses` table based on `recurring.responsible.ts`.
+Write `apps/api/migrations/00001_init.sql` from the proposed body in
+[init.sql](init.sql).
 
-Suggested table shape: [init.sql](init.sql).
+Required mapping:
 
-Mapping:
+- API `id` becomes an opaque `text` primary key with `exp_` prefix and a
+  lowercase hex suffix generated from 16 random bytes.
+- API `name` becomes non-empty `text`.
+- API `money.amount` becomes non-negative `amount_minor bigint`.
+- API `money.currency` becomes uppercase `currency char(3)`.
+- API optional `recurring` becomes nullable positive PostgreSQL `interval`.
+  App validation still owns RFC 3339 duration compatibility before insert.
+- API Unix millisecond timestamps become `timestamptz` and are converted at the
+  API boundary.
+- `created_at` and `updated_at` come from `DbTimestamps` and default to `now()`.
 
-- API `id` should be an opaque Stripe-style string id. Use the `exp_` prefix
-  because this table stores expenses; no repo evidence shows a prior local
-  prefix convention. The suffix is 16 random bytes rendered as lowercase hex so
-  Postgres can generate it with `pgcrypto` and a simple CHECK constraint.
-- API `money.amount` becomes `amount_minor bigint`.
-- API `money.currency` becomes `currency char(3)`.
-- API `recurring` is optional and becomes nullable PostgreSQL `interval`;
-  app-level validation still owns RFC 3339 duration compatibility before
-  inserting.
-- API Unix millisecond timestamps are represented in Postgres as `timestamptz`
-  and converted to/from Unix milliseconds at the API boundary. Plain `timestamp`
-  is not UTC milliseconds; it is a date-time without timezone.
-- `created_at` and `updated_at` come from the existing `DbTimestamps` shape and
-  use `now()` for database-generated timestamps.
+Ownership/session foreign keys are deferred until the auth/session migration.
+The v1 migration only proves migration plumbing and creates core expense
+storage.
 
-Timestamp storage decision:
+## Test Shape
 
-- Observation: PostgreSQL documents both plain `timestamp` and timezone-aware
-  `timestamptz` as 8-byte types, and documents `bigint` as an 8-byte type.
-  Storage size does not favor either representation.
-- Observation: PostgreSQL documents timezone-aware timestamps as stored
-  internally in UTC, then converted to the session timezone for output. Plain
-  `timestamp` does not carry timezone semantics.
-- Recommendation: use `timestamptz` for stored instants. It keeps native
-  date/time operators and SQL defaults such as `now()`, while the API boundary
-  can expose UTC Unix milliseconds from Go `time.Time`.
+Use a Go integration test, not local Compose, as the proof.
 
-Ownership/session foreign keys can be added with the auth/session migration once
-the signup/session schema is designed. The first migration only needs to prove
-migration plumbing and create the core expense storage.
+Expected flow:
 
-## Goose CLI Verification
+1. Start disposable Postgres with Testcontainers.
+2. Open a `database/sql` connection for goose.
+3. Run goose against `apps/api/migrations` to target version `00001`.
+4. Assert goose database version is `00001`.
+5. Query PostgreSQL metadata to assert `public.expenses` schema.
+6. Run insert attempts that prove required constraints and generated id format.
 
-Use local Compose Postgres for verification. The proof should be equivalent to
-running goose CLI `up` against `apps/api/migrations` and then checking the
-resulting schema.
+Local Compose plus goose CLI can remain a manual smoke check, but it is not the
+success criterion.
 
-```fish
-goose -dir apps/api/migrations postgres "$RECURRING_DEV_DATABASE_URL" up
-```
+## Open Questions
 
-`RECURRING_DEV_DATABASE_URL` is a local operator convenience for the committed
-Compose database. Do not commit the expanded URL in tasks or docs. Production
-migrations should not pass a DB password through command-line arguments.
+None.
 
 ## Criterion Status
 
-`Local Compose Postgres is successfully migrated with the goose CLI`:
+`The v1 migration is verified by a disposable Postgres migration test`:
 unresolved.
 
-It is answered when `goose up` against local Compose applies the first
-`expenses` migration and the migrated database contains the expected table and
-constraints.
+It is answered when a Testcontainers-backed Go test applies
+`apps/api/migrations/00001_init.sql` to goose version `00001` and verifies the
+`expenses` table schema and insert-time behavior against that disposable
+database.
