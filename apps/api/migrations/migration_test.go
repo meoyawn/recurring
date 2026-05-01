@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/recurring/api/internal/config"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
@@ -19,11 +21,12 @@ func TestMigration00001(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
+	devConfig := mustLoadDevConfig(t)
 	ctr, err := postgres.Run(ctx,
 		"postgres:18-alpine",
-		postgres.WithDatabase("recurring"),
-		postgres.WithUsername("recurring"),
-		postgres.WithPassword("recurring"),
+		postgres.WithDatabase(devConfig.DB.Name),
+		postgres.WithUsername(devConfig.DB.User),
+		postgres.WithPassword(devConfig.DB.Password),
 		postgres.BasicWaitStrategies(),
 		postgres.WithSQLDriver("pgx"),
 	)
@@ -32,7 +35,7 @@ func TestMigration00001(t *testing.T) {
 		t.Fatalf("start postgres: %v", err)
 	}
 
-	conn, err := ctr.ConnectionString(ctx, "sslmode=disable", "application_name=recurring_migration_test")
+	conn, err := ctr.ConnectionString(ctx, "sslmode="+devConfig.DB.SSLMode, "application_name=recurring_migration_test")
 	if err != nil {
 		t.Fatalf("postgres connection string: %v", err)
 	}
@@ -63,6 +66,16 @@ func TestMigration00001(t *testing.T) {
 	assertExpenseColumns(t, ctx, db)
 	assertExpenseConstraints(t, ctx, db)
 	assertExpenseInsertBehavior(t, ctx, db)
+}
+
+func mustLoadDevConfig(t *testing.T) config.Config {
+	t.Helper()
+
+	cfg, err := config.Load(filepath.Join("..", "config", "dev.yaml"))
+	if err != nil {
+		t.Fatalf("load dev config: %v", err)
+	}
+	return cfg
 }
 
 func assertGooseAppliedVersion(t *testing.T, ctx context.Context, db *sql.DB) {

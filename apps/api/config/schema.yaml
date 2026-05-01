@@ -1,0 +1,88 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+type: object
+additionalProperties: false
+required:
+  - api
+  - db
+properties:
+  api:
+    type: object
+    additionalProperties: false
+    required:
+      - listener
+    properties:
+      listener:
+        type: object
+        oneOf:
+          - additionalProperties: false
+            required:
+              - kind
+              - addr
+            properties:
+              kind:
+                type: string
+                enum:
+                  - tcp
+              addr:
+                type: string
+                minLength: 1
+          - additionalProperties: false
+            required:
+              - kind
+              - path
+            properties:
+              kind:
+                type: string
+                enum:
+                  - unix
+              path:
+                type: string
+                minLength: 1
+          - additionalProperties: false
+            required:
+              - kind
+            properties:
+              kind:
+                type: string
+                enum:
+                  - systemd
+  db:
+    type: object
+    additionalProperties: false
+    required:
+      - host
+      - port
+      - name
+      - user
+      - password
+      - sslmode
+      - max_conns
+    properties:
+      host:
+        type: string
+        minLength: 1
+      port:
+        type: integer
+        minimum: 1
+        maximum: 65535
+      name:
+        type: string
+        minLength: 1
+      user:
+        type: string
+        minLength: 1
+      password:
+        type: string
+        minLength: 1
+      sslmode:
+        type: string
+        enum:
+          - disable
+          - allow
+          - prefer
+          - require
+          - verify-ca
+          - verify-full
+      max_conns:
+        type: integer
+        minimum: 1

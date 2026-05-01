@@ -1,3 +1,9 @@
+t_10:
+  title: implement env passing - spikes/backend/env.md
+  success_criteria: see spikes/backend/env.md
+  start: 2026-05-02T00:25:39+0300
+  finish: 2026-05-02T00:31:58+0300
+
 t_12:
   title: implement migration schema - spikes/backend/migration.md
   success_criteria: see spikes/backend/migration.md

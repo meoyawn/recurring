@@ -1,14 +1,14 @@
 # Recurring API (Go)
 
-HTTP API served behind Caddy at `api.domain.com` in production. Local default: `http://127.0.0.1:8080`.
+HTTP API served behind Caddy in production. Local development listens on the Unix socket from `config/dev.yaml`.
 
 ## Run
 
 ```bash
-go run ./cmd/api
+RECURRING_CONFIG=config/dev.yaml go run ./cmd/api
 ```
 
-Optional: `RECURRING_API_ADDR=:3001`
+Health check: `GET /healthz`.
 
 ## Layout
 

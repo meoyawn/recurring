@@ -1,20 +1,20 @@
 package main
 
 import (
+	"context"
 	"log"
-	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/recurring/api/internal/httpapi"
+	"github.com/recurring/api/internal/app"
 )
 
 func main() {
-	addr := ":8080"
-	if v := os.Getenv("RECURRING_API_ADDR"); v != "" {
-		addr = v
-	}
-	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, httpapi.NewMux()); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := app.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }

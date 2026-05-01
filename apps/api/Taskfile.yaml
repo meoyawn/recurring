@@ -3,6 +3,8 @@ version: "3"
 tasks:
   dev:
     desc: Run API dev server
+    env:
+      RECURRING_CONFIG: config/dev.yaml
     cmds:
       - go run ./cmd/api
 

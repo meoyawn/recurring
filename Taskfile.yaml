@@ -1,23 +1,48 @@
 version: "3"
 
 includes:
-  api:
-    taskfile: apps/api/Taskfile.yaml
-    dir: apps/api/
-
   web:
     taskfile: apps/web/Taskfile.yaml
     dir: apps/web/
-
-  sheets:
-    taskfile: apps/sheets/Taskfile.yaml
-    dir: apps/sheets/
 
   openapi:
     taskfile: packages/openapi/Taskfile.yaml
     dir: packages/openapi/
 
 tasks:
+  dev:deps:
+    dir: compose
+    cmds:
+      - task dev
+
+  api:dev:
+    deps:
+      - dev:deps
+    cmds:
+      - task --dir apps/api dev
+
+  api:build:
+    cmds:
+      - task --dir apps/api build
+
+  api:migrate:local:
+    cmds:
+      - task --dir apps/api migrate:local
+
+  api:test:
+    cmds:
+      - task --dir apps/api test
+
+  sheets:dev:
+    deps:
+      - dev:deps
+    cmds:
+      - task --dir apps/sheets dev
+
+  sheets:typecheck:
+    cmds:
+      - task --dir apps/sheets typecheck
+
   reindex:
     cmd: uvx code-review-graph build
     sources:

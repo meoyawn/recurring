@@ -1,0 +1,13 @@
+api:
+  listener:
+    kind: unix
+    path: /tmp/recurring-api.sock
+
+db:
+  host: localhost
+  port: 5432
+  name: recurring
+  user: recurring
+  password: not-a-secret
+  sslmode: disable
+  max_conns: 4
