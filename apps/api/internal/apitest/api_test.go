@@ -15,6 +15,7 @@ import (
 	"github.com/recurring/api/internal/app"
 	"github.com/recurring/api/internal/config"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"gotest.tools/v3/assert"
 )
 
 var apiBaseURL string
@@ -121,38 +122,24 @@ func (env *testEnv) Close() error {
 func TestHealthz(t *testing.T) {
 	client := http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(apiBaseURL + "/healthz")
-	if err != nil {
-		t.Fatalf("GET /healthz: %v", err)
-	}
+	assert.NilError(t, err, "GET /healthz")
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /healthz status = %d, want %d", resp.StatusCode, http.StatusOK)
-	}
+	assert.Equal(t, resp.StatusCode, http.StatusOK, "GET /healthz status")
 	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("read GET /healthz body: %v", err)
-	}
-	if string(body) != "" {
-		t.Fatalf("GET /healthz body = %q, want empty", string(body))
-	}
+	assert.NilError(t, err, "read GET /healthz body")
+	assert.Equal(t, string(body), "", "GET /healthz body")
 }
 
 func TestOpenAPIValidation(t *testing.T) {
 	client := http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", strings.NewReader(`{}`))
-	if err != nil {
-		t.Fatalf("create POST /v1/signup request: %v", err)
-	}
+	assert.NilError(t, err, "create POST /v1/signup request")
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("POST /v1/signup: %v", err)
-	}
+	assert.NilError(t, err, "POST /v1/signup")
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("POST /v1/signup status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
-	}
+	assert.Equal(t, resp.StatusCode, http.StatusBadRequest, "POST /v1/signup status")
 }

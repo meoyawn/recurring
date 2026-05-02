@@ -41,3 +41,6 @@ t_9:
   title: >-
     forward W3C `traceparent` and `tracestate` from Solid server requests to
     Recurring API requests
+
+t_16:
+  title: go-cmp based assertions in `*_test.go`

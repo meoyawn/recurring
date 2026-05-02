@@ -3,7 +3,6 @@ package migrations_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/recurring/api/internal/config"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"gotest.tools/v3/assert"
 )
 
 func TestMigration00001(t *testing.T) {
@@ -31,35 +31,23 @@ func TestMigration00001(t *testing.T) {
 		postgres.WithSQLDriver("pgx"),
 	)
 	testcontainers.CleanupContainer(t, ctr)
-	if err != nil {
-		t.Fatalf("start postgres: %v", err)
-	}
+	assert.NilError(t, err, "start postgres")
 
 	conn, err := ctr.ConnectionString(ctx, "sslmode="+devConfig.DB.SSLMode, "application_name=recurring_migration_test")
-	if err != nil {
-		t.Fatalf("postgres connection string: %v", err)
-	}
+	assert.NilError(t, err, "postgres connection string")
 
 	db, err := sql.Open("pgx", conn)
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
+	assert.NilError(t, err, "open postgres")
 	defer db.Close()
 
-	if err := goose.SetDialect("postgres"); err != nil {
-		t.Fatalf("set goose dialect: %v", err)
-	}
-	if err := goose.UpToContext(ctx, db, ".", 1); err != nil {
-		t.Fatalf("goose up-to 00001: %v", err)
-	}
+	err = goose.SetDialect("postgres")
+	assert.NilError(t, err, "set goose dialect")
+	err = goose.UpToContext(ctx, db, ".", 1)
+	assert.NilError(t, err, "goose up-to 00001")
 
 	version, err := goose.GetDBVersionContext(ctx, db)
-	if err != nil {
-		t.Fatalf("get goose version: %v", err)
-	}
-	if version != 1 {
-		t.Fatalf("goose version = %d, want 1", version)
-	}
+	assert.NilError(t, err, "get goose version")
+	assert.Equal(t, version, int64(1), "goose version")
 
 	assertGooseAppliedVersion(t, ctx, db)
 	assertPgcrypto(t, ctx, db)
@@ -72,9 +60,7 @@ func mustLoadDevConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	cfg, err := config.Load(filepath.Join("..", "config", "dev.yaml"))
-	if err != nil {
-		t.Fatalf("load dev config: %v", err)
-	}
+	assert.NilError(t, err, "load dev config")
 	return cfg
 }
 
@@ -82,36 +68,30 @@ func assertGooseAppliedVersion(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
 	var applied bool
-	if err := db.QueryRowContext(ctx, `
+	err := db.QueryRowContext(ctx, `
 		SELECT EXISTS (
 			SELECT 1
 			FROM public.goose_db_version
 			WHERE version_id = 1 AND is_applied
 		)
-	`).Scan(&applied); err != nil {
-		t.Fatalf("query goose version row: %v", err)
-	}
-	if !applied {
-		t.Fatal("goose version 00001 is not recorded as applied")
-	}
+	`).Scan(&applied)
+	assert.NilError(t, err, "query goose version row")
+	assert.Assert(t, applied, "goose version 00001 is not recorded as applied")
 }
 
 func assertPgcrypto(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
 	var installed bool
-	if err := db.QueryRowContext(ctx, `
+	err := db.QueryRowContext(ctx, `
 		SELECT EXISTS (
 			SELECT 1
 			FROM pg_extension
 			WHERE extname = 'pgcrypto'
 		)
-	`).Scan(&installed); err != nil {
-		t.Fatalf("query pgcrypto extension: %v", err)
-	}
-	if !installed {
-		t.Fatal("pgcrypto extension is not installed")
-	}
+	`).Scan(&installed)
+	assert.NilError(t, err, "query pgcrypto extension")
+	assert.Assert(t, installed, "pgcrypto extension is not installed")
 }
 
 type columnInfo struct {
@@ -131,9 +111,7 @@ func assertExpenseColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 		WHERE table_schema = 'public' AND table_name = 'expenses'
 		ORDER BY ordinal_position
 	`)
-	if err != nil {
-		t.Fatalf("query expense columns: %v", err)
-	}
+	assert.NilError(t, err, "query expense columns")
 	defer rows.Close()
 
 	got := map[string]columnInfo{}
@@ -141,15 +119,11 @@ func assertExpenseColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 	for rows.Next() {
 		var name string
 		var col columnInfo
-		if err := rows.Scan(&name, &col.dataType, &col.udtName, &col.nullable, &col.maxLength, &col.defaultValue); err != nil {
-			t.Fatalf("scan expense column: %v", err)
-		}
+		assert.NilError(t, rows.Scan(&name, &col.dataType, &col.udtName, &col.nullable, &col.maxLength, &col.defaultValue), "scan expense column")
 		got[name] = col
 		order = append(order, name)
 	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate expense columns: %v", err)
-	}
+	assert.NilError(t, rows.Err(), "iterate expense columns")
 
 	wantOrder := []string{
 		"id",
@@ -165,9 +139,7 @@ func assertExpenseColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 		"created_at",
 		"updated_at",
 	}
-	if strings.Join(order, ",") != strings.Join(wantOrder, ",") {
-		t.Fatalf("expense columns = %v, want %v", order, wantOrder)
-	}
+	assert.DeepEqual(t, order, wantOrder)
 
 	assertColumn(t, got, "id", "text", "text", "NO", 0, []string{"exp_", "gen_random_bytes", "encode"})
 	assertColumn(t, got, "name", "text", "text", "NO", 0, nil)
@@ -187,25 +159,22 @@ func assertColumn(t *testing.T, got map[string]columnInfo, name string, dataType
 	t.Helper()
 
 	col, ok := got[name]
-	if !ok {
-		t.Fatalf("missing column %q", name)
-	}
-	if col.dataType != dataType || col.udtName != udtName || col.nullable != nullable {
-		t.Fatalf("column %s = (%s, %s, %s), want (%s, %s, %s)", name, col.dataType, col.udtName, col.nullable, dataType, udtName, nullable)
-	}
+	assert.Assert(t, ok, "missing column %q", name)
+	assert.Equal(t, col.dataType, dataType, "column %s data_type", name)
+	assert.Equal(t, col.udtName, udtName, "column %s udt_name", name)
+	assert.Equal(t, col.nullable, nullable, "column %s is_nullable", name)
 	if maxLength == 0 && col.maxLength.Valid {
-		t.Fatalf("column %s max length = %d, want null", name, col.maxLength.Int64)
+		assert.Assert(t, !col.maxLength.Valid, "column %s max length = %d, want null", name, col.maxLength.Int64)
 	}
 	if maxLength > 0 && (!col.maxLength.Valid || col.maxLength.Int64 != maxLength) {
-		t.Fatalf("column %s max length = %v, want %d", name, col.maxLength, maxLength)
+		assert.Assert(t, col.maxLength.Valid && col.maxLength.Int64 == maxLength, "column %s max length = %v, want %d", name, col.maxLength, maxLength)
 	}
 	if len(defaultParts) == 0 && col.defaultValue.Valid {
-		t.Fatalf("column %s default = %q, want null", name, col.defaultValue.String)
+		assert.Assert(t, !col.defaultValue.Valid, "column %s default = %q, want null", name, col.defaultValue.String)
 	}
 	for _, part := range defaultParts {
-		if !col.defaultValue.Valid || !strings.Contains(col.defaultValue.String, part) {
-			t.Fatalf("column %s default = %q, want substring %q", name, col.defaultValue.String, part)
-		}
+		assert.Assert(t, col.defaultValue.Valid, "column %s default = null, want substring %q", name, part)
+		assert.Assert(t, strings.Contains(col.defaultValue.String, part), "column %s default = %q, want substring %q", name, col.defaultValue.String, part)
 	}
 }
 
@@ -217,23 +186,17 @@ func assertExpenseConstraints(t *testing.T, ctx context.Context, db *sql.DB) {
 		FROM pg_constraint
 		WHERE conrelid = 'public.expenses'::regclass
 	`)
-	if err != nil {
-		t.Fatalf("query expense constraints: %v", err)
-	}
+	assert.NilError(t, err, "query expense constraints")
 	defer rows.Close()
 
 	got := map[string]string{}
 	for rows.Next() {
 		var name string
 		var definition string
-		if err := rows.Scan(&name, &definition); err != nil {
-			t.Fatalf("scan expense constraint: %v", err)
-		}
+		assert.NilError(t, rows.Scan(&name, &definition), "scan expense constraint")
 		got[name] = definition
 	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate expense constraints: %v", err)
-	}
+	assert.NilError(t, rows.Err(), "iterate expense constraints")
 
 	want := map[string][]string{
 		"expenses_pkey":                      {"PRIMARY KEY", "id"},
@@ -247,13 +210,9 @@ func assertExpenseConstraints(t *testing.T, ctx context.Context, db *sql.DB) {
 	}
 	for name, parts := range want {
 		definition, ok := got[name]
-		if !ok {
-			t.Fatalf("missing constraint %q; got %v", name, got)
-		}
+		assert.Assert(t, ok, "missing constraint %q; got %v", name, got)
 		for _, part := range parts {
-			if !strings.Contains(definition, part) {
-				t.Fatalf("constraint %s = %q, want substring %q", name, definition, part)
-			}
+			assert.Assert(t, strings.Contains(definition, part), "constraint %s = %q, want substring %q", name, definition, part)
 		}
 	}
 }
@@ -262,16 +221,13 @@ func assertExpenseInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) 
 	t.Helper()
 
 	var id string
-	if err := db.QueryRowContext(ctx, `
+	err := db.QueryRowContext(ctx, `
 		INSERT INTO public.expenses (name, amount_minor, currency, started_at)
 		VALUES ('Rent', 125000, 'USD', now())
 		RETURNING id
-	`).Scan(&id); err != nil {
-		t.Fatalf("insert valid expense: %v", err)
-	}
-	if !regexp.MustCompile(`^exp_[0-9a-f]{32}$`).MatchString(id) {
-		t.Fatalf("generated id = %q, want exp_ plus 32 lowercase hex chars", id)
-	}
+	`).Scan(&id)
+	assert.NilError(t, err, "insert valid expense")
+	assert.Assert(t, regexp.MustCompile(`^exp_[0-9a-f]{32}$`).MatchString(id), "generated id = %q, want exp_ plus 32 lowercase hex chars", id)
 
 	assertInsertRejected(t, ctx, db, "negative amount_minor", `
 		INSERT INTO public.expenses (name, amount_minor, currency, started_at)
@@ -298,9 +254,7 @@ func assertExpenseInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) 
 func assertInsertRejected(t *testing.T, ctx context.Context, db *sql.DB, name string, query string) {
 	t.Helper()
 
-	if _, err := db.ExecContext(ctx, query); err == nil {
-		t.Fatalf("%s insert succeeded, want constraint error", name)
-	} else if !strings.Contains(fmt.Sprint(err), "SQLSTATE 23514") {
-		t.Fatalf("%s insert error = %v, want check violation", name, err)
-	}
+	_, err := db.ExecContext(ctx, query)
+	assert.Assert(t, err != nil, "%s insert succeeded, want constraint error", name)
+	assert.Assert(t, strings.Contains(err.Error(), "SQLSTATE 23514"), "%s insert error = %v, want check violation", name, err)
 }
