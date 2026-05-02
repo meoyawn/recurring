@@ -2,20 +2,27 @@ package apitest
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/recurring/api/internal/app"
 	"github.com/recurring/api/internal/config"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"gopkg.in/yaml.v3"
 )
 
 var apiBaseURL string
+
+type testEnv struct {
+	postgres *postgres.PostgresContainer
+	server   *app.Server
+}
 
 func TestMain(m *testing.M) {
 	os.Exit(run(m))
@@ -31,6 +38,22 @@ func run(m *testing.M) int {
 		return 1
 	}
 
+	env, err := startTestEnv(ctx, devConfig)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "start api test environment: %v\n", err)
+		return 1
+	}
+
+	code := m.Run()
+
+	if err := env.Close(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		code = 1
+	}
+	return code
+}
+
+func startTestEnv(ctx context.Context, devConfig config.Config) (*testEnv, error) {
 	container, err := postgres.Run(ctx,
 		"postgres:18-alpine",
 		postgres.WithDatabase(devConfig.DB.Name),
@@ -40,45 +63,18 @@ func run(m *testing.M) int {
 		postgres.WithSQLDriver("pgx"),
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "start postgres: %v\n", err)
-		return 1
+		return nil, fmt.Errorf("start postgres: %w", err)
 	}
 
-	tempDir, err := os.MkdirTemp("", "recurring-api-test-*")
+	server, err := startAPI(ctx, devConfig, container)
 	if err != nil {
 		_ = container.Terminate(context.Background())
-		fmt.Fprintf(os.Stderr, "create temp dir: %v\n", err)
-		return 1
+		return nil, fmt.Errorf("start api: %w", err)
 	}
-
-	server, err := startAPI(ctx, devConfig, container, tempDir)
-	if err != nil {
-		_ = container.Terminate(context.Background())
-		_ = os.RemoveAll(tempDir)
-		fmt.Fprintf(os.Stderr, "start api: %v\n", err)
-		return 1
-	}
-
-	code := m.Run()
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		fmt.Fprintf(os.Stderr, "shutdown api: %v\n", err)
-		code = 1
-	}
-	shutdownCancel()
-	if err := container.Terminate(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "terminate postgres: %v\n", err)
-		code = 1
-	}
-	if err := os.RemoveAll(tempDir); err != nil {
-		fmt.Fprintf(os.Stderr, "remove temp dir: %v\n", err)
-		code = 1
-	}
-	return code
+	return &testEnv{postgres: container, server: server}, nil
 }
 
-func startAPI(ctx context.Context, devConfig config.Config, container *postgres.PostgresContainer, tempDir string) (*app.Server, error) {
+func startAPI(ctx context.Context, devConfig config.Config, container *postgres.PostgresContainer) (*app.Server, error) {
 	host, err := container.Host(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("postgres host: %w", err)
@@ -96,24 +92,30 @@ func startAPI(ctx context.Context, devConfig config.Config, container *postgres.
 		return nil, err
 	}
 
-	raw, err := yaml.Marshal(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("marshal temp config: %w", err)
-	}
-	configPath := filepath.Join(tempDir, "api.yaml")
-	if err := os.WriteFile(configPath, raw, 0600); err != nil {
-		return nil, fmt.Errorf("write temp config: %w", err)
-	}
-	if err := os.Setenv(config.EnvPath, configPath); err != nil {
-		return nil, fmt.Errorf("set %s: %w", config.EnvPath, err)
-	}
-
-	server, err := app.Start(ctx)
+	server, err := app.StartWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
 	apiBaseURL = "http://" + server.Addr()
 	return server, nil
+}
+
+func (env *testEnv) Close() error {
+	var errs []error
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := env.server.Shutdown(shutdownCtx); err != nil {
+		errs = append(errs, fmt.Errorf("shutdown api: %w", err))
+	}
+	shutdownCancel()
+	if err := env.postgres.Terminate(context.Background()); err != nil {
+		errs = append(errs, fmt.Errorf("terminate postgres: %w", err))
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+	return errors.Join(errs...)
 }
 
 func TestHealthz(t *testing.T) {
@@ -126,5 +128,31 @@ func TestHealthz(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /healthz status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read GET /healthz body: %v", err)
+	}
+	if string(body) != "" {
+		t.Fatalf("GET /healthz body = %q, want empty", string(body))
+	}
+}
+
+func TestOpenAPIValidation(t *testing.T) {
+	client := http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatalf("create POST /v1/signup request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /v1/signup: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("POST /v1/signup status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
 }

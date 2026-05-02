@@ -1,14 +1,28 @@
 version: "3"
 
 tasks:
+  openapi:recurring:
+    desc: Compile embedded OpenAPI spec
+    cmds:
+      - task --dir ../../packages/openapi compile:recurring
+      - cp ../../packages/openapi/spec/recurring.openapi.yaml internal/httpapi/recurring.openapi.yaml
+    generates:
+      - internal/httpapi/recurring.openapi.yaml
+    sources:
+      - ../../packages/openapi/spec/*.ts
+
   dev:
     desc: Run API dev server
+    deps:
+      - openapi:recurring
     env:
       RECURRING_CONFIG: config/dev.yaml
     cmds:
       - go run ./cmd/api
 
   build:
+    deps:
+      - openapi:recurring
     vars:
       BIN: dist/recurring-api-linux-arm64
     cmds:
@@ -18,6 +32,7 @@ tasks:
       - "{{.BIN}}"
     sources:
       - ./**/*.go
+      - internal/httpapi/recurring.openapi.yaml
 
   migrate:local:
     desc: Run goose migrations against local Postgres
@@ -31,5 +46,7 @@ tasks:
       - go run -tags "no_clickhouse no_libsql no_mssql no_mysql no_sqlite3 no_vertica no_ydb" github.com/pressly/goose/v3/cmd/goose -env=none up-to 1
 
   test:
+    deps:
+      - openapi:recurring
     cmds:
       - go test ./...

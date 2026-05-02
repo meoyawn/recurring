@@ -21,14 +21,7 @@ export const Money = () =>
     currency: CurrencyCode,
   })
 
-export const WorkbookFormat = () =>
-  string({
-    default: "xlsx",
-    description:
-      "Workbook file format. Use xlsx unless legacy xls is required.",
-    enum: ["xlsx", "xls"],
-    examples: ["xlsx"],
-  })
+export const WorkbookFormat = () => string({ const: "xlsx" })
 
 export const WorkbookExportResponse = () =>
   resp({

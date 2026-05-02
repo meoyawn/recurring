@@ -1,3 +1,6 @@
+t_14:
+  title: validate apps/api/config/dev.yaml against apps/api/config/schema.yaml
+
 t_7:
   title: implement `/healthz` in api
   deps:

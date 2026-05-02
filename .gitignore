@@ -6,6 +6,9 @@
 .codex/
 .code-review-graph/
 
+# we use responsibleapi
+*.openapi.yaml
+
 # Go
 apps/api/bin/
 

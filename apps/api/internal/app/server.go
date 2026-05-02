@@ -33,6 +33,11 @@ func Start(ctx context.Context) (*Server, error) {
 }
 
 func StartWithConfig(ctx context.Context, cfg config.Config) (*Server, error) {
+	handler, err := httpapi.NewEcho()
+	if err != nil {
+		return nil, err
+	}
+
 	if err := migrator.Up(ctx, cfg.DB.ConnectionString("recurring_migration")); err != nil {
 		return nil, err
 	}
@@ -48,7 +53,7 @@ func StartWithConfig(ctx context.Context, cfg config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	httpServer := &http.Server{Handler: httpapi.NewMux()}
+	httpServer := &http.Server{Handler: handler}
 	server := &Server{
 		httpServer: httpServer,
 		listener:   listener,
