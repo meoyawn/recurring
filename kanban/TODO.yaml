@@ -1,3 +1,22 @@
+t_13:
+  title: >-
+    it's stupid to add named constraints to migration
+    apps/api/migrations/00001_init.sql
+  success_criteria: >-
+    no named constraint, tight readable migration. yet
+    apps/api/migrations/migration_test.go still tests the same things and
+    passes
+  priority: urgent
+
+t_15:
+  title: >-
+    remove double OpenAPI YAML generation/copy hack from apps/api
+    openapi:recurring task
+
+t_11:
+  title: create spike for api static config shape
+  success_criteria: project spike markdown
+
 t_14:
   title: validate apps/api/config/dev.yaml against apps/api/config/schema.yaml
 
@@ -8,7 +27,8 @@ t_7:
     - t_10
 
 t_8:
-  title: "`task web:dev` starts"
+  title: >-
+    `task web:dev` starts
   deps:
     - t_7
 
@@ -18,12 +38,6 @@ t_6:
     - t_8
 
 t_9:
-  title: forward W3C `traceparent` and `tracestate` from Solid server requests to Recurring API requests
-
-t_11:
-  title: create spike for api static config shape
-  success_criteria: project spike markdown
-
-t_13:
-  title: it's stupid to add named constraints to migration apps/api/migrations/00001_init.sql
-  success_criteria: no named constraint, tight readable migration. yet apps/api/migrations/migration_test.go still tests the same things and passes
+  title: >-
+    forward W3C `traceparent` and `tracestate` from Solid server requests to
+    Recurring API requests
