@@ -44,10 +44,10 @@ tasks:
       - task --dir apps/sheets typecheck
 
   reindex:
+    desc: Rebuild code review graph; sources only skip extra Task runs
     cmd: uvx code-review-graph build
     sources:
       - "apps/**/*"
-      - "ops/**/*"
       - "packages/**/*"
 
   deps:bun:

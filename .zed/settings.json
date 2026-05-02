@@ -16,6 +16,12 @@
       }
     }
   },
+  "context_servers": {
+    "code-review-graph": {
+      "command": "uvx",
+      "args": ["code-review-graph", "serve"]
+    }
+  },
   "formatter": {
     "language_server": {
       "name": "oxfmt"
