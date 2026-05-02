@@ -8,6 +8,12 @@ t_13:
     passes
   priority: urgent
 
+t_17:
+  title: >-
+    OpenAPI router like
+    https://vertx.io/docs/vertx-web-openapi-router/java/
+    https://github.com/responsibleapi/responsible/tree/master/packages/hono
+
 t_15:
   title: >-
     remove double OpenAPI YAML generation/copy hack from apps/api
