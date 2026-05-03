@@ -182,39 +182,49 @@ func assertExpenseConstraints(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT conname, pg_get_constraintdef(oid)
+		SELECT pg_get_constraintdef(oid)
 		FROM pg_constraint
 		WHERE conrelid = 'public.expenses'::regclass
 	`)
 	assert.NilError(t, err, "query expense constraints")
 	defer rows.Close()
 
-	got := map[string]string{}
+	var got []string
 	for rows.Next() {
-		var name string
 		var definition string
-		assert.NilError(t, rows.Scan(&name, &definition), "scan expense constraint")
-		got[name] = definition
+		assert.NilError(t, rows.Scan(&definition), "scan expense constraint")
+		got = append(got, definition)
 	}
 	assert.NilError(t, rows.Err(), "iterate expense constraints")
 
-	want := map[string][]string{
-		"expenses_pkey":                      {"PRIMARY KEY", "id"},
-		"expenses_id_format":                 {"CHECK", "exp_[0-9a-f]{32}"},
-		"expenses_name_non_empty":            {"CHECK", "length(name) > 0"},
-		"expenses_amount_minor_non_negative": {"CHECK", "amount_minor >= 0"},
-		"expenses_currency_uppercase_iso":    {"CHECK", "^[A-Z]{3}$"},
-		"expenses_recurring_positive":        {"CHECK", "recurring > '00:00:00'::interval"},
-		"expenses_category_non_empty":        {"CHECK", "length(category) > 0"},
-		"expenses_comment_non_empty":         {"CHECK", "length(comment) > 0"},
+	want := [][]string{
+		{"PRIMARY KEY", "id"},
+		{"CHECK", "exp_[0-9a-f]{32}"},
+		{"CHECK", "length(name) > 0"},
+		{"CHECK", "amount_minor >= 0"},
+		{"CHECK", "^[A-Z]{3}$"},
+		{"CHECK", "recurring > '00:00:00'::interval"},
+		{"CHECK", "length(category) > 0"},
+		{"CHECK", "length(comment) > 0"},
 	}
-	for name, parts := range want {
-		definition, ok := got[name]
-		assert.Assert(t, ok, "missing constraint %q; got %v", name, got)
+	for _, parts := range want {
+		assertConstraintDefinition(t, got, parts)
+	}
+}
+
+func assertConstraintDefinition(t *testing.T, got []string, parts []string) {
+	t.Helper()
+
+	for _, definition := range got {
+		matches := true
 		for _, part := range parts {
-			assert.Assert(t, strings.Contains(definition, part), "constraint %s = %q, want substring %q", name, definition, part)
+			matches = matches && strings.Contains(definition, part)
+		}
+		if matches {
+			return
 		}
 	}
+	assert.Assert(t, false, "missing constraint containing %v; got %v", parts, got)
 }
 
 func assertExpenseInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) {

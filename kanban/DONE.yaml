@@ -1,3 +1,15 @@
+t_13:
+  title: >-
+    it's stupid to add named constraints to migration
+    apps/api/migrations/00001_init.sql
+  success_criteria: >-
+    no named constraint, tight readable migration. yet
+    apps/api/migrations/migration_test.go still tests the same things and
+    passes
+  priority: urgent
+  start: 2026-05-03T10:54:28+0300
+  finish: 2026-05-03T10:54:28+0300
+
 t_10:
   title: implement env passing - spikes/backend/env.md
   success_criteria: see spikes/backend/env.md
