@@ -17,6 +17,7 @@ tasks:
       - ../../packages/openapi/spec/*.ts
 
   dev:
+    # TODO fs watching
     desc: Run API dev server
     deps:
       - openapi:recurring
