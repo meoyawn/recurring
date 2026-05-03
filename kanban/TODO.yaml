@@ -8,11 +8,18 @@ t_13:
     passes
   priority: urgent
 
+t_9:
+  title: >-
+    forward W3C `traceparent` and `tracestate` from Solid server requests to
+    Recurring API requests
+
 t_17:
   title: >-
     OpenAPI router like
     https://vertx.io/docs/vertx-web-openapi-router/java/
     https://github.com/responsibleapi/responsible/tree/master/packages/hono
+  deps:
+    - t_9
 
 t_15:
   title: >-
@@ -42,11 +49,6 @@ t_6:
   title: test google auth
   deps:
     - t_8
-
-t_9:
-  title: >-
-    forward W3C `traceparent` and `tracestate` from Solid server requests to
-    Recurring API requests
 
 t_16:
   title: go-cmp based assertions in `*_test.go`
