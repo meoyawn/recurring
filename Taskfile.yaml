@@ -1,47 +1,56 @@
 version: "3"
 
 includes:
+  compose:
+    taskfile: compose/Taskfile.yaml
+    dir: compose/
+
   web:
     taskfile: apps/web/Taskfile.yaml
     dir: apps/web/
+
+  api:
+    taskfile: apps/api/Taskfile.yaml
+    dir: apps/api/
+
+  sheets:
+    taskfile: apps/sheets/Taskfile.yaml
+    dir: apps/sheets/
 
   openapi:
     taskfile: packages/openapi/Taskfile.yaml
     dir: packages/openapi/
 
 tasks:
-  dev:deps:
-    dir: compose
-    cmds:
-      - task dev
-
-  api:dev:
+  dev:compose:
     deps:
-      - dev:deps
-    cmds:
-      - task --dir apps/api dev
+      - compose:dev
 
-  api:build:
-    cmds:
-      - task --dir apps/api build
-
-  api:migrate:local:
-    cmds:
-      - task --dir apps/api migrate:local
-
-  api:test:
-    cmds:
-      - task --dir apps/api test
-
-  sheets:dev:
+  dev:api:
     deps:
-      - dev:deps
-    cmds:
-      - task --dir apps/sheets dev
+      - dev:compose
+      - api:dev
 
-  sheets:typecheck:
-    cmds:
-      - task --dir apps/sheets typecheck
+  build:api:
+    deps:
+      - api:build
+
+  migrate:local:api:
+    deps:
+      - api:migrate:local
+
+  test:api:
+    deps:
+      - api:test
+
+  dev:sheets:
+    deps:
+      - dev:compose
+      - sheets:dev
+
+  typecheck:sheets:
+    deps:
+      - sheets:typecheck
 
   reindex:
     desc: Rebuild code review graph; sources only skip extra Task runs
