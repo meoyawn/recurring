@@ -1,3 +1,14 @@
+t_8:
+  title: >-
+    `task web:dev` starts
+  deps:
+    - t_7
+
+t_6:
+  title: test google auth
+  deps:
+    - t_8
+
 t_9:
   title: >-
     forward W3C `traceparent` and `tracestate` from Solid server requests to
@@ -22,23 +33,3 @@ t_11:
 
 t_14:
   title: validate apps/api/config/dev.yaml against apps/api/config/schema.yaml
-
-t_7:
-  title: implement `/healthz` in api
-  deps:
-    - t_3
-    - t_10
-
-t_8:
-  title: >-
-    `task web:dev` starts
-  deps:
-    - t_7
-
-t_6:
-  title: test google auth
-  deps:
-    - t_8
-
-t_16:
-  title: go-cmp based assertions in `*_test.go`

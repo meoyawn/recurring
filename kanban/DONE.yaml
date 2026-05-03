@@ -1,3 +1,14 @@
+t_16:
+  title: go-cmp based assertions in `*_test.go`
+  finish: 2026-05-03T11:53:53+0300
+
+t_7:
+  title: implement `/healthz` in api
+  finish: 2026-05-03T11:52:23+0300
+  deps:
+    - t_3
+    - t_10
+
 t_13:
   title: >-
     it's stupid to add named constraints to migration
