@@ -1,0 +1,10 @@
+2026-05-01T20:00:00+03:00:
+  what: Choosing testcontainers-go for migration tests
+  why: >-
+    Can't use single postgres instance to verify different versions of schemas
+
+2026-05-03T11:37:08+03:00:
+  what: Prefer gotest.tools/v3/assert over testify/assert when assertion failure messages matter
+  why: >-
+    gotest.tools reports failed expressions, variable names and types, cleaner go-cmp diffs,
+    and visible whitespace in string diffs, making failures faster to diagnose
