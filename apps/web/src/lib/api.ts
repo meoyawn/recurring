@@ -11,16 +11,10 @@ const sessionCookieName = "sessionID"
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
 
-type ApiOriginBindings = {
-  RECURRING_API_ORIGIN?: string
-}
+const isWorkerEnv = (value: unknown): value is Env =>
+  isRecord(value) && typeof value.RECURRING_API_ORIGIN === "string"
 
-const isWorkerEnv = (value: unknown): value is ApiOriginBindings =>
-  isRecord(value) &&
-  (value.RECURRING_API_ORIGIN === undefined ||
-    typeof value.RECURRING_API_ORIGIN === "string")
-
-const workerBindings = (): ApiOriginBindings | undefined => {
+const workerBindings = (): Env | undefined => {
   const context = getRequestEvent()?.nativeEvent.context
   if (!isRecord(context)) {
     return undefined
@@ -43,9 +37,7 @@ const workerBindings = (): ApiOriginBindings | undefined => {
   return cloudflare.env
 }
 
-export const apiOrigin = (
-  bindings: ApiOriginBindings | undefined = workerBindings(),
-) => {
+export const apiOrigin = (bindings: Env | undefined = workerBindings()) => {
   const origin = bindings?.RECURRING_API_ORIGIN
   if (!origin || origin.length === 0) {
     throw new Error("RECURRING_API_ORIGIN is required")
