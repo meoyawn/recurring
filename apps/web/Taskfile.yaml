@@ -1,12 +1,22 @@
 version: "3"
 
 tasks:
+  run: once
+  cf:types:
+    desc: Generate Cloudflare Worker binding types
+    cmds:
+      - bun wrangler types src/worker-configuration.d.ts
+
   typecheck:
     run: once
+    deps:
+      - cf:types
     cmd: bun tsc
 
   lint:
     run: once
+    deps:
+      - cf:types
     cmd: bun oxlint --config ../../oxlint.config.ts src/
 
   check:
@@ -23,11 +33,6 @@ tasks:
     desc: Run Vite dev server
     cmds:
       - bun vite dev
-
-  cf:types:
-    desc: Generate Cloudflare Worker binding types
-    cmds:
-      - bun wrangler types src/worker-configuration.d.ts
 
   preview:
     desc: Preview production build

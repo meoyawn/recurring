@@ -1,0 +1,6 @@
+"$schema" = "./node_modules/wrangler/config-schema.json"
+name = "recurring-web"
+compatibility_date = "2026-05-04"
+
+[vars]
+RECURRING_API_ORIGIN = "http://localhost:8080"

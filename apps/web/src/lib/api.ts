@@ -39,10 +39,9 @@ const workerBindings = (): WorkerBindings | undefined => {
 
 const apiOrigin = () => {
   const origin = workerBindings()?.RECURRING_API_ORIGIN
-  return (origin && origin.length > 0 ? origin : "http://localhost:8080").replace(
-    /\/$/,
-    "",
-  )
+  return (
+    origin && origin.length > 0 ? origin : "http://localhost:8080"
+  ).replace(/\/$/, "")
 }
 
 const readCookie = (request: Request, name: string): string | undefined => {

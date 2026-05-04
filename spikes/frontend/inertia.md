@@ -219,7 +219,7 @@ matters for this spike.
 
 Useful pieces to copy conceptually:
 
-- `wrangler.jsonc` sets `main` to `./app/server.ts`; the Worker entry is the
+- Wrangler config sets `main` to `./app/server.ts`; the Worker entry is the
   Hono app, not a separate Node SSR service.
 - `package.json` uses `@hono/inertia ^0.2.0`, `hono ^4.12.14`,
   `@cloudflare/vite-plugin`, `vite-ssr-components`, and Wrangler. Inertia's
