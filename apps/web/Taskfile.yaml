@@ -1,6 +1,12 @@
 version: "3"
 
 tasks:
+  typecheck:
+    cmd: bun tsc
+
+  lint:
+    cmd: bun oxlint
+
   build:
     desc: Build production web app
     cmds:
@@ -10,6 +16,11 @@ tasks:
     desc: Run Vite dev server
     cmds:
       - bun vite dev
+
+  cf:types:
+    desc: Generate Cloudflare Worker binding types
+    cmds:
+      - bun wrangler types src/worker-configuration.d.ts
 
   preview:
     desc: Preview production build

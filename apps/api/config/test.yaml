@@ -1,7 +1,7 @@
 api:
   listener:
-    kind: tcp
-    addr: :8080
+    kind: unix
+    path: /tmp/recurring-test.sock
 
 db:
   host: localhost

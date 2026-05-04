@@ -22,9 +22,10 @@ tasks:
     vars:
       OUT_DIR: ../../apps/web/gen/
     deps:
-      - compile:recurring
+      - task: compile:recurring
+        run: once
     cmds:
-      - rm -rf  {{.OUT_DIR}}
+      - rm -rf {{.OUT_DIR}}
       - >-
         bun openapi-generator-cli generate
         -c config/ts-fetch.yaml

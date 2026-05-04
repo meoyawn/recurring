@@ -1,27 +1,22 @@
 import { Title } from "@solidjs/meta"
-import { createResource, Show } from "solid-js"
+import { cache, createAsync } from "@solidjs/router"
+import { Show } from "solid-js"
+import { apiGetter } from "~/lib/api.ts"
 
 type HealthPayload = {
   status: string
 }
 
-const isHealthPayload = (value: unknown): value is HealthPayload =>
-  typeof value === "object" &&
-  value !== null &&
-  "status" in value &&
-  typeof value.status === "string"
+const getHealth = cache(async (): Promise<HealthPayload> => {
+  "use server"
+
+  await apiGetter(api => api.healthCheck())
+  return { status: "ok" }
+}, "health")
 
 export default function Home() {
-  const [health] = createResource(true, async () => {
-    const res = await fetch("/api/backend/v1/health")
-    if (!res.ok) {
-      throw new Error(`health: ${res.status}`)
-    }
-    const payload: unknown = await res.json()
-    if (!isHealthPayload(payload)) {
-      throw new Error("health: invalid response")
-    }
-    return payload
+  const health = createAsync(() => getHealth(), {
+    deferStream: true,
   })
 
   return (
@@ -29,14 +24,11 @@ export default function Home() {
       <Title>Recurring</Title>
       <h1>Recurring</h1>
       <p>
-        Same-origin API check (proxied to the Go API on the server in
-        production; Vite proxy in dev):
+        Server API check (SolidStart server function calling the generated
+        client):
       </p>
-      <Show when={health.loading}>
-        <p>Loading /api/backend/v1/health…</p>
-      </Show>
-      <Show when={health.error}>
-        <p class="err">Error: {String(health.error)}</p>
+      <Show when={!health()}>
+        <p>Loading /healthz...</p>
       </Show>
       <Show when={health()}>
         {h => <pre class="health">{JSON.stringify(h(), null, 2)}</pre>}

@@ -36,3 +36,8 @@ t_11:
 
 t_14:
   title: validate apps/api/config/dev.yaml against apps/api/config/schema.yaml
+
+t_18:
+  title: add web lint task
+  success_criteria: >-
+    linting works from both root Taskfile.yaml and apps/web/Taskfile.yaml
