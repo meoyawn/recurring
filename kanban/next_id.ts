@@ -1,19 +1,17 @@
 #!/usr/bin/env bun
 
-import doneDocument from "./DONE.yaml" with { type: "yaml" }
-import todoDocument from "./TODO.yaml" with { type: "yaml" }
+import done from "./DONE.yaml" with { type: "yaml" }
+import todo from "./TODO.yaml" with { type: "yaml" }
 
 const taskIdPattern = /^t_(\d+)$/
 
 function main() {
   let maxTaskId = 0
 
-  for (const document of [todoDocument, doneDocument]) {
+  for (const document of [todo, done]) {
     for (const taskId of Object.keys(document)) {
       const match = taskIdPattern.exec(taskId)
-      if (match === null) {
-        continue
-      }
+      if (match === null) continue
 
       maxTaskId = Math.max(maxTaskId, Number(match[1]))
     }

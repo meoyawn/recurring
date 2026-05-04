@@ -1,7 +1,7 @@
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers"
-import { createBuilder } from "vite"
 import { defineConfig } from "vitest/config"
 
+/** Slow tests */
 export default defineConfig(async () => {
   return {
     plugins: [
@@ -13,6 +13,7 @@ export default defineConfig(async () => {
       }),
     ],
     test: {
+      disableConsoleIntercept: true,
       include: ["src/miniflare/**/*.test.ts"],
     },
   }
