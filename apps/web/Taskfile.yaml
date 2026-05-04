@@ -27,7 +27,17 @@ tasks:
 
   test:
     run: once
+    deps:
+      - test:unit
+      - test:miniflare
+
+  test:unit:
+    run: once
     cmd: bun vitest run
+
+  test:miniflare:
+    run: once
+    cmd: bun vitest run --config vitest.miniflare.config.ts
 
   build:
     desc: Build production web app
