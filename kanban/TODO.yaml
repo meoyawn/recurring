@@ -1,12 +1,3 @@
-t_8:
-  title: >-
-    `task web:dev` starts
-  success_criteria: >-
-    http://localhost:5173/ renders something
-  start: 2026-05-04T14:05:04+0300
-  deps:
-    - t_7
-
 t_6:
   title: test google auth
   deps:

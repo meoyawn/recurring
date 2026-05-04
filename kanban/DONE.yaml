@@ -1,3 +1,13 @@
+t_8:
+  title: >-
+    `task web:dev` starts
+  success_criteria: >-
+    http://localhost:5173/ renders something
+  start: 2026-05-04T14:05:04+0300
+  finish: 2026-05-04T17:15:58+0300
+  deps:
+    - t_7
+
 t_16:
   title: go-cmp based assertions in `*_test.go`
   finish: 2026-05-03T11:53:53+0300

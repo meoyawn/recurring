@@ -3,12 +3,14 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"os"
 
 	_ "embed"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	echomiddleware "github.com/responsibleapi/echo-middleware"
 )
 
@@ -22,6 +24,15 @@ func NewEcho() (*echo.Echo, error) {
 	}
 
 	e := echo.New()
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogLatency: true,
+		LogMethod:  true,
+		LogURI:     true,
+		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
+			_, err := fmt.Fprintf(os.Stdout, "%s %s %.3fms\n", v.Method, v.URI, v.Latency.Seconds()*1000)
+			return err
+		},
+	}))
 	e.Use(echomiddleware.OapiRequestValidatorWithOptions(spec, &echomiddleware.Options{
 		DoNotValidateServers: true,
 		Options: openapi3filter.Options{
