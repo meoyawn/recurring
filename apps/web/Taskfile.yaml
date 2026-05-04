@@ -31,18 +31,31 @@ tasks:
       - test:unit
       - test:miniflare
 
-  test:unit:
-    run: once
-    cmd: bun vitest run
-
-  test:miniflare:
-    run: once
-    cmd: bun vitest run --config vitest.miniflare.config.ts
-
   build:
+    run: once
     desc: Build production web app
     cmds:
       - bun vite build
+    sources:
+      - ../../bun.lock
+      - ./**/*.{ts,tsx}
+      - exclude: node_modules/**/*
+    generates:
+      - .output/**/*
+
+  test:miniflare:
+    run: once
+    deps:
+      - build
+    cmd: bun vitest run --config vitest.miniflare.config.ts
+    sources:
+      - ../../bun.lock
+      - ./**/*.{ts,tsx}
+      - exclude: node_modules/**/*
+
+  test:unit:
+    run: once
+    cmd: bun test --path-ignore-patterns 'src/miniflare/**'
 
   dev:
     desc: Run Vite dev server

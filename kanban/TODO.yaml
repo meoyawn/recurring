@@ -36,3 +36,6 @@ t_18:
 t_19:
   title: test `workerBindings` in apps/web/src/lib/api.ts
   success_criteria: apps/web/src/lib/api.test.ts passes
+
+t_20:
+  title: register Google OAuth app for local auth testing

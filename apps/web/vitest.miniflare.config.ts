@@ -3,12 +3,6 @@ import { createBuilder } from "vite"
 import { defineConfig } from "vitest/config"
 
 export default defineConfig(async () => {
-  const builder = await createBuilder({
-    configFile: "./vite.config.ts",
-    logLevel: "error",
-  })
-  await builder.buildApp()
-
   return {
     plugins: [
       cloudflareTest({
