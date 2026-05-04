@@ -1,0 +1,40 @@
+import type { Env, Handler } from "hono"
+import type { BlankInput, TypedResponse } from "hono/types"
+
+import type {
+  {{#imports}}
+    {{className}},
+  {{/imports}}
+} from "../models"
+
+type OpenApiPathToHono<T extends string> =
+  T extends `${infer Start}/{${infer Param}}${infer Rest}`
+    ? `${Start}/:${Param}${OpenApiPathToHono<Rest>}`
+    : T
+
+type MaybePromise<T> = T | Promise<T>
+
+export interface Handlers<E extends Env = Env> {
+  {{#operations}}
+    {{#operation}}
+      {{nickname}}: Handler<
+      E,
+      OpenApiPathToHono<"{{path}}">,
+      BlankInput,
+      MaybePromise<
+      {{#responses.0}}
+        {{#is2xx}}
+        TypedResponse<
+          {{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}unknown{{/returnType}},
+          {{{code}}}
+        >
+        {{/is2xx}}
+        {{^is2xx}}
+          Response
+        {{/is2xx}}
+      {{/responses.0}}
+      >
+      >
+    {{/operation}}
+  {{/operations}}
+}

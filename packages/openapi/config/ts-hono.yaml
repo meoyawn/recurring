@@ -1,0 +1,47 @@
+# https://github.com/OpenAPITools/openapi-generator/blob/master/modules/openapi-generator-core/src/main/java/org/openapitools/codegen/config/WorkflowSettings.java
+
+generatorName: typescript-fetch
+
+openapiGeneratorIgnoreList:
+  - index.ts
+  - runtime.ts
+
+globalProperties:
+  apiDocs: false
+  modelDocs: false
+
+additionalProperties:
+  typescriptThreePlus: true
+  modelPropertyNaming: original
+  nullSafeAdditionalProps: true
+  enumPropertyNaming: original
+  supportsES6: true
+  useSingleRequestParameter: false
+  withoutRuntimeChecks: true
+  sortModelPropertiesByRequiredFlag: true
+
+importMappings: # not supported for typescript generators
+
+schemaMappings:
+  # print these types as is, then hook them up using .d.ts. Should be solved by fixing importMappings
+  # FormID: true
+  # WorkspaceID: true
+  # UserID: true
+  # SessionID: true
+  # OrgID: true
+  # FieldID: true
+
+typeMappings:
+  string+email: EmailAddress
+  string+uuid: UUID
+  string+uri: HttpURL
+
+reservedWordsMappings:
+  in: in
+  private: private
+
+templateDir: openapi/templates # openapi-generator doesn't like trailing slashes for dirs
+files:
+  hono.ts.mustache:
+    templateType: API
+    destinationFilename: hono.ts

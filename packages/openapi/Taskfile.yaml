@@ -19,10 +19,17 @@ tasks:
       - compile:sheets
 
   generate:client:
+    vars:
+      OUT_DIR: ../../apps/web/gen/
     deps:
       - compile:recurring
     cmds:
-      - bun openapi-generator-cli generate -c config/client.yaml
+      - rm -rf  {{.OUT_DIR}}
+      - >-
+        bun openapi-generator-cli generate
+        -c config/ts-fetch.yaml
+        -i spec/recurring.openapi.yaml
+        -o {{.OUT_DIR}}
 
   generate:server-stubs:
     deps:

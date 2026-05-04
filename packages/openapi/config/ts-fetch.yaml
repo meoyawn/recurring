@@ -1,0 +1,36 @@
+# https://github.com/OpenAPITools/openapi-generator/blob/master/modules/openapi-generator-core/src/main/java/org/openapitools/codegen/config/WorkflowSettings.java
+generatorName: typescript-fetch
+
+openapiGeneratorIgnoreList:
+  - index.ts
+  # - runtime.ts
+
+globalProperties:
+  apiDocs: false
+  modelDocs: false
+
+additionalProperties:
+  typescriptThreePlus: true
+  modelPropertyNaming: original
+  nullSafeAdditionalProps: true
+  enumPropertyNaming: original
+  supportsES6: true
+  useSingleRequestParameter: false
+  withoutRuntimeChecks: true
+  sortModelPropertiesByRequiredFlag: true
+
+schemaMappings:
+  # FormID: true
+  # WorkspaceID: true
+  # UserID: true
+  # SessionID: true
+  # OrgID: true
+  # FieldID: true
+
+typeMappings:
+  string+email: EmailAddress
+  string+uuid: UUID
+
+reservedWordsMappings:
+  in: in
+  private: private
