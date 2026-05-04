@@ -1,3 +1,14 @@
+t_18:
+  title: add web lint task
+  success_criteria: >-
+    linting works from both root Taskfile.yaml and apps/web/Taskfile.yaml
+  finish: 2026-05-05T02:18:10+0300
+
+t_19:
+  title: test `workerBindings` in apps/web/src/lib/api.ts
+  success_criteria: apps/web/src/lib/api.test.ts passes
+  finish: 2026-05-05T02:17:31+0300
+
 t_8:
   title: >-
     `task web:dev` starts

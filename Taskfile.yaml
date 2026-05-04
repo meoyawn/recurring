@@ -45,8 +45,5 @@ tasks:
   oxlint:
     cmd: bun oxlint
 
-  lint:
-    cmd: bun oxlint apps/
-
   nuke_node_modules:
     cmd: find . -name node_modules -type d -prune -exec rm -rf {} +

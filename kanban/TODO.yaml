@@ -1,7 +1,11 @@
 t_6:
   title: test google auth
+  success_criteria: https://github.com/axa-group/oauth2-mock-server
   deps:
     - t_8
+
+t_20:
+  title: register Google OAuth app for local auth testing
 
 t_9:
   title: >-
@@ -27,18 +31,6 @@ t_11:
 
 t_14:
   title: validate apps/api/config/dev.yaml against apps/api/config/schema.yaml
-
-t_18:
-  title: add web lint task
-  success_criteria: >-
-    linting works from both root Taskfile.yaml and apps/web/Taskfile.yaml
-
-t_19:
-  title: test `workerBindings` in apps/web/src/lib/api.ts
-  success_criteria: apps/web/src/lib/api.test.ts passes
-
-t_20:
-  title: register Google OAuth app for local auth testing
 
 t_21:
   title: add https://github.com/wal-g/wal-g
