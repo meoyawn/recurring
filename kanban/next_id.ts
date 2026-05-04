@@ -26,7 +26,8 @@ function main() {
     }
   }
 
-  console.log(maxTaskId + 1)
+  const next = maxTaskId + 1
+  console.log(`t_${next}`)
 }
 
 if (import.meta.main) {

@@ -4,11 +4,8 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   plugins: [
     cloudflareTest({
-      miniflare: {
-        bindings: {
-          RECURRING_API_ORIGIN: "https://api.example.test/",
-        },
-        compatibilityDate: "2026-05-04",
+      wrangler: {
+        configPath: "./wrangler.toml",
       },
     }),
   ],

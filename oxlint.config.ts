@@ -85,6 +85,12 @@ export default defineConfig({
       },
     },
     {
+      files: ["kanban/**/*.ts"],
+      rules: {
+        "no-console": "off",
+      },
+    },
+    {
       files: ["**/*.{test,spec}.ts", "**/*.{test,spec}.tsx"],
       rules: {
         "typescript/no-unsafe-type-assertion": "off",
