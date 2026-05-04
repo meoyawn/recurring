@@ -3,6 +3,7 @@ version: "3"
 tasks:
   run: once
   cf:types:
+    run: once
     desc: Generate Cloudflare Worker binding types
     cmds:
       - bun wrangler types src/worker-configuration.d.ts
@@ -23,6 +24,10 @@ tasks:
     deps:
       - lint
       - typecheck
+
+  test:
+    run: once
+    cmd: bun vitest run
 
   build:
     desc: Build production web app

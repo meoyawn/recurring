@@ -1,17 +1,26 @@
+"use server"
+
+import { getCookie } from "@solidjs/start/http"
 import { getRequestEvent } from "solid-js/web"
+
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import { Configuration } from "../../gen/runtime.ts"
 
 const sessionCookieName = "sessionID"
 
-type WorkerBindings = {
-  RECURRING_API_ORIGIN?: string
-}
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
 
-const workerBindings = (): WorkerBindings | undefined => {
+type ApiOriginBindings = {
+  RECURRING_API_ORIGIN?: string
+}
+
+const isWorkerEnv = (value: unknown): value is ApiOriginBindings =>
+  isRecord(value) &&
+  (value.RECURRING_API_ORIGIN === undefined ||
+    typeof value.RECURRING_API_ORIGIN === "string")
+
+const workerBindings = (): ApiOriginBindings | undefined => {
   const context = getRequestEvent()?.nativeEvent.context
   if (!isRecord(context)) {
     return undefined
@@ -27,43 +36,25 @@ const workerBindings = (): WorkerBindings | undefined => {
     return undefined
   }
 
-  const env = cloudflare.env
-  if (!isRecord(env)) {
+  if (!isWorkerEnv(cloudflare.env)) {
     return undefined
   }
 
-  return typeof env.RECURRING_API_ORIGIN === "string"
-    ? { RECURRING_API_ORIGIN: env.RECURRING_API_ORIGIN }
-    : {}
+  return cloudflare.env
 }
 
-const apiOrigin = () => {
-  const origin = workerBindings()?.RECURRING_API_ORIGIN
-  return (
-    origin && origin.length > 0 ? origin : "http://localhost:8080"
-  ).replace(/\/$/, "")
-}
-
-const readCookie = (request: Request, name: string): string | undefined => {
-  const header = request.headers.get("cookie")
-  if (!header) {
-    return undefined
+export const apiOrigin = (
+  bindings: ApiOriginBindings | undefined = workerBindings(),
+) => {
+  const origin = bindings?.RECURRING_API_ORIGIN
+  if (!origin || origin.length === 0) {
+    throw new Error("RECURRING_API_ORIGIN is required")
   }
 
-  for (const pair of header.split(";")) {
-    const [rawName, ...rawValue] = pair.trim().split("=")
-    if (rawName === name) {
-      return decodeURIComponent(rawValue.join("="))
-    }
-  }
-
-  return undefined
+  return origin.replace(/\/$/, "")
 }
 
-const getSessionID = () => {
-  const request = getRequestEvent()?.request
-  return request ? readCookie(request, sessionCookieName) : undefined
-}
+const getSessionID = () => getCookie(sessionCookieName)
 
 const api = () =>
   new DefaultApi(
