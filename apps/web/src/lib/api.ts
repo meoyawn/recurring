@@ -8,17 +8,34 @@ type WorkerBindings = {
   RECURRING_API_ORIGIN?: string
 }
 
-type CloudflareContext = {
-  _platform?: {
-    cloudflare?: {
-      env?: WorkerBindings
-    }
-  }
-}
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null
 
-const workerBindings = () =>
-  (getRequestEvent()?.nativeEvent.context as CloudflareContext | undefined)
-    ?._platform?.cloudflare?.env
+const workerBindings = (): WorkerBindings | undefined => {
+  const context = getRequestEvent()?.nativeEvent.context
+  if (!isRecord(context)) {
+    return undefined
+  }
+
+  const platform = context["_platform"]
+  if (!isRecord(platform)) {
+    return undefined
+  }
+
+  const cloudflare = platform.cloudflare
+  if (!isRecord(cloudflare)) {
+    return undefined
+  }
+
+  const env = cloudflare.env
+  if (!isRecord(env)) {
+    return undefined
+  }
+
+  return typeof env.RECURRING_API_ORIGIN === "string"
+    ? { RECURRING_API_ORIGIN: env.RECURRING_API_ORIGIN }
+    : {}
+}
 
 const apiOrigin = () => {
   const origin = workerBindings()?.RECURRING_API_ORIGIN
@@ -31,7 +48,7 @@ const apiOrigin = () => {
 const readCookie = (request: Request, name: string): string | undefined => {
   const header = request.headers.get("cookie")
   if (!header) {
-    return
+    return undefined
   }
 
   for (const pair of header.split(";")) {
@@ -40,6 +57,8 @@ const readCookie = (request: Request, name: string): string | undefined => {
       return decodeURIComponent(rawValue.join("="))
     }
   }
+
+  return undefined
 }
 
 const getSessionID = () => {

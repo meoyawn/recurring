@@ -1,13 +1,13 @@
 import { Title } from "@solidjs/meta"
-import { cache, createAsync } from "@solidjs/router"
+import { createAsync, query } from "@solidjs/router"
 import { Show } from "solid-js"
-import { apiGetter } from "~/lib/api.ts"
+import { apiGetter } from "../lib/api.ts"
 
 type HealthPayload = {
   status: string
 }
 
-const getHealth = cache(async (): Promise<HealthPayload> => {
+const getHealth = query(async (): Promise<HealthPayload> => {
   "use server"
 
   await apiGetter(api => api.healthCheck())
@@ -16,6 +16,7 @@ const getHealth = cache(async (): Promise<HealthPayload> => {
 
 export default function Home() {
   const health = createAsync(() => getHealth(), {
+    /** For setting HTTP status code on error */
     deferStream: true,
   })
 

@@ -14,12 +14,8 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "types": ["@solidjs/start/env"],
-    "isolatedModules": true,
-    "paths": {
-      "~/*": ["./src/*"],
-      "~/gen/*": ["./gen/*"]
-    }
+    "isolatedModules": true
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules/"]
 }

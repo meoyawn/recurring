@@ -80,7 +80,7 @@ const clearCookie = (name: string, path: string, secure: boolean) =>
 const readCookie = (request: Request, name: string): string | undefined => {
   const header = request.headers.get("cookie")
   if (!header) {
-    return
+    return undefined
   }
 
   for (const pair of header.split(";")) {
@@ -89,6 +89,8 @@ const readCookie = (request: Request, name: string): string | undefined => {
       return decodeURIComponent(rawValue.join("="))
     }
   }
+
+  return undefined
 }
 
 const redirect = (

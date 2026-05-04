@@ -2,10 +2,17 @@ version: "3"
 
 tasks:
   typecheck:
+    run: once
     cmd: bun tsc
 
   lint:
-    cmd: bun oxlint
+    run: once
+    cmd: bun oxlint --config ../../oxlint.config.ts src/
+
+  check:
+    deps:
+      - lint
+      - typecheck
 
   build:
     desc: Build production web app

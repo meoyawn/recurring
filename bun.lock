@@ -9,9 +9,16 @@
         "oxlint-tsgolint": "^0.22.1",
       },
     },
+    "apps/shared-ts": {
+      "name": "@recurring/shared-ts",
+      "devDependencies": {
+        "typescript": "^6.0.3",
+      },
+    },
     "apps/sheets": {
       "name": "@recurring/sheets",
       "dependencies": {
+        "@recurring/shared-ts": "workspace:*",
         "@responsibleapi/hono": "^1.1.2",
         "hono": "^4.12.16",
       },
@@ -23,6 +30,7 @@
     "apps/web": {
       "name": "@recurring/web",
       "dependencies": {
+        "@recurring/shared-ts": "workspace:*",
         "@solidjs/meta": "^0.29.4",
         "@solidjs/router": "^0.16.1",
         "@solidjs/start": "2.0.0-alpha.2",
@@ -408,6 +416,8 @@
     "@poppinss/exception": ["@poppinss/exception@1.2.3", "", {}, "sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw=="],
 
     "@recurring/openapi": ["@recurring/openapi@workspace:packages/openapi"],
+
+    "@recurring/shared-ts": ["@recurring/shared-ts@workspace:apps/shared-ts"],
 
     "@recurring/sheets": ["@recurring/sheets@workspace:apps/sheets"],
 
