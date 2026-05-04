@@ -39,3 +39,6 @@ t_19:
 
 t_20:
   title: register Google OAuth app for local auth testing
+
+t_21:
+  title: add https://github.com/wal-g/wal-g
