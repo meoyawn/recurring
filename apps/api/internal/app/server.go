@@ -33,17 +33,18 @@ func Start(ctx context.Context) (*Server, error) {
 }
 
 func StartWithConfig(ctx context.Context, cfg config.Config) (*Server, error) {
-	handler, err := httpapi.NewEcho()
-	if err != nil {
-		return nil, err
-	}
-
 	if err := migrator.Up(ctx, cfg.DB.ConnectionString("recurring_migration")); err != nil {
 		return nil, err
 	}
 
 	pool, err := database.Open(ctx, cfg.DB)
 	if err != nil {
+		return nil, err
+	}
+
+	handler, err := httpapi.NewEcho(pool)
+	if err != nil {
+		pool.Close()
 		return nil, err
 	}
 

@@ -17,7 +17,7 @@ import (
 	"gotest.tools/v3/assert"
 )
 
-func TestMigration00001(t *testing.T) {
+func TestMigrations(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -42,18 +42,21 @@ func TestMigration00001(t *testing.T) {
 
 	err = goose.SetDialect("postgres")
 	assert.NilError(t, err, "set goose dialect")
-	err = goose.UpToContext(ctx, db, ".", 1)
-	assert.NilError(t, err, "goose up-to 00001")
+	err = goose.UpContext(ctx, db, ".")
+	assert.NilError(t, err, "goose up")
 
 	version, err := goose.GetDBVersionContext(ctx, db)
 	assert.NilError(t, err, "get goose version")
-	assert.Equal(t, version, int64(1), "goose version")
+	assert.Equal(t, version, int64(2), "goose version")
 
-	assertGooseAppliedVersion(t, ctx, db)
+	assertGooseAppliedVersion(t, ctx, db, 1)
+	assertGooseAppliedVersion(t, ctx, db, 2)
 	assertPgcrypto(t, ctx, db)
 	assertExpenseColumns(t, ctx, db)
 	assertExpenseConstraints(t, ctx, db)
 	assertExpenseInsertBehavior(t, ctx, db)
+	assertSignupColumns(t, ctx, db)
+	assertSignupInsertBehavior(t, ctx, db)
 }
 
 func mustLoadDevConfig(t *testing.T) config.Config {
@@ -64,7 +67,7 @@ func mustLoadDevConfig(t *testing.T) config.Config {
 	return cfg
 }
 
-func assertGooseAppliedVersion(t *testing.T, ctx context.Context, db *sql.DB) {
+func assertGooseAppliedVersion(t *testing.T, ctx context.Context, db *sql.DB, version int64) {
 	t.Helper()
 
 	var applied bool
@@ -72,11 +75,11 @@ func assertGooseAppliedVersion(t *testing.T, ctx context.Context, db *sql.DB) {
 		SELECT EXISTS (
 			SELECT 1
 			FROM public.goose_db_version
-			WHERE version_id = 1 AND is_applied
+			WHERE version_id = $1 AND is_applied
 		)
-	`).Scan(&applied)
+	`, version).Scan(&applied)
 	assert.NilError(t, err, "query goose version row")
-	assert.Assert(t, applied, "goose version 00001 is not recorded as applied")
+	assert.Assert(t, applied, "goose version %d is not recorded as applied", version)
 }
 
 func assertPgcrypto(t *testing.T, ctx context.Context, db *sql.DB) {
@@ -267,4 +270,72 @@ func assertInsertRejected(t *testing.T, ctx context.Context, db *sql.DB, name st
 	_, err := db.ExecContext(ctx, query)
 	assert.Assert(t, err != nil, "%s insert succeeded, want constraint error", name)
 	assert.Assert(t, strings.Contains(err.Error(), "SQLSTATE 23514"), "%s insert error = %v, want check violation", name, err)
+}
+
+func assertSignupColumns(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT table_name, column_name
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name IN ('users', 'sessions')
+		ORDER BY table_name, ordinal_position
+	`)
+	assert.NilError(t, err, "query signup columns")
+	defer rows.Close()
+
+	var got []string
+	for rows.Next() {
+		var table string
+		var column string
+		assert.NilError(t, rows.Scan(&table, &column), "scan signup column")
+		got = append(got, table+"."+column)
+	}
+	assert.NilError(t, rows.Err(), "iterate signup columns")
+
+	want := []string{
+		"sessions.id",
+		"sessions.user_id",
+		"sessions.created_at",
+		"sessions.expires_at",
+		"users.id",
+		"users.google_sub",
+		"users.email",
+		"users.name",
+		"users.picture_url",
+		"users.created_at",
+		"users.updated_at",
+	}
+	assert.DeepEqual(t, got, want)
+}
+
+func assertSignupInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+
+	var userID string
+	err := db.QueryRowContext(ctx, `
+		INSERT INTO public.users (google_sub, email, name, picture_url)
+		VALUES ('google-sub-1', 'user@example.com', 'Example User', 'https://example.com/avatar.png')
+		RETURNING id
+	`).Scan(&userID)
+	assert.NilError(t, err, "insert valid user")
+	assert.Assert(t, regexp.MustCompile(`^usr_[0-9a-f]{32}$`).MatchString(userID), "generated user id = %q, want usr_ plus 32 lowercase hex chars", userID)
+
+	var sessionID string
+	err = db.QueryRowContext(ctx, `
+		INSERT INTO public.sessions (user_id)
+		VALUES ($1)
+		RETURNING id
+	`, userID).Scan(&sessionID)
+	assert.NilError(t, err, "insert valid session")
+	assert.Assert(t, regexp.MustCompile(`^sess_[0-9a-f]{32}$`).MatchString(sessionID), "generated session id = %q, want sess_ plus 32 lowercase hex chars", sessionID)
+
+	assertInsertRejected(t, ctx, db, "empty google_sub", `
+		INSERT INTO public.users (google_sub, email)
+		VALUES ('', 'user@example.com')
+	`)
+	assertInsertRejected(t, ctx, db, "empty email", `
+		INSERT INTO public.users (google_sub, email)
+		VALUES ('google-sub-2', '')
+	`)
 }

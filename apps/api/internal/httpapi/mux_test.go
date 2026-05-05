@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewEchoHealthz(t *testing.T) {
-	e, err := NewEcho()
+	e, err := NewEcho(nil)
 	if err != nil {
 		t.Fatalf("NewEcho: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestNewEchoHealthz(t *testing.T) {
 }
 
 func TestNewEchoOpenAPIValidation(t *testing.T) {
-	e, err := NewEcho()
+	e, err := NewEcho(nil)
 	if err != nil {
 		t.Fatalf("NewEcho: %v", err)
 	}

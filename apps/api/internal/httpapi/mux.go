@@ -9,6 +9,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	echomiddleware "github.com/responsibleapi/echo-middleware"
@@ -17,7 +18,7 @@ import (
 //go:embed recurring.openapi.yaml
 var openAPISpec []byte
 
-func NewEcho() (*echo.Echo, error) {
+func NewEcho(pool *pgxpool.Pool) (*echo.Echo, error) {
 	spec, err := loadOpenAPISpec()
 	if err != nil {
 		return nil, err
@@ -40,6 +41,7 @@ func NewEcho() (*echo.Echo, error) {
 		},
 	}))
 	e.GET("/healthz", health)
+	e.POST("/v1/signup", signup(pool))
 
 	return e, nil
 }

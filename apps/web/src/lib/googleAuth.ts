@@ -1,10 +1,19 @@
+import {
+  requiredRuntimeEnv,
+  runtimeEnv,
+  workerBindings,
+} from "./runtimeEnv.ts"
+
 const googleStateCookieName = "googleOAuthState"
 const sessionCookieName = "sessionID"
 
 type GoogleAuthConfig = {
+  authorizationEndpoint: string
   clientId: string
   clientSecret: string
   redirectURI: string
+  tokenEndpoint: string
+  userinfoEndpoint: string
 }
 
 type CookieOptions = {
@@ -28,20 +37,16 @@ type SignupResponse = {
   session_id: string
 }
 
-const env = (name: string) => {
-  const global = globalThis as {
-    process?: { env?: Record<string, string | undefined> }
-  }
-  const value = global.process?.env?.[name]
-  return value && value.length > 0 ? value : undefined
+type GoogleAuthEndpoints = {
+  authorizationEndpoint: string
+  tokenEndpoint: string
+  userinfoEndpoint: string
 }
 
-const requiredEnv = (name: string) => {
-  const value = env(name)
-  if (!value) {
-    throw new Error(`${name} is required`)
-  }
-  return value
+const defaultGoogleAuthEndpoints: GoogleAuthEndpoints = {
+  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+  tokenEndpoint: "https://oauth2.googleapis.com/token",
+  userinfoEndpoint: "https://openidconnect.googleapis.com/v1/userinfo",
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -58,7 +63,7 @@ const publicOrigin = (request: Request) => {
 }
 
 const isSecureRequest = (request: Request) =>
-  new URL(request.url).protocol === "https:" || env("NODE_ENV") === "production"
+  new URL(request.url).protocol === "https:"
 
 const cookie = (name: string, value: string, opts: CookieOptions) => {
   const parts = [
@@ -115,16 +120,37 @@ const errorRedirect = (
   return redirect(url.toString(), 303, cookies)
 }
 
-const authConfig = (request: Request): GoogleAuthConfig => ({
-  clientId: requiredEnv("GOOGLE_CLIENT_ID"),
-  clientSecret: requiredEnv("GOOGLE_CLIENT_SECRET"),
+export const googleAuthEndpoints = (
+  bindings: Env | undefined = workerBindings(),
+): GoogleAuthEndpoints => ({
+  authorizationEndpoint:
+    runtimeEnv("GOOGLE_AUTHORIZATION_ENDPOINT", bindings) ??
+    defaultGoogleAuthEndpoints.authorizationEndpoint,
+  tokenEndpoint:
+    runtimeEnv("GOOGLE_TOKEN_ENDPOINT", bindings) ??
+    defaultGoogleAuthEndpoints.tokenEndpoint,
+  userinfoEndpoint:
+    runtimeEnv("GOOGLE_USERINFO_ENDPOINT", bindings) ??
+    defaultGoogleAuthEndpoints.userinfoEndpoint,
+})
+
+const authConfig = (
+  request: Request,
+  bindings: Env | undefined = workerBindings(),
+): GoogleAuthConfig => ({
+  ...googleAuthEndpoints(bindings),
+  clientId: requiredRuntimeEnv("GOOGLE_CLIENT_ID", bindings),
+  clientSecret: requiredRuntimeEnv("GOOGLE_CLIENT_SECRET", bindings),
   redirectURI:
-    env("GOOGLE_REDIRECT_URI") ??
+    runtimeEnv("GOOGLE_REDIRECT_URI", bindings) ??
     new URL("/auth/google/callback", publicOrigin(request)).toString(),
 })
 
 const apiOrigin = () =>
-  (env("RECURRING_API_ORIGIN") ?? "http://localhost:8080").replace(/\/$/, "")
+  (runtimeEnv("RECURRING_API_ORIGIN") ?? "http://localhost:8080").replace(
+    /\/$/,
+    "",
+  )
 
 const randomState = () => {
   const bytes = new Uint8Array(32)
@@ -174,7 +200,7 @@ const exchangeCode = async (code: string, config: GoogleAuthConfig) => {
     redirect_uri: config.redirectURI,
   })
 
-  const res = await fetch("https://oauth2.googleapis.com/token", {
+  const res = await fetch(config.tokenEndpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -186,8 +212,11 @@ const exchangeCode = async (code: string, config: GoogleAuthConfig) => {
   return parseGoogleTokenResponse(await res.json())
 }
 
-const fetchGoogleProfile = async (accessToken: string) => {
-  const res = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+const fetchGoogleProfile = async (
+  accessToken: string,
+  config: GoogleAuthConfig,
+) => {
+  const res = await fetch(config.userinfoEndpoint, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!res.ok) {
@@ -219,7 +248,7 @@ export const startGoogleAuth = (request: Request) => {
   try {
     const config = authConfig(request)
     const state = randomState()
-    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth")
+    const url = new URL(config.authorizationEndpoint)
     url.searchParams.set("client_id", config.clientId)
     url.searchParams.set("redirect_uri", config.redirectURI)
     url.searchParams.set("response_type", "code")
@@ -264,8 +293,9 @@ export const finishGoogleAuth = async (request: Request) => {
       return errorRedirect(request, "invalid_state", [clearState])
     }
 
-    const token = await exchangeCode(code, authConfig(request))
-    const profile = await fetchGoogleProfile(token.access_token)
+    const config = authConfig(request)
+    const token = await exchangeCode(code, config)
+    const profile = await fetchGoogleProfile(token.access_token, config)
     const signup = await upsertSignup(profile)
 
     return redirect(new URL("/", publicOrigin(request)).toString(), 303, [

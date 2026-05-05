@@ -1,44 +1,17 @@
 "use server"
 
 import { getCookie } from "@solidjs/start/http"
-import { getRequestEvent } from "solid-js/web"
 
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import { Configuration } from "../../gen/runtime.ts"
+import { runtimeEnv, workerBindings } from "./runtimeEnv.ts"
 
 const sessionCookieName = "sessionID"
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
-
-const isWorkerEnv = (value: unknown): value is Env =>
-  isRecord(value) && typeof value.RECURRING_API_ORIGIN === "string"
-
-const workerBindings = (): Env | undefined => {
-  const context = getRequestEvent()?.nativeEvent.context
-  if (!isRecord(context)) {
-    return undefined
-  }
-
-  const platform = context["_platform"]
-  if (!isRecord(platform)) {
-    return undefined
-  }
-
-  const cloudflare = platform.cloudflare
-  if (!isRecord(cloudflare)) {
-    return undefined
-  }
-
-  if (!isWorkerEnv(cloudflare.env)) {
-    return undefined
-  }
-
-  return cloudflare.env
-}
-
-export const apiOrigin = (bindings: Env | undefined = workerBindings()) => {
-  const origin = bindings?.RECURRING_API_ORIGIN
+export const apiOrigin = (
+  bindings: Env | undefined = workerBindings(),
+) => {
+  const origin = runtimeEnv("RECURRING_API_ORIGIN", bindings)
   if (!origin || origin.length === 0) {
     throw new Error("RECURRING_API_ORIGIN is required")
   }

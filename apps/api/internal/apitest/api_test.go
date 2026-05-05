@@ -2,12 +2,14 @@ package apitest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -142,4 +144,29 @@ func TestOpenAPIValidation(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, resp.StatusCode, http.StatusBadRequest, "POST /v1/signup status")
+}
+
+func TestSignup(t *testing.T) {
+	client := http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", strings.NewReader(`{
+		"google_sub": "google-sub-1",
+		"email": "user@example.com",
+		"name": "Example User",
+		"picture_url": "https://example.com/avatar.png"
+	}`))
+	assert.NilError(t, err, "create POST /v1/signup request")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "POST /v1/signup")
+	defer resp.Body.Close()
+
+	assert.Equal(t, resp.StatusCode, http.StatusOK, "POST /v1/signup status")
+
+	var body struct {
+		SessionID string `json:"session_id"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	assert.NilError(t, err, "decode POST /v1/signup response")
+	assert.Assert(t, regexp.MustCompile(`^sess_[0-9a-f]{32}$`).MatchString(body.SessionID), "session_id = %q, want generated session id", body.SessionID)
 }

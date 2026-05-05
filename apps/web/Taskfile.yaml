@@ -5,8 +5,14 @@ tasks:
   cf:types:
     run: once
     desc: Generate Cloudflare Worker binding types
+    vars:
+      D_TS: src/worker-configuration.d.ts
     cmds:
-      - bun wrangler types src/worker-configuration.d.ts
+      - "bun wrangler types {{.D_TS}}"
+    sources:
+      - wrangler.toml
+    generates:
+      - "{{.D_TS}}"
 
   typecheck:
     run: once
