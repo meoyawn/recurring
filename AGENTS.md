@@ -16,9 +16,13 @@ Web 2.0 app
 
 ## CLI
 
-### Rules
-
 - never call `rg --files`, call `rg --files --hidden -u -g '!.git'` instead
 - never use `bunx`, ask human to `bun i -d`, then use `bun`
 - never put commands in `package.json`s. Put them in `Taskfile.yaml`s only
 - never call `wc`, use `scc` instead
+
+## Misc
+
+- never skip reading
+  https://github.com/quarylabs/sqruff/blob/main/crates/lib/src/core/default_config.cfg
+  before editing `.sqruff`

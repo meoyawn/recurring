@@ -23,7 +23,7 @@ func Up(ctx context.Context, connString string) error {
 	}
 	defer db.Close()
 
-	goose.SetBaseFS(migrations.FS)
+	goose.SetBaseFS(migrations.SQLs)
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("set goose dialect: %w", err)
 	}

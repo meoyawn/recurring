@@ -19,4 +19,4 @@ align_within = create_table_statement
 spacing_within = single:inline
 
 [sqruff:rules:layout.newlines]
-maximum_empty_lines_inside_statements = 0
+maximum_empty_lines_inside_statements = 1

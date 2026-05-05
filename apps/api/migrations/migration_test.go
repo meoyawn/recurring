@@ -3,6 +3,8 @@ package migrations_test
 import (
 	"context"
 	"database/sql"
+	"io/fs"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/recurring/api/internal/config"
+	"github.com/recurring/api/migrations"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"gotest.tools/v3/assert"
@@ -22,6 +25,8 @@ func TestMigrations(t *testing.T) {
 	defer cancel()
 
 	devConfig := mustLoadDevConfig(t)
+	assertNoDownMigrations(t)
+
 	ctr, err := postgres.Run(ctx,
 		"postgres:18-alpine",
 		postgres.WithDatabase(devConfig.DB.Name),
@@ -40,6 +45,8 @@ func TestMigrations(t *testing.T) {
 	assert.NilError(t, err, "open postgres")
 	defer db.Close()
 
+	goose.SetBaseFS(migrations.SQLs)
+	t.Cleanup(func() { goose.SetBaseFS(nil) })
 	err = goose.SetDialect("postgres")
 	assert.NilError(t, err, "set goose dialect")
 	err = goose.UpContext(ctx, db, ".")
@@ -65,6 +72,26 @@ func mustLoadDevConfig(t *testing.T) config.Config {
 	cfg, err := config.Load(filepath.Join("..", "config", "dev.yaml"))
 	assert.NilError(t, err, "load dev config")
 	return cfg
+}
+
+func assertNoDownMigrations(t *testing.T) {
+	t.Helper()
+
+	downAnnotation := regexp.MustCompile(`(?m)^\s*--\s+\+goose\s+Down(?:\s|$)`)
+	err := fs.WalkDir(migrations.SQLs, ".", func(file string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || path.Ext(file) != ".sql" {
+			return nil
+		}
+
+		body, err := fs.ReadFile(migrations.SQLs, file)
+		assert.NilError(t, err, "read migration %s", file)
+		assert.Assert(t, !downAnnotation.Match(body), "migration %s contains +goose Down", file)
+		return nil
+	})
+	assert.NilError(t, err, "walk migrations")
 }
 
 func assertGooseAppliedVersion(t *testing.T, ctx context.Context, db *sql.DB, version int64) {
@@ -276,7 +303,7 @@ func assertSignupColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT table_name, column_name
+		SELECT table_name, column_name, data_type, udt_name, is_nullable, character_maximum_length, column_default
 		FROM information_schema.columns
 		WHERE table_schema = 'public' AND table_name IN ('users', 'sessions')
 		ORDER BY table_name, ordinal_position
@@ -284,12 +311,16 @@ func assertSignupColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 	assert.NilError(t, err, "query signup columns")
 	defer rows.Close()
 
-	var got []string
+	got := map[string]columnInfo{}
+	var order []string
 	for rows.Next() {
 		var table string
 		var column string
-		assert.NilError(t, rows.Scan(&table, &column), "scan signup column")
-		got = append(got, table+"."+column)
+		var col columnInfo
+		assert.NilError(t, rows.Scan(&table, &column, &col.dataType, &col.udtName, &col.nullable, &col.maxLength, &col.defaultValue), "scan signup column")
+		name := table + "." + column
+		got[name] = col
+		order = append(order, name)
 	}
 	assert.NilError(t, rows.Err(), "iterate signup columns")
 
@@ -306,7 +337,19 @@ func assertSignupColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 		"users.created_at",
 		"users.updated_at",
 	}
-	assert.DeepEqual(t, got, want)
+	assert.DeepEqual(t, order, want)
+
+	assertColumn(t, got, "sessions.id", "text", "text", "NO", 0, []string{"sess_", "gen_random_bytes", "encode"})
+	assertColumn(t, got, "sessions.user_id", "text", "text", "NO", 0, nil)
+	assertColumn(t, got, "sessions.created_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()"})
+	assertColumn(t, got, "sessions.expires_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()", "interval"})
+	assertColumn(t, got, "users.id", "text", "text", "NO", 0, []string{"usr_", "gen_random_bytes", "encode"})
+	assertColumn(t, got, "users.google_sub", "text", "text", "YES", 0, nil)
+	assertColumn(t, got, "users.email", "text", "text", "NO", 0, nil)
+	assertColumn(t, got, "users.name", "text", "text", "YES", 0, nil)
+	assertColumn(t, got, "users.picture_url", "text", "text", "YES", 0, nil)
+	assertColumn(t, got, "users.created_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()"})
+	assertColumn(t, got, "users.updated_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()"})
 }
 
 func assertSignupInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) {
@@ -320,6 +363,15 @@ func assertSignupInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) {
 	`).Scan(&userID)
 	assert.NilError(t, err, "insert valid user")
 	assert.Assert(t, regexp.MustCompile(`^usr_[0-9a-f]{32}$`).MatchString(userID), "generated user id = %q, want usr_ plus 32 lowercase hex chars", userID)
+
+	var userWithoutGoogleSubID string
+	err = db.QueryRowContext(ctx, `
+		INSERT INTO public.users (email)
+		VALUES ('user-without-google-sub@example.com')
+		RETURNING id
+	`).Scan(&userWithoutGoogleSubID)
+	assert.NilError(t, err, "insert user without google_sub")
+	assert.Assert(t, regexp.MustCompile(`^usr_[0-9a-f]{32}$`).MatchString(userWithoutGoogleSubID), "generated user id = %q, want usr_ plus 32 lowercase hex chars", userWithoutGoogleSubID)
 
 	var sessionID string
 	err = db.QueryRowContext(ctx, `

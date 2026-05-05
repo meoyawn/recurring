@@ -17,3 +17,11 @@
   why: >-
     Client generation uses bun and @openapitools/openapi-generator-cli, so keeping the task
     in packages/openapi avoids introducing bun into the Go API workflow
+
+2026-05-05T14:25:17+03:00:
+  where: api
+  what: Ban goose down migrations while keeping explicit up annotations
+  why: >-
+    Production schema changes are forward-only, so migration tests reject
+    -- +goose Down while every SQL migration still declares -- +goose Up explicitly
+    to keep the embedded migrations as compile-time embed.FS data without runtime adaptation

@@ -15,7 +15,3 @@ CREATE TABLE expenses (
     created_at   timestamptz NOT NULL    DEFAULT now(),
     updated_at   timestamptz NOT NULL    DEFAULT now()
 );
-
--- +goose Down
-DROP TABLE IF EXISTS expenses;
-DROP EXTENSION IF EXISTS pgcrypto;
