@@ -25,3 +25,13 @@
     Production schema changes are forward-only, so migration tests reject
     -- +goose Down while every SQL migration still declares -- +goose Up explicitly
     to keep the embedded migrations as compile-time embed.FS data without runtime adaptation
+
+2026-05-05T15:29:21+03:00:
+  where: api
+  what: Keep pgx v5 and patch pggen instead of downgrading the API to pgx v4
+  why: >-
+    pgx v5 has active fixes, merged pgtype/pgconn/pgproto3 versioning, cleaner
+    null and type handling, and the current SQL injection advisory is fixed in
+    v5.9.2 while pgx v4 remains affected. Upstream pggen still generates pgx v4
+    code, so compatibility should come from a pggen fork upgraded to pgx v5
+    rather than moving the API runtime back to pgx v4

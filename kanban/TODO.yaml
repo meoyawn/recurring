@@ -34,3 +34,16 @@ t_14:
 
 t_21:
   title: add https://github.com/wal-g/wal-g
+
+t_22:
+  title: fork pggen and upgrade it to pgx v5
+  success_criteria: >-
+    apps/api pggen query generation emits Go code under internal/gen/store that
+    imports github.com/jackc/pgx/v5 and works with the API pgxpool.Pool
+
+t_23:
+  title: generate API Go structs from recurring.responsible.ts
+  success_criteria: >-
+    apps/api uses generated request and response structs from
+    packages/openapi/spec/recurring.responsible.ts under internal/gen/httpapi,
+    including replacing handwritten signupRequest and signupResponse
