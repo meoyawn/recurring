@@ -24,6 +24,10 @@ t_17:
     OpenAPI router like
     https://vertx.io/docs/vertx-web-openapi-router/java/
     https://github.com/responsibleapi/responsible/tree/master/packages/hono
+  success_criteria: >-
+    apps/api uses the OpenAPI router and
+    github.com/getkin/kin-openapi is only an indirect dependency in
+    apps/api/go.mod
   deps:
     - t_9
 
