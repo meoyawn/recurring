@@ -6,5 +6,6 @@
 
 ## Rules
 
-- Server tests must live only in [internal/apitest](internal/apitest/AGENTS.md).
-- Never write a test without `t.Parallel()`
+- Server tests must live only in
+  [internal/apitest/](internal/apitest/AGENTS.md).
+- never run `task test` without escalating permissions (has docker calls inside)

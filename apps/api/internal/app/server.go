@@ -70,7 +70,9 @@ func Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer server.Close()
+	defer func() {
+		_ = server.Close()
+	}()
 
 	select {
 	case err := <-server.errc:

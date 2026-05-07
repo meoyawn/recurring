@@ -122,10 +122,14 @@ func (env *testEnv) Close() error {
 }
 
 func TestHealthz(t *testing.T) {
+	t.Parallel()
+
 	client := http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(apiBaseURL + "/healthz")
 	assert.NilError(t, err, "GET /healthz")
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	assert.Equal(t, resp.StatusCode, http.StatusOK, "GET /healthz status")
 	body, err := io.ReadAll(resp.Body)
@@ -134,6 +138,8 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestOpenAPIValidation(t *testing.T) {
+	t.Parallel()
+
 	client := http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", strings.NewReader(`{}`))
 	assert.NilError(t, err, "create POST /v1/signup request")
@@ -141,12 +147,16 @@ func TestOpenAPIValidation(t *testing.T) {
 
 	resp, err := client.Do(req)
 	assert.NilError(t, err, "POST /v1/signup")
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	assert.Equal(t, resp.StatusCode, http.StatusBadRequest, "POST /v1/signup status")
 }
 
 func TestSignup(t *testing.T) {
+	t.Parallel()
+
 	client := http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", strings.NewReader(`{
 		"google_sub": "google-sub-1",
@@ -159,7 +169,9 @@ func TestSignup(t *testing.T) {
 
 	resp, err := client.Do(req)
 	assert.NilError(t, err, "POST /v1/signup")
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	assert.Equal(t, resp.StatusCode, http.StatusOK, "POST /v1/signup status")
 

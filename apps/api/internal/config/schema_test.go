@@ -13,6 +13,8 @@ import (
 )
 
 func TestDevConfigMatchesSchema(t *testing.T) {
+	t.Parallel()
+
 	schemaJSON := mustYAMLFileToJSON(t, filepath.Join("..", "..", "config", "schema.yaml"))
 	devJSON := mustYAMLFileToJSON(t, filepath.Join("..", "..", "config", "dev.yaml"))
 

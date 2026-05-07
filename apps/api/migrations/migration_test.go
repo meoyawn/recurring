@@ -21,6 +21,8 @@ import (
 )
 
 func TestMigrations(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -43,7 +45,9 @@ func TestMigrations(t *testing.T) {
 
 	db, err := sql.Open("pgx", conn)
 	assert.NilError(t, err, "open postgres")
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	goose.SetBaseFS(migrations.SQLs)
 	t.Cleanup(func() { goose.SetBaseFS(nil) })
@@ -142,7 +146,9 @@ func assertExpenseColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 		ORDER BY ordinal_position
 	`)
 	assert.NilError(t, err, "query expense columns")
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	got := map[string]columnInfo{}
 	var order []string
@@ -217,7 +223,9 @@ func assertExpenseConstraints(t *testing.T, ctx context.Context, db *sql.DB) {
 		WHERE conrelid = 'public.expenses'::regclass
 	`)
 	assert.NilError(t, err, "query expense constraints")
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var got []string
 	for rows.Next() {
@@ -309,7 +317,9 @@ func assertSignupColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 		ORDER BY table_name, ordinal_position
 	`)
 	assert.NilError(t, err, "query signup columns")
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	got := map[string]columnInfo{}
 	var order []string
