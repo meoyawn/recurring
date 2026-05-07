@@ -1,0 +1,12 @@
+generatorName: go-gin-server
+globalProperties:
+  models: ""
+  modelDocs: false
+  modelTests: false
+  apis: false
+  apiDocs: false
+  apiTests: false
+  supportingFiles: false
+additionalProperties:
+  packageName: openapi
+  apiPath: .

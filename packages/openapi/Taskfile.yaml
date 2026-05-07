@@ -6,10 +6,12 @@ tasks:
       - bun tsc
 
   compile:recurring:
+    run: once
     cmds:
       - bun spec/recurring.responsible.ts > spec/recurring.openapi.yaml
 
   compile:sheets:
+    run: once
     cmds:
       - bun spec/sheets.responsible.ts > spec/sheets.openapi.yaml
 
@@ -22,21 +24,33 @@ tasks:
     vars:
       OUT_DIR: ../../apps/web/gen/
     deps:
-      - task: compile:recurring
-        run: once
+      - compile:recurring
     cmds:
       - rm -rf {{.OUT_DIR}}
       - >-
-        bun openapi-generator-cli generate
+        bun openapi-generator-cli
+        --openapitools {{.TASKFILE_DIR}}/openapitools.json
+        generate
         -c config/ts-fetch.yaml
         -i spec/recurring.openapi.yaml
         -o {{.OUT_DIR}}
 
-  generate:server-stubs:
+  generate:go-structs:
+    run: once
+    vars:
+      OUT_DIR: ../../apps/api/internal/gen/openapi/
     deps:
       - compile:recurring
     cmds:
-      - bun openapi-generator-cli generate -c config/server-stubs.yaml
+      - rm -rf {{.OUT_DIR}}
+      - >-
+        bun openapi-generator-cli
+        --openapitools {{.TASKFILE_DIR}}/openapitools.json
+        generate
+        -c config/go-structs.yaml
+        -i spec/recurring.openapi.yaml
+        -o {{.OUT_DIR}}
+      - rm -rf {{.OUT_DIR}}/.openapi-generator
 
   typecheck:
     cmds:

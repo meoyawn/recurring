@@ -14,11 +14,13 @@ tasks:
   openapi:recurring:
     run: once
     desc: Compile embedded OpenAPI spec
+    deps:
+      - openapi:generate:go-structs
     cmds:
-      - task openapi:compile:recurring
       - cp ../../packages/openapi/spec/recurring.openapi.yaml internal/httpapi/recurring.openapi.yaml
     generates:
       - internal/httpapi/recurring.openapi.yaml
+      - internal/gen/openapi/**/*
     sources:
       - ../../packages/openapi/spec/*.ts
 

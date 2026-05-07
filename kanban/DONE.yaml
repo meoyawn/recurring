@@ -1,3 +1,12 @@
+t_23:
+  title: generate API Go structs from recurring.responsible.ts
+  success_criteria: >-
+    apps/api uses generated request and response structs from
+    packages/openapi/spec/recurring.responsible.ts under internal/gen/openapi,
+    including replacing handwritten signupRequest and signupResponse
+  start: 2026-05-07T21:20:49+0300
+  finish: 2026-05-07T21:29:28+0300
+
 t_18:
   title: add web lint task
   success_criteria: >-

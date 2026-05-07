@@ -5,19 +5,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
+	"github.com/recurring/api/internal/gen/openapi"
 	"github.com/recurring/api/internal/gen/pggen"
 )
-
-type signupRequest struct {
-	GoogleSub  string  `json:"google_sub"`
-	Email      string  `json:"email"`
-	Name       *string `json:"name"`
-	PictureURL *string `json:"picture_url"`
-}
-
-type signupResponse struct {
-	SessionID string `json:"session_id"`
-}
 
 func signup(pool *pgxpool.Pool) echo.HandlerFunc {
 	return func(c *echo.Context) error {
@@ -25,13 +15,13 @@ func signup(pool *pgxpool.Pool) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusInternalServerError, "database is not configured")
 		}
 
-		var req signupRequest
+		var req openapi.Signup
 		if err := c.Bind(&req); err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid signup request")
 		}
 
 		name, nameSet := optionalString(req.Name)
-		pictureURL, pictureURLSet := optionalString(req.PictureURL)
+		pictureURL, pictureURLSet := optionalString(req.PictureUrl)
 
 		sessionID, err := pggen.NewQuerier(pool).CreateSignupSession(c.Request().Context(), pggen.CreateSignupSessionParams{
 			GoogleSub:     req.GoogleSub,
@@ -45,13 +35,13 @@ func signup(pool *pgxpool.Pool) echo.HandlerFunc {
 			return err
 		}
 
-		return c.JSON(http.StatusOK, signupResponse{SessionID: sessionID})
+		return c.JSON(http.StatusOK, openapi.SignupSession{SessionId: sessionID})
 	}
 }
 
-func optionalString(value *string) (string, bool) {
-	if value == nil {
+func optionalString(value string) (string, bool) {
+	if value == "" {
 		return "", false
 	}
-	return *value, true
+	return value, true
 }
