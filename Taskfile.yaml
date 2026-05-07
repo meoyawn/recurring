@@ -22,6 +22,12 @@ includes:
     dir: packages/openapi/
 
 tasks:
+  lint:
+    run: once
+    deps:
+      - api:lint
+      - oxlint
+
   dev:api:
     deps:
       - compose:up-d
@@ -43,6 +49,7 @@ tasks:
     cmd: bun update --latest -i --filter "*"
 
   oxlint:
+    run: once
     cmd: bun oxlint
 
   nuke_node_modules:

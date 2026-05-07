@@ -7,6 +7,7 @@ includes:
 
 tasks:
   openapi:recurring:
+    run: once
     desc: Compile embedded OpenAPI spec
     cmds:
       - task openapi:compile:recurring
@@ -56,3 +57,9 @@ tasks:
       - openapi:recurring
     cmds:
       - go test ./...
+
+  lint:
+    run: once
+    deps:
+      - openapi:recurring
+    cmd: golangci-lint run
