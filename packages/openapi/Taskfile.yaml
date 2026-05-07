@@ -50,7 +50,6 @@ tasks:
         -c config/go-structs.yaml
         -i spec/recurring.openapi.yaml
         -o {{.OUT_DIR}}
-      - rm -rf {{.OUT_DIR}}/.openapi-generator
 
   typecheck:
     cmds:
