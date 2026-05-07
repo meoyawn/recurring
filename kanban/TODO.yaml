@@ -1,3 +1,10 @@
+t_23:
+  title: generate API Go structs from recurring.responsible.ts
+  success_criteria: >-
+    apps/api uses generated request and response structs from
+    packages/openapi/spec/recurring.responsible.ts under internal/gen/httpapi,
+    including replacing handwritten signupRequest and signupResponse
+
 t_6:
   title: test google auth
   success_criteria: https://github.com/axa-group/oauth2-mock-server
@@ -41,9 +48,12 @@ t_22:
     apps/api pggen query generation emits Go code under internal/gen/store that
     imports github.com/jackc/pgx/v5 and works with the API pgxpool.Pool
 
-t_23:
-  title: generate API Go structs from recurring.responsible.ts
+t_24:
+  title: replace testcontainers with Docker client or low-dep alternative
   success_criteria: >-
-    apps/api uses generated request and response structs from
-    packages/openapi/spec/recurring.responsible.ts under internal/gen/httpapi,
-    including replacing handwritten signupRequest and signupResponse
+    apps/api/go.mod no longer requires github.com/testcontainers/testcontainers-go
+    or github.com/testcontainers/testcontainers-go/modules/postgres directly, and
+    apps/api/go.mod indirect dependencies are significantly reduced by either
+    custom Docker usage with github.com/docker/docker and
+    github.com/docker/go-connections or a lower-dependency testcontainers
+    alternative

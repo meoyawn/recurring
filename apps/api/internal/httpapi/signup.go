@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
+	"github.com/recurring/api/internal/gen/pggen"
 )
 
 type signupRequest struct {
@@ -29,26 +30,28 @@ func signup(pool *pgxpool.Pool) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid signup request")
 		}
 
-		var sessionID string
-		err := pool.QueryRow(c.Request().Context(), `
-			WITH upserted AS (
-				INSERT INTO public.users (google_sub, email, name, picture_url)
-				VALUES ($1, $2, $3, $4)
-				ON CONFLICT (google_sub) DO UPDATE
-				SET email = excluded.email,
-					name = excluded.name,
-					picture_url = excluded.picture_url,
-					updated_at = now()
-				RETURNING id
-			)
-			INSERT INTO public.sessions (user_id)
-			SELECT id FROM upserted
-			RETURNING id
-		`, req.GoogleSub, req.Email, req.Name, req.PictureURL).Scan(&sessionID)
+		name, nameSet := optionalString(req.Name)
+		pictureURL, pictureURLSet := optionalString(req.PictureURL)
+
+		sessionID, err := pggen.NewQuerier(pool).CreateSignupSession(c.Request().Context(), pggen.CreateSignupSessionParams{
+			GoogleSub:     req.GoogleSub,
+			Email:         req.Email,
+			NameSet:       nameSet,
+			Name:          name,
+			PictureURLSet: pictureURLSet,
+			PictureURL:    pictureURL,
+		})
 		if err != nil {
 			return err
 		}
 
 		return c.JSON(http.StatusOK, signupResponse{SessionID: sessionID})
 	}
+}
+
+func optionalString(value *string) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+	return *value, true
 }

@@ -5,6 +5,11 @@ includes:
     taskfile: ../../packages/openapi/Taskfile.yaml
     dir: ../../packages/openapi/
 
+env:
+  # Keep Go cache inside the API workspace. Codex sandbox cannot write to the
+  # default user-level cache, and Go commands need a writable cache reliably.
+  GOCACHE: "{{.TASKFILE_DIR}}/.cache/go-build"
+
 tasks:
   openapi:recurring:
     run: once
@@ -17,11 +22,25 @@ tasks:
     sources:
       - ../../packages/openapi/spec/*.ts
 
+  pggen:
+    run: once
+    desc: Generate typed Postgres query wrappers
+    cmds:
+      - rm -rf internal/gen/pggen/
+      - mkdir -p internal/gen/pggen/
+      - go tool pggen gen go --schema-glob 'migrations/*.sql' --query-glob 'queries/*.sql' --output-dir internal/gen/pggen --acronym url
+    generates:
+      - internal/gen/pggen/**/*
+    sources:
+      - migrations/*.sql
+      - queries/*.sql
+
   dev:
     # TODO fs watching
     desc: Run API dev server
     deps:
       - openapi:recurring
+      - pggen
     env:
       RECURRING_CONFIG: config/dev.yaml
     cmds:
@@ -30,6 +49,7 @@ tasks:
   build:
     deps:
       - openapi:recurring
+      - pggen
     vars:
       BIN: dist/recurring-api-linux-arm64
     cmds:
@@ -50,11 +70,12 @@ tasks:
       GOOSE_DRIVER: postgres
       GOOSE_MIGRATION_DIR: migrations
     cmds:
-      - go run github.com/pressly/goose/v3/cmd/goose -env=none up
+      - go tool goose -env=none up
 
   test:
     deps:
       - openapi:recurring
+      - pggen
     cmds:
       - go test ./...
 
@@ -62,10 +83,14 @@ tasks:
     run: once
     deps:
       - openapi:recurring
+      - pggen
     env:
-      # Keep Go caches inside the API workspace. Codex sandbox cannot write to
-      # the default user-level caches, and golangci-lint needs writable caches
-      # to load ./... reliably.
-      GOCACHE: "{{.TASKFILE_DIR}}/.cache/go-build"
+      # Keep golangci-lint cache inside the API workspace. Codex sandbox cannot
+      # write to the default user-level cache.
       GOLANGCI_LINT_CACHE: "{{.TASKFILE_DIR}}/.cache/golangci-lint"
-    cmd: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint run ./...
+    cmd: go tool golangci-lint run ./...
+
+  check:
+    deps:
+      - lint
+      - test

@@ -1,8 +1,11 @@
 package apitest
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +24,18 @@ import (
 )
 
 var apiBaseURL string
+var sessionIDPattern = regexp.MustCompile(`^sess_[0-9a-f]{32}$`)
+
+type signupPayload struct {
+	GoogleSub  string  `json:"google_sub"`
+	Email      string  `json:"email"`
+	Name       *string `json:"name,omitempty"`
+	PictureURL *string `json:"picture_url,omitempty"`
+}
+
+type signupSessionResponse struct {
+	SessionID string `json:"session_id"`
+}
 
 type testEnv struct {
 	postgres *postgres.PostgresContainer
@@ -158,12 +173,40 @@ func TestSignup(t *testing.T) {
 	t.Parallel()
 
 	client := http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", strings.NewReader(`{
-		"google_sub": "google-sub-1",
-		"email": "user@example.com",
-		"name": "Example User",
-		"picture_url": "https://example.com/avatar.png"
-	}`))
+	payload := randomSignupPayload(t)
+
+	first := postSignup(t, client, payload)
+	assertGeneratedSessionID(t, first.SessionID)
+
+	updateID := randomHex(t, 8)
+	payload.Email = fmt.Sprintf("updated-%s@example.com", updateID)
+	payload.Name = stringPtr("Updated User " + updateID)
+	payload.PictureURL = stringPtr("https://example.com/updated-avatar-" + updateID + ".png")
+
+	second := postSignup(t, client, payload)
+	assertGeneratedSessionID(t, second.SessionID)
+	assert.Assert(t, first.SessionID != second.SessionID, "repeat signup returned same session_id %q", second.SessionID)
+}
+
+func TestSignupWithoutOptionalProfile(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	payload := randomSignupPayload(t)
+	payload.Name = nil
+	payload.PictureURL = nil
+
+	body := postSignup(t, client, payload)
+	assertGeneratedSessionID(t, body.SessionID)
+}
+
+func postSignup(t *testing.T, client http.Client, payload signupPayload) signupSessionResponse {
+	t.Helper()
+
+	encoded, err := json.Marshal(payload)
+	assert.NilError(t, err, "marshal POST /v1/signup request")
+
+	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", bytes.NewReader(encoded))
 	assert.NilError(t, err, "create POST /v1/signup request")
 	req.Header.Set("Content-Type", "application/json")
 
@@ -175,10 +218,39 @@ func TestSignup(t *testing.T) {
 
 	assert.Equal(t, resp.StatusCode, http.StatusOK, "POST /v1/signup status")
 
-	var body struct {
-		SessionID string `json:"session_id"`
-	}
+	var body signupSessionResponse
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	assert.NilError(t, err, "decode POST /v1/signup response")
-	assert.Assert(t, regexp.MustCompile(`^sess_[0-9a-f]{32}$`).MatchString(body.SessionID), "session_id = %q, want generated session id", body.SessionID)
+	return body
+}
+
+func randomSignupPayload(t *testing.T) signupPayload {
+	t.Helper()
+
+	id := randomHex(t, 12)
+	return signupPayload{
+		GoogleSub:  "google-sub-" + id,
+		Email:      "user-" + id + "@example.com",
+		Name:       stringPtr("Example User " + id),
+		PictureURL: stringPtr("https://example.com/avatar-" + id + ".png"),
+	}
+}
+
+func randomHex(t *testing.T, n int) string {
+	t.Helper()
+
+	bytes := make([]byte, n)
+	_, err := rand.Read(bytes)
+	assert.NilError(t, err, "read random bytes")
+	return hex.EncodeToString(bytes)
+}
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func assertGeneratedSessionID(t *testing.T, sessionID string) {
+	t.Helper()
+
+	assert.Assert(t, sessionIDPattern.MatchString(sessionID), "session_id = %q, want generated session id", sessionID)
 }
