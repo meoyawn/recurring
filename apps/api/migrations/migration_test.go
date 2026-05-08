@@ -15,8 +15,7 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/recurring/api/internal/config"
 	"github.com/recurring/api/migrations"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/recurring/api/pkg/postgrestest"
 	"gotest.tools/v3/assert"
 )
 
@@ -29,21 +28,15 @@ func TestMigrations(t *testing.T) {
 	devConfig := mustLoadDevConfig(t)
 	assertNoDownMigrations(t)
 
-	ctr, err := postgres.Run(ctx,
-		"postgres:18-alpine",
-		postgres.WithDatabase(devConfig.DB.Name),
-		postgres.WithUsername(devConfig.DB.User),
-		postgres.WithPassword(devConfig.DB.Password),
-		postgres.BasicWaitStrategies(),
-		postgres.WithSQLDriver("pgx"),
-	)
-	testcontainers.CleanupContainer(t, ctr)
+	ctr, err := postgrestest.Start(ctx, postgresConfig(devConfig.DB))
 	assert.NilError(t, err, "start postgres")
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		assert.NilError(t, ctr.Close(cleanupCtx), "close postgres")
+	})
 
-	conn, err := ctr.ConnectionString(ctx, "sslmode="+devConfig.DB.SSLMode, "application_name=recurring_migration_test")
-	assert.NilError(t, err, "postgres connection string")
-
-	db, err := sql.Open("pgx", conn)
+	db, err := sql.Open("pgx", ctr.ConnectionString("recurring_migration_test"))
 	assert.NilError(t, err, "open postgres")
 	defer func() {
 		_ = db.Close()
@@ -76,6 +69,15 @@ func mustLoadDevConfig(t *testing.T) config.Config {
 	cfg, err := config.Load(filepath.Join("..", "config", "dev.yaml"))
 	assert.NilError(t, err, "load dev config")
 	return cfg
+}
+
+func postgresConfig(db config.DBConfig) postgrestest.Config {
+	return postgrestest.Config{
+		Database: db.Name,
+		User:     db.User,
+		Password: db.Password,
+		SSLMode:  db.SSLMode,
+	}
 }
 
 func assertNoDownMigrations(t *testing.T) {

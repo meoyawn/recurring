@@ -14,7 +14,7 @@
 - Generated query Go code is committed.
 - Ordinary build should not require a running Postgres server.
 - Query tests use sandboxed Postgres transactions.
-- E2E tests may use `testcontainers-go` to own a full temporary Postgres server.
+- E2E tests may use `dockertest` to own a full temporary Postgres server.
 - API runtime config comes from structured YAML selected by `RECURRING_CONFIG`.
 - The Postgres URL is derived in memory from config fields, not supplied as the
   public API config interface.
@@ -202,7 +202,7 @@ Supported options:
   local development.
 - One automatically started Postgres container per package or suite.
 
-E2E tests may use `testcontainers-go` because E2E tests benefit from owning
+E2E tests may use `dockertest` because E2E tests benefit from owning
 their dependency lifecycle.
 
 Do not start one container per test.

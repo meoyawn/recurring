@@ -19,7 +19,7 @@ import (
 
 	"github.com/recurring/api/internal/app"
 	"github.com/recurring/api/internal/config"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/recurring/api/pkg/postgrestest"
 	"gotest.tools/v3/assert"
 )
 
@@ -38,7 +38,7 @@ type signupSessionResponse struct {
 }
 
 type testEnv struct {
-	postgres *postgres.PostgresContainer
+	postgres *postgrestest.Container
 	server   *app.Server
 }
 
@@ -72,40 +72,24 @@ func run(m *testing.M) int {
 }
 
 func startTestEnv(ctx context.Context, devConfig config.Config) (*testEnv, error) {
-	container, err := postgres.Run(ctx,
-		"postgres:18-alpine",
-		postgres.WithDatabase(devConfig.DB.Name),
-		postgres.WithUsername(devConfig.DB.User),
-		postgres.WithPassword(devConfig.DB.Password),
-		postgres.BasicWaitStrategies(),
-		postgres.WithSQLDriver("pgx"),
-	)
+	container, err := postgrestest.Start(ctx, postgresConfig(devConfig.DB))
 	if err != nil {
 		return nil, fmt.Errorf("start postgres: %w", err)
 	}
 
 	server, err := startAPI(ctx, devConfig, container)
 	if err != nil {
-		_ = container.Terminate(context.Background())
+		_ = container.Close(context.Background())
 		return nil, fmt.Errorf("start api: %w", err)
 	}
 	return &testEnv{postgres: container, server: server}, nil
 }
 
-func startAPI(ctx context.Context, devConfig config.Config, container *postgres.PostgresContainer) (*app.Server, error) {
-	host, err := container.Host(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("postgres host: %w", err)
-	}
-	port, err := container.MappedPort(ctx, "5432/tcp")
-	if err != nil {
-		return nil, fmt.Errorf("postgres mapped port: %w", err)
-	}
-
+func startAPI(ctx context.Context, devConfig config.Config, container *postgrestest.Container) (*app.Server, error) {
 	cfg := devConfig
 	cfg.API.Listener = config.ListenerConfig{Kind: "tcp", Addr: "localhost:0"}
-	cfg.DB.Host = host
-	cfg.DB.Port = int(port.Num())
+	cfg.DB.Host = container.Host()
+	cfg.DB.Port = container.Port()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -126,14 +110,23 @@ func (env *testEnv) Close() error {
 		errs = append(errs, fmt.Errorf("shutdown api: %w", err))
 	}
 	shutdownCancel()
-	if err := env.postgres.Terminate(context.Background()); err != nil {
-		errs = append(errs, fmt.Errorf("terminate postgres: %w", err))
+	if err := env.postgres.Close(context.Background()); err != nil {
+		errs = append(errs, fmt.Errorf("close postgres: %w", err))
 	}
 
 	if len(errs) == 0 {
 		return nil
 	}
 	return errors.Join(errs...)
+}
+
+func postgresConfig(db config.DBConfig) postgrestest.Config {
+	return postgrestest.Config{
+		Database: db.Name,
+		User:     db.User,
+		Password: db.Password,
+		SSLMode:  db.SSLMode,
+	}
 }
 
 func TestHealthz(t *testing.T) {

@@ -1,6 +1,6 @@
 2026-05-01T20:00:00+03:00:
   where: api
-  what: Choosing testcontainers-go for migration tests
+  what: Choosing Docker-backed Postgres for migration tests
   why: >-
     Can't use single postgres instance to verify different versions of schemas
 

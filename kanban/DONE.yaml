@@ -4,6 +4,15 @@ t_15:
     openapi:generate:go-structs task
   finish: 2026-05-08T17:59:56+0300
 
+t_24:
+  title: replace heavy Postgres container test dependency with dockertest
+  success_criteria: >-
+    apps/api uses github.com/ory/dockertest/v4 for Postgres-backed tests
+    through a minimal app-config-independent helper under apps/api/pkg,
+    and repository text no longer mentions the old dependency
+  start: 2026-05-08T18:00:10+0300
+  finish: 2026-05-08T18:00:10+0300
+
 t_23:
   title: generate API Go structs from recurring.responsible.ts
   success_criteria: >-
