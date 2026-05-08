@@ -9,7 +9,7 @@ Bun is the package manager for this workspace. Scripts use `bun run`.
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — Google OAuth client credentials used by `/auth/google/start` and `/auth/google/callback`.
 - `GOOGLE_REDIRECT_URI` — optional explicit callback URL. Defaults to `<request-origin>/auth/google/callback`.
 
-Defaults to `http://127.0.0.1:8080` when unset.
+Defaults to `http://localhost:8080` when unset.
 
 Copy `.env.example` to `.env` for local overrides.
 
