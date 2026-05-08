@@ -1,4 +1,4 @@
-package postgrestest
+package pgdocker
 
 import (
 	"context"

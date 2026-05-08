@@ -15,7 +15,7 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/recurring/api/internal/config"
 	"github.com/recurring/api/migrations"
-	"github.com/recurring/api/pkg/postgrestest"
+	"github.com/recurring/api/pkg/pgdocker"
 	"gotest.tools/v3/assert"
 )
 
@@ -28,7 +28,7 @@ func TestMigrations(t *testing.T) {
 	devConfig := mustLoadDevConfig(t)
 	assertNoDownMigrations(t)
 
-	ctr, err := postgrestest.Start(ctx, postgresConfig(devConfig.DB))
+	ctr, err := pgdocker.Start(ctx, postgresConfig(devConfig.DB))
 	assert.NilError(t, err, "start postgres")
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -71,8 +71,8 @@ func mustLoadDevConfig(t *testing.T) config.Config {
 	return cfg
 }
 
-func postgresConfig(db config.DBConfig) postgrestest.Config {
-	return postgrestest.Config{
+func postgresConfig(db config.DBConfig) pgdocker.Config {
+	return pgdocker.Config{
 		Database: db.Name,
 		User:     db.User,
 		Password: db.Password,

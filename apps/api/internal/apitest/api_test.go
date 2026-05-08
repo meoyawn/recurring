@@ -19,7 +19,7 @@ import (
 
 	"github.com/recurring/api/internal/app"
 	"github.com/recurring/api/internal/config"
-	"github.com/recurring/api/pkg/postgrestest"
+	"github.com/recurring/api/pkg/pgdocker"
 	"gotest.tools/v3/assert"
 )
 
@@ -38,7 +38,7 @@ type signupSessionResponse struct {
 }
 
 type testEnv struct {
-	postgres *postgrestest.Container
+	postgres *pgdocker.Container
 	server   *app.Server
 }
 
@@ -72,7 +72,7 @@ func run(m *testing.M) int {
 }
 
 func startTestEnv(ctx context.Context, devConfig config.Config) (*testEnv, error) {
-	container, err := postgrestest.Start(ctx, postgresConfig(devConfig.DB))
+	container, err := pgdocker.Start(ctx, postgresConfig(devConfig.DB))
 	if err != nil {
 		return nil, fmt.Errorf("start postgres: %w", err)
 	}
@@ -85,7 +85,7 @@ func startTestEnv(ctx context.Context, devConfig config.Config) (*testEnv, error
 	return &testEnv{postgres: container, server: server}, nil
 }
 
-func startAPI(ctx context.Context, devConfig config.Config, container *postgrestest.Container) (*app.Server, error) {
+func startAPI(ctx context.Context, devConfig config.Config, container *pgdocker.Container) (*app.Server, error) {
 	cfg := devConfig
 	cfg.API.Listener = config.ListenerConfig{Kind: "tcp", Addr: "localhost:0"}
 	cfg.DB.Host = container.Host()
@@ -120,8 +120,8 @@ func (env *testEnv) Close() error {
 	return errors.Join(errs...)
 }
 
-func postgresConfig(db config.DBConfig) postgrestest.Config {
-	return postgrestest.Config{
+func postgresConfig(db config.DBConfig) pgdocker.Config {
+	return pgdocker.Config{
 		Database: db.Name,
 		User:     db.User,
 		Password: db.Password,
