@@ -3,3 +3,7 @@ version: "2"
 linters:
   enable:
     - paralleltest
+  exclusions:
+    generated: lax
+    paths:
+      - internal/gen/.*

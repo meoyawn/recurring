@@ -67,6 +67,8 @@ tasks:
       - pggen
     cmds:
       - go test ./...
+    sources:
+      - ./**/*
 
   lint:
     run: once
@@ -78,6 +80,11 @@ tasks:
       # write to the default user-level cache.
       GOLANGCI_LINT_CACHE: "{{.TASKFILE_DIR}}/.cache/golangci-lint"
     cmd: go tool golangci-lint run ./...
+    sources:
+      - ./**/*.go
+      - .golangci.yaml
+      - go.mod
+      - go.sum
 
   check:
     deps:
