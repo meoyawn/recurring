@@ -2,6 +2,7 @@ version: "3"
 
 vars:
   RECURRING_EMBEDDED_YAML: ../../apps/api/internal/httpapi/recurring.openapi.yaml
+  SHEETS_OPENAPI_YAML: ../../apps/sheets/src/sheets.openapi.yaml
 
 tasks:
   typecheck:
@@ -19,8 +20,11 @@ tasks:
 
   compile:sheets:
     run: once
-    cmds:
-      - bun spec/sheets.responsible.ts > spec/sheets.openapi.yaml
+    cmd: bun spec/sheets.responsible.ts > {{.SHEETS_OPENAPI_YAML}}
+    sources:
+      - spec/*.responsible.ts
+    generates:
+      - "{{.SHEETS_OPENAPI_YAML}}"
 
   compile:
     deps:
@@ -42,6 +46,12 @@ tasks:
         -c config/ts-fetch.yaml
         -i {{.RECURRING_EMBEDDED_YAML}}
         -o {{.OUT_DIR}}
+    sources:
+      - "{{.RECURRING_EMBEDDED_YAML}}"
+      - config/ts-fetch.yaml
+      - openapitools.json
+    generates:
+      - "{{.OUT_DIR}}/**/*"
 
   generate:go-structs:
     run: once
@@ -61,6 +71,28 @@ tasks:
     sources:
       - "{{.RECURRING_EMBEDDED_YAML}}"
       - config/go-structs.yaml
+      - openapitools.json
+    generates:
+      - "{{.OUT_DIR}}/**/*"
+
+  generate:sheets-client:
+    run: once
+    vars:
+      OUT_DIR: ../../apps/api/internal/gen/sheets/
+    deps:
+      - compile:sheets
+    cmds:
+      - rm -rf {{.OUT_DIR}}
+      - >-
+        bun openapi-generator-cli
+        --openapitools {{.TASKFILE_DIR}}/openapitools.json
+        generate
+        -c config/go-client.yaml
+        -i {{.SHEETS_OPENAPI_YAML}}
+        -o {{.OUT_DIR}}
+    sources:
+      - "{{.SHEETS_OPENAPI_YAML}}"
+      - config/go-client.yaml
       - openapitools.json
     generates:
       - "{{.OUT_DIR}}/**/*"

@@ -33,6 +33,10 @@ tasks:
       - compose:up-d
       - api:dev
 
+  dev:web:
+    deps:
+      - web:dev
+
   dev:sheets:
     deps:
       - compose:up-d

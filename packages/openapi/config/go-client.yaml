@@ -1,0 +1,11 @@
+generatorName: go
+globalProperties:
+  models: ""
+  apis: ""
+  modelDocs: false
+  modelTests: false
+  apiDocs: false
+  apiTests: false
+  supportingFiles: client.go,configuration.go,response.go,utils.go
+additionalProperties:
+  packageName: sheets

@@ -1,10 +1,17 @@
 version: "3"
 
+includes:
+  openapi:
+    taskfile: ../../packages/openapi/Taskfile.yaml
+    dir: ../../packages/openapi/
+
 tasks:
   dev:
-    cmds:
-      - bun --hot src/cmd.ts
+    deps:
+      - openapi:compile:sheets
+    cmd: bun --hot src/cmd.ts
 
   typecheck:
-    cmds:
-      - bun tsc
+    deps:
+      - openapi:compile:sheets
+    cmd: bun tsc

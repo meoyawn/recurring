@@ -1,7 +1,18 @@
 version: "3"
 
+includes:
+  openapi:
+    taskfile: ../../packages/openapi/Taskfile.yaml
+    dir: ../../packages/openapi/
+
 tasks:
   run: once
+
+  generate:client:
+    run: once
+    deps:
+      - openapi:generate:client
+
   cf:types:
     run: once
     desc: Generate Cloudflare Worker binding types
@@ -18,6 +29,7 @@ tasks:
     run: once
     deps:
       - cf:types
+      - generate:client
     cmd: bun tsc
 
   lint:
@@ -31,15 +43,11 @@ tasks:
       - lint
       - typecheck
 
-  test:
-    run: once
-    deps:
-      - test:unit
-      - test:miniflare
-
   build:
     run: once
     desc: Build production web app
+    deps:
+      - generate:client
     cmds:
       - bun vite build
     sources:
@@ -61,10 +69,20 @@ tasks:
 
   test:unit:
     run: once
+    deps:
+      - generate:client
     cmd: bun test --path-ignore-patterns 'src/miniflare/**'
+
+  test:
+    run: once
+    deps:
+      - test:unit
+      - test:miniflare
 
   dev:
     desc: Run Vite dev server
+    deps:
+      - generate:client
     cmds:
       - bun vite dev
 
