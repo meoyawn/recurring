@@ -20,16 +20,11 @@ func signup(pool *pgxpool.Pool) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid signup request")
 		}
 
-		name, nameSet := optionalString(req.Name)
-		pictureURL, pictureURLSet := optionalString(req.PictureUrl)
-
 		sessionID, err := pggen.NewQuerier(pool).CreateSignupSession(c.Request().Context(), pggen.CreateSignupSessionParams{
-			GoogleSub:     req.GoogleSub,
-			Email:         req.Email,
-			NameSet:       nameSet,
-			Name:          name,
-			PictureURLSet: pictureURLSet,
-			PictureURL:    pictureURL,
+			GoogleSub:  req.GoogleSub,
+			Email:      req.Email,
+			Name:       req.GetName(),
+			PictureURL: req.GetPictureUrl(),
 		})
 		if err != nil {
 			return err
@@ -37,11 +32,4 @@ func signup(pool *pgxpool.Pool) echo.HandlerFunc {
 
 		return c.JSON(http.StatusOK, openapi.SignupSession{SessionId: sessionID})
 	}
-}
-
-func optionalString(value string) (string, bool) {
-	if value == "" {
-		return "", false
-	}
-	return value, true
 }

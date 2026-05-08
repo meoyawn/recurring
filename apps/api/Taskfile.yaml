@@ -96,4 +96,4 @@ tasks:
   outdated:
     run: once
     # Go templates must be escaped because Task expands {{...}} first.
-    cmd: go list -u -m -f '{{"{{"}}if and (not .Main) (not .Indirect){{"}}"}}{{"{{"}}.{{"}}"}}{{"{{"}}end{{"}}"}}' all
+    cmd: go list -u -m -f '{{"{{"}}if and (not .Main) (not .Indirect) .Update{{"}}"}}{{"{{"}}.Path{{"}}"}} {{"{{"}}.Version{{"}}"}} => {{"{{"}}.Update.Version{{"}}"}}{{"{{"}}end{{"}}"}}' all

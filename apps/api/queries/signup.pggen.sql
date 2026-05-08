@@ -5,16 +5,17 @@ WITH upserted AS (
     VALUES (
         pggen.arg('GoogleSub'),
         pggen.arg('Email'),
-        CASE WHEN pggen.arg('NameSet')::boolean THEN pggen.arg('Name')::text ELSE NULL END,
-        CASE WHEN pggen.arg('PictureURLSet')::boolean THEN pggen.arg('PictureURL')::text ELSE NULL END
+        NULLIF(pggen.arg('Name'), ''),
+        NULLIF(pggen.arg('PictureURL'), '')
     )
     ON CONFLICT (google_sub) DO UPDATE
     SET email = excluded.email,
         name = excluded.name,
         picture_url = excluded.picture_url,
-        updated_at = now()
+        updated_at = NOW()
     RETURNING id
 )
+
 INSERT INTO public.sessions (user_id)
 SELECT id FROM upserted
 RETURNING id;
