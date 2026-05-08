@@ -24,11 +24,6 @@ t_17:
   deps:
     - t_9
 
-t_15:
-  title: >-
-    remove double OpenAPI YAML generation/copy hack from apps/api
-    openapi:recurring task
-
 t_11:
   title: create spike for api static config shape
   success_criteria: project spike markdown

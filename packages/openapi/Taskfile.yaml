@@ -39,10 +39,12 @@ tasks:
     run: once
     vars:
       OUT_DIR: ../../apps/api/internal/gen/openapi/
+      SPEC_OUT: ../../apps/api/internal/httpapi/recurring.openapi.yaml
     deps:
       - compile:recurring
     cmds:
       - rm -rf {{.OUT_DIR}}
+      - cp spec/recurring.openapi.yaml {{.SPEC_OUT}}
       - >-
         bun openapi-generator-cli
         --openapitools {{.TASKFILE_DIR}}/openapitools.json

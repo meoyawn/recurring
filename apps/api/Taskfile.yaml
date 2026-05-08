@@ -11,19 +11,6 @@ env:
   GOCACHE: "{{.TASKFILE_DIR}}/.cache/go-build"
 
 tasks:
-  openapi:recurring:
-    run: once
-    desc: Compile embedded OpenAPI spec
-    deps:
-      - openapi:generate:go-structs
-    cmds:
-      - cp ../../packages/openapi/spec/recurring.openapi.yaml internal/httpapi/recurring.openapi.yaml
-    generates:
-      - internal/httpapi/recurring.openapi.yaml
-      - internal/gen/openapi/**/*
-    sources:
-      - ../../packages/openapi/spec/*.ts
-
   pggen:
     run: once
     desc: Generate typed Postgres query wrappers
@@ -41,7 +28,7 @@ tasks:
     # TODO fs watching
     desc: Run API dev server
     deps:
-      - openapi:recurring
+      - openapi:generate:go-structs
       - pggen
     env:
       RECURRING_CONFIG: config/dev.yaml
@@ -50,7 +37,7 @@ tasks:
 
   build:
     deps:
-      - openapi:recurring
+      - openapi:generate:go-structs
       - pggen
     vars:
       BIN: dist/recurring-api-linux-arm64
@@ -76,7 +63,7 @@ tasks:
 
   test:
     deps:
-      - openapi:recurring
+      - openapi:generate:go-structs
       - pggen
     cmds:
       - go test ./...
@@ -84,7 +71,7 @@ tasks:
   lint:
     run: once
     deps:
-      - openapi:recurring
+      - openapi:generate:go-structs
       - pggen
     env:
       # Keep golangci-lint cache inside the API workspace. Codex sandbox cannot

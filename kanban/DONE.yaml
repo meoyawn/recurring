@@ -1,3 +1,9 @@
+t_15:
+  title: >-
+    remove double OpenAPI YAML generation/copy hack from apps/api
+    openapi:generate:go-structs task
+  finish: 2026-05-08T17:59:56+0300
+
 t_23:
   title: generate API Go structs from recurring.responsible.ts
   success_criteria: >-
