@@ -51,6 +51,7 @@ tasks:
       - internal/httpapi/recurring.openapi.yaml
 
   migrate:local:
+    run: once
     desc: Run goose migrations against local Postgres
     preconditions:
       - sh: test -n "$GOOSE_DBSTRING"
@@ -62,6 +63,7 @@ tasks:
       - go tool goose -env=none up
 
   test:
+    run: once
     deps:
       - openapi:generate:go-structs
       - pggen
@@ -90,3 +92,8 @@ tasks:
     deps:
       - lint
       - test
+
+  outdated:
+    run: once
+    # Go templates must be escaped because Task expands {{...}} first.
+    cmd: go list -u -m -f '{{"{{"}}if and (not .Main) (not .Indirect){{"}}"}}{{"{{"}}.{{"}}"}}{{"{{"}}end{{"}}"}}' all
