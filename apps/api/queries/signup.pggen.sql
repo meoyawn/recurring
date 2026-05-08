@@ -10,9 +10,9 @@ WITH upserted AS (
     )
     ON CONFLICT (google_sub) DO UPDATE
     SET email = excluded.email,
-        name = excluded.name,
-        picture_url = excluded.picture_url,
-        updated_at = NOW()
+    name = excluded.name,
+    picture_url = excluded.picture_url,
+    updated_at = NOW()
     RETURNING id
 )
 
