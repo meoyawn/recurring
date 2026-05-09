@@ -2,11 +2,14 @@
 
 ## Success Criteria
 
-- `apps/web` `test:miniflare` keeps the current Vitest command shape, but wraps
-  it in a test environment wrapper.
+- `apps/web` `test:miniflare` keeps the current Vitest command shape
+  `bun vitest run --config vitest.miniflare.config.ts`, but wraps it in
+  `apps/api/cmd/webtestenv`.
 - The wrapper boots `apps/api` and `apps/sheets` with test-appropriate configs.
+- The wrapper shuts down both `apps/api` and `apps/sheets` on exit, including
+  success, failure, and interrupted runs.
 - `test:miniflare` adds `compose:up-d` to its deps.
-- `test:miniflare` passes at the end.
+- `task check` passes at the end.
 
 ## Observations
 
@@ -159,8 +162,10 @@ Postgres, so `compose:up-d` is the right owner.
 
 ## Criteria Status
 
-- Wrapper around current `test:miniflare` command: answered.
+- Wrapper around current `test:miniflare` command in `webtestenv`: answered.
 - Wrapper boots API and Sheets with test configs: answered at design level;
   blocked on API Sheets config and Sheets port contract.
+- Wrapper shuts down API and Sheets on exit: answered at design level.
 - Add `compose:up-d` dep: answered.
 - `test:miniflare` passes: unresolved until implementation.
+- `task check` passes: unresolved until implementation.
