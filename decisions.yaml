@@ -35,3 +35,12 @@
     v5.9.2 while pgx v4 remains affected. Upstream pggen still generates pgx v4
     code, so compatibility should come from a pggen fork upgraded to pgx v5
     rather than moving the API runtime back to pgx v4
+
+2026-05-09T14:35:59+03:00:
+  where: openapi
+  what: Use OpenAPI as the config schema envelope instead of plain JSON Schema
+  why: >-
+    Config files in apps/api/config are loaded with koanf, but the generated Go
+    structs still need a reliable schema-driven generator. Direct JSON Schema to
+    Go struct generators had unreliable availability and composition support,
+    especially for oneOf, while OpenAPI tooling gives us a more dependable path

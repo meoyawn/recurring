@@ -41,9 +41,14 @@ Use the richest DSL construct that states author intent directly:
   helpers, security helpers, tag helpers, and method helpers.
 - Put shared behavior at the narrowest common place: root defaults for the whole
   API, `scope` defaults for a route group, operation fields for one endpoint.
-- Use stable names with `named(...)` for concepts that are reused or externally
+- Use stable TypeScript identifiers for concepts that are reused or externally
   meaningful.
+- Do not use `named(...)` when the desired component name is already a valid
+  TypeScript/JavaScript identifier. Name the value with that identifier where it
+  is defined, or pass the schema thunk itself.
 - Use thunks for reusable schemas and pass the thunk itself when nesting it.
+  Do not call a reusable schema thunk in object fields, request/response bodies,
+  parameter maps, or `missingSchemas`; use `Config`, not `Config()`.
 - Add local meaning with helper options such as `description`, `examples`,
   `format`, `pattern`, numeric bounds, `deprecated`, operation `id`, `tags`,
   response headers, cookies, and MIME choices.
@@ -107,8 +112,15 @@ Rules:
   another schema, request, response, or parameter map. Call the thunk only when
   defining it or when intentionally inlining a one-off schema.
 - Inline one-off schemas are fine when reuse does not matter.
-- Use `named("ComponentName", value)` when schema/parameter/security/header
-  needs stable component name.
+- `missingSchemas` is only for components that are not reachable from routes.
+  Include the top-level schema thunk that reaches the rest of the graph; do not
+  list every nested schema when one top-level schema already uses them all.
+- Use `named("component-name", value)` only when schema/parameter/security/header
+  needs a stable component name that cannot be expressed as a valid
+  TypeScript/JavaScript identifier.
+- Ban wrappers such as `named("NonEmptyString", NonEmptyString())`.
+  `NonEmptyString` is already a valid identifier, so pass `NonEmptyString`
+  directly.
 - Use `ref(NamedValue, { description })` when you want to reuse a named value
   and add local metadata.
 - Raw OpenAPI 3.1 schema objects are allowed when DSL has no helper. Keep them

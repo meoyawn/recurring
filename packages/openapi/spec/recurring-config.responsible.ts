@@ -1,24 +1,22 @@
 #!/usr/bin/env bun
 
-import {
-  int32,
-  named,
-  object,
-  responsibleAPI,
-  string,
-} from "@responsibleapi/ts"
+/**
+ * OpenAPI 3.1 wrapper around the JSON Schema for files in apps/api/config.
+ *
+ * Runtime config is loaded with koanf: https://github.com/knadh/koanf. This
+ * spec intentionally has no routes; OpenAPI is used only as the schema envelope
+ * because direct JSON Schema to Go struct generators had unreliable support for
+ * composition such as oneOf.
+ */
+
+import { int32, object, responsibleAPI, string } from "@responsibleapi/ts"
 import { YAML } from "bun"
 
-const NonEmptyString = () => string({ minLength: 1 })
+import { NonEmptyString } from "./shared.responsibe.ts"
 
-const ListenerKind = () =>
+const EndpointKind = () =>
   string({
     enum: ["tcp", "unix", "systemd"],
-  })
-
-const TransportKind = () =>
-  string({
-    enum: ["tcp", "unix"],
   })
 
 const SSLMode = () =>
@@ -27,14 +25,11 @@ const SSLMode = () =>
   })
 
 const ListenerConfig = () =>
-  object(
-    {
-      kind: ListenerKind(),
-      "addr?": NonEmptyString,
-      "path?": NonEmptyString,
-    },
-    { "x-go-type-name": "ListenerConfig" },
-  )
+  object({
+    kind: EndpointKind,
+    "addr?": NonEmptyString,
+    "path?": NonEmptyString,
+  })
 
 const APIConfig = () =>
   object({
@@ -48,18 +43,15 @@ const DBConfig = () =>
     name: NonEmptyString,
     user: NonEmptyString,
     password: NonEmptyString,
-    sslmode: SSLMode(),
+    sslmode: SSLMode,
     max_conns: int32({ minimum: 1 }),
   })
 
 const TransportConfig = () =>
-  object(
-    {
-      kind: TransportKind(),
-      "path?": NonEmptyString,
-    },
-    { "x-go-type-name": "TransportConfig" },
-  )
+  object({
+    kind: EndpointKind,
+    "path?": NonEmptyString,
+  })
 
 const ServiceConfig = () =>
   object({
@@ -85,15 +77,7 @@ const api = responsibleAPI({
     },
   },
   routes: {},
-  missingSchemas: [
-    Config,
-    APIConfig,
-    ListenerConfig,
-    DBConfig,
-    ServiceConfig,
-    TransportConfig,
-    named("NonEmptyString", NonEmptyString()),
-  ],
+  missingSchemas: [Config],
 })
 
 console.log(YAML.stringify(api, null, 2))

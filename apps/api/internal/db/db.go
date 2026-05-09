@@ -27,7 +27,7 @@ func Open(ctx context.Context, cfg configgen.DBConfig) (*pgxpool.Pool, error) {
 
 func connectionString(d configgen.DBConfig) string {
 	values := url.Values{}
-	values.Set("sslmode", d.Sslmode)
+	values.Set("sslmode", string(d.Sslmode))
 
 	u := url.URL{
 		Scheme:   "postgres",
