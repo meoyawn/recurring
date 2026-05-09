@@ -10,7 +10,7 @@ const sessionCookieName = "sessionID"
 
 export const apiOrigin = (
   bindings: Env | undefined = workerBindings(),
-) => {
+): string => {
   const origin = runtimeEnv("RECURRING_API_ORIGIN", bindings)
   if (!origin || origin.length === 0) {
     throw new Error("RECURRING_API_ORIGIN is required")

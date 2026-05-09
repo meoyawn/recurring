@@ -254,7 +254,7 @@ const upsertSignup = async (profile: GoogleProfile, bindings?: Env) => {
   return parseSignupResponse(await res.json())
 }
 
-export const startGoogleAuth = (request: Request, bindings?: Env) => {
+export const startGoogleAuth = (request: Request, bindings?: Env): Response => {
   try {
     const config = authConfig(request, bindings)
     const state = randomState()
@@ -278,7 +278,10 @@ export const startGoogleAuth = (request: Request, bindings?: Env) => {
   }
 }
 
-export const finishGoogleAuth = async (request: Request, bindings?: Env) => {
+export const finishGoogleAuth = async (
+  request: Request,
+  bindings?: Env,
+): Promise<Response> => {
   const secure = isSecureRequest(request)
   const clearState = clearCookie(
     googleStateCookieName,

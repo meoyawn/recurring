@@ -90,12 +90,12 @@ const startOAuth2MockServer = async () => {
   return server
 }
 
-export default async () => {
+export default async (): Promise<() => Promise<void>> => {
   const oauthServer = await startOAuth2MockServer()
   const signupServer = createServer(handleSignupRequest)
   await listen(signupServer, 8082)
 
-  return async () => {
+  return async (): Promise<void> => {
     try {
       await oauthServer.stop()
     } finally {

@@ -54,6 +54,7 @@ export default defineConfig({
             prefer: "type-imports",
           },
         ],
+        "typescript/explicit-module-boundary-types": "error",
         "typescript/no-deprecated": "error",
         "typescript/no-restricted-types": [
           "error",
@@ -82,6 +83,7 @@ export default defineConfig({
       files: ["**/*.responsible.ts", "scripts/**/*.ts"],
       rules: {
         "no-console": "off",
+        "typescript/explicit-module-boundary-types": "off",
       },
     },
     {

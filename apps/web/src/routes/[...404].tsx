@@ -1,6 +1,7 @@
 import { Title } from "@solidjs/meta"
+import type { JSX } from "solid-js"
 
-export default function NotFound() {
+export default function NotFound(): JSX.Element {
   return (
     <main>
       <Title>Not found</Title>

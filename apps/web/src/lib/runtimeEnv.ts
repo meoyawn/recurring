@@ -18,7 +18,7 @@ export const workerBindings = (): Env | undefined => {
 export const runtimeEnv = (
   name: keyof Env,
   bindings: Env | undefined = workerBindings(),
-) => {
+): string | undefined => {
   const binding = bindings?.[name]
   if (binding && binding.length > 0) {
     return binding
@@ -30,7 +30,7 @@ export const runtimeEnv = (
 export const requiredRuntimeEnv = (
   name: keyof Env,
   bindings: Env | undefined = workerBindings(),
-) => {
+): string => {
   const value = runtimeEnv(name, bindings)
   if (!value) {
     throw new Error(`${name} is required`)
