@@ -1,5 +1,3 @@
-import { createServer } from "node:http"
-import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import { Events, OAuth2Server } from "oauth2-mock-server"
 
 const startOAuth2MockServer = async () => {
@@ -7,11 +5,13 @@ const startOAuth2MockServer = async () => {
   await server.issuer.keys.generate("RS256")
 
   server.service.on(Events.BeforeUserinfo, userInfoResponse => {
+    const userId = crypto.randomUUID()
+
     userInfoResponse.body = {
-      sub: "google-sub-123",
-      email: "person@example.test",
-      name: "Person Example",
-      picture: "https://example.test/avatar.png",
+      sub: `google-sub-${userId}`,
+      email: `person-${userId}@example.test`,
+      name: `Person ${userId}`,
+      picture: `https://example.test/avatar-${userId}.png`,
     }
   })
   await server.start(8081, "localhost")

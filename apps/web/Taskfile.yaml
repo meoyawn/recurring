@@ -1,6 +1,10 @@
 version: "3"
 
 includes:
+  compose:
+    taskfile: ../../compose/Taskfile.yaml
+    dir: ../../compose/
+
   openapi:
     taskfile: ../../packages/openapi/Taskfile.yaml
     dir: ../../packages/openapi/
@@ -64,8 +68,9 @@ tasks:
   test:miniflare:
     run: once
     deps:
+      - compose:up-d
       - build
-    cmd: bun vitest run --config vitest.miniflare.config.ts
+    cmd: go -C ../api run ./cmd/webtestenv --cwd ../web -- bun vitest run --config vitest.miniflare.config.ts
     sources:
       - Taskfile.yaml
       - ../../bun.lock

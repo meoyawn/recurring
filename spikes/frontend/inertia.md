@@ -229,10 +229,9 @@ Useful pieces to copy conceptually:
 - The example handles a non-GET mutation with `form.post("/users")` on the
   client and `c.redirect("/users/:id", 303)` after a successful server-side
   `POST`.
-- Invalid form submission uses `@hono/zod-validator` and returns
-  `c.render("Users/New", { values, errors })` from the validator hook. That is
-  a useful minimal demo, but not proof of canonical Inertia validation behavior
-  such as redirect-back plus flashed errors.
+- Invalid form submission returns `c.render("Users/New", { values, errors })`
+  on failure. That is a useful minimal demo, but not proof of canonical Inertia
+  validation behavior such as redirect-back plus flashed errors.
 - `app/root-view.tsx` uses `serializePage(page)` inside a
   `data-page="app"` JSON script and includes the `#app` mount element. Its
   `renderToString()` call renders only the HTML document shell and asset tags;

@@ -4,3 +4,4 @@ node_modules/
 dist/
 .nitro/
 worker-configuration.d.ts
+.cache/

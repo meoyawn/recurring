@@ -11,7 +11,8 @@ Web 2.0 app
 ## Rules
 
 - never format files. Leave it to humans
-- never `git commit` secrets or IPs. This repo is Open Source
+- never `git commit` secrets or IPs (127.0.0.1 is ok to leak). This repo is Open
+  Source
 - never run `bun patch`
 - never run `task api:test`, `task api:lint`, `task api:check` without
   escalating permissions (has docker calls inside)

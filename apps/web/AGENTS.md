@@ -19,3 +19,8 @@
   `task cf:types` instead
 - Never use `globalThis`, in CF workers
   [everything is passed in bindings](docs/dotenv.md)
+
+## SolidStart
+
+- Never remove `"use server"` without human permission
+- Never call `getRequestEvent()` in `src/`; pass route events explicitly instead

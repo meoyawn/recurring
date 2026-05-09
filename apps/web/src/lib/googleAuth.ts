@@ -46,6 +46,9 @@ const defaultGoogleAuthEndpoints: GoogleAuthEndpoints = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
 
+const isEmailAddress = (value: string): value is string & EmailAddress =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+
 const runtimeEnv = (name: keyof Env, bindings?: Env) => {
   const binding = bindings?.[name]
   if (binding && binding.length > 0) {
@@ -175,7 +178,8 @@ const parseGoogleProfile = (value: unknown): GoogleProfile => {
   if (
     !isRecord(value) ||
     typeof value.sub !== "string" ||
-    typeof value.email !== "string"
+    typeof value.email !== "string" ||
+    !isEmailAddress(value.email)
   ) {
     throw new Error("Google profile response is invalid")
   }
