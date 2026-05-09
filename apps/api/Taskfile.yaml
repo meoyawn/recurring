@@ -93,6 +93,7 @@ tasks:
       - go.sum
 
   check:
+    run: once
     deps:
       - lint
       - test

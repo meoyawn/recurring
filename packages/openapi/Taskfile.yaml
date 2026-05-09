@@ -7,8 +7,22 @@ vars:
 
 tasks:
   typecheck:
-    cmds:
-      - bun tsc
+    run: once
+    cmd: bun tsc
+    sources:
+      - spec/**/*.ts
+
+  lint:
+    run: once
+    cmd: bun oxlint --config ../../oxlint.config.ts spec/
+    sources:
+      - spec/**/*.ts
+
+  check:
+    run: once
+    deps:
+      - typecheck
+      - lint
 
   compile:recurring:
     run: once
@@ -128,7 +142,3 @@ tasks:
       - openapitools.json
     generates:
       - "{{.OUT_DIR}}/**/*"
-
-  typecheck:
-    cmds:
-      - bun tsc
