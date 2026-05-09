@@ -26,7 +26,7 @@ type GoogleTokenResponse = {
 
 type GoogleProfile = {
   sub: string
-  email: string
+  email: EmailAddress
   name?: string
   picture?: string
 }
