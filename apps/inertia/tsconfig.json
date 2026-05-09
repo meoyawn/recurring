@@ -13,7 +13,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
-    "types": ["@solidjs/start/env", "@cloudflare/vitest-pool-workers/types"],
+    "types": ["bun"],
     "isolatedModules": true
   },
   "include": ["**/*.ts", "**/*.tsx"],

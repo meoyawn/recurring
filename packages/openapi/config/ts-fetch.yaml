@@ -28,7 +28,7 @@ schemaMappings:
   # FieldID: true
 
 typeMappings:
-  string+email: EmailAddress
+  string+email: EmailAddrStr
   string+uuid: UUID
 
 reservedWordsMappings:

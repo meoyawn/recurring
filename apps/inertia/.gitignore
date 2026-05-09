@@ -1,0 +1,6 @@
+.cache/
+.task/
+.wrangler/
+dist/
+gen/
+node_modules/

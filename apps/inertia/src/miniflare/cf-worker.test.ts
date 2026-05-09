@@ -1,17 +1,34 @@
 import * as cfWorkers from "cloudflare:workers"
-import { SELF } from "cloudflare:test"
 import { describe, expect, test } from "vitest"
 
 import { apiOrigin } from "../lib/api.ts"
-import { googleAuthEndpoints } from "../lib/googleAuth.ts"
+import { googleAuthEndpoints } from "../lib/google-auth.ts"
+
+interface Worker {
+  fetch: (request: Request) => Promise<Response> | Response
+}
+
+interface WorkerExports {
+  default: Worker
+}
+
+type InertiaPage = {
+  component: string
+  props: {
+    health?: {
+      status: string
+    }
+  }
+  url: string
+  version: string
+}
 
 const sessionIDPattern = /^sess_[0-9a-f]{32}$/
 
-type WorkerFetch = (request: Request) => Promise<Response>
-
-// SELF is the test service binding to the main Worker and supplies env/ctx.
-// Source: https://developers.cloudflare.com/workers/testing/vitest-integration/test-apis/
-const workerFetch: WorkerFetch = (request: Request) => SELF.fetch(request)
+function getFetch(exports: WorkerExports): Worker["fetch"] {
+  const worker = exports.default
+  return worker.fetch.bind(worker)
+}
 
 const route = (x: `/${string}`): URL => new URL(x, "http://expample.test")
 
@@ -26,14 +43,36 @@ const requireHeader = (response: Response, name: string): string => {
 
 const cookieValue = (setCookie: string, name: string): string => {
   const match = setCookie.match(new RegExp(`${name}=([^;]+)`))
-  if (match === null) {
+  const value = match?.[1]
+  if (value === undefined) {
     throw new Error(`${name} cookie is missing`)
   }
 
-  return decodeURIComponent(match[1])
+  return decodeURIComponent(value)
 }
 
-describe("web worker", () => {
+const parseInertiaPage = async (response: Response): Promise<InertiaPage> => {
+  const page = await response.json()
+  if (!isInertiaPage(page)) {
+    throw new Error("response is not an Inertia page")
+  }
+
+  return page
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null
+
+const isInertiaPage = (value: unknown): value is InertiaPage =>
+  isRecord(value) &&
+  typeof value["component"] === "string" &&
+  isRecord(value["props"]) &&
+  typeof value["url"] === "string" &&
+  typeof value["version"] === "string"
+
+describe("inertia worker", () => {
+  const workerFetch = getFetch(cfWorkers.exports as WorkerExports)
+
   test("reads the Wrangler API origin binding from Miniflare", () => {
     expect(apiOrigin(cfWorkers.env)).toMatch(
       /^http:\/\/(localhost:8082|127\.0\.0\.1:\d+)$/,
@@ -48,9 +87,57 @@ describe("web worker", () => {
     })
   })
 
-  test("serves the SolidStart health check", async () => {
+  test("serves the Hono health check", async () => {
     const res = await workerFetch(new Request(route("/healthz")))
     expect(res.status).toEqual(200)
+  })
+
+  test("serves first Inertia visit as HTML with initial page props", async () => {
+    const res = await workerFetch(new Request(route("/")))
+
+    expect(res.status).toEqual(200)
+    expect(requireHeader(res, "content-type")).toContain("text/html")
+    const html = await res.text()
+    expect(html).toContain('<script data-page="app" type="application/json">')
+    expect(html).toContain('"component":"Home"')
+    expect(html).toContain('"health":{"status":"ok"}')
+  })
+
+  test("serves Inertia navigation as page JSON", async () => {
+    const res = await workerFetch(
+      new Request(route("/status"), {
+        headers: {
+          Accept: "text/html, application/xhtml+xml",
+          "X-Inertia": "true",
+          "X-Inertia-Version": "recurring-inertia-1",
+        },
+      }),
+    )
+    const page = await parseInertiaPage(res)
+
+    expect(res.status).toEqual(200)
+    expect(requireHeader(res, "x-inertia")).toEqual("true")
+    expect(requireHeader(res, "vary")).toContain("X-Inertia")
+    expect(page).toEqual<InertiaPage>({
+      component: "Status",
+      props: { health: { status: "ok" } },
+      url: "/status",
+      version: "recurring-inertia-1",
+    })
+  })
+
+  test("returns Inertia asset mismatch reload response", async () => {
+    const res = await workerFetch(
+      new Request(route("/"), {
+        headers: {
+          "X-Inertia": "true",
+          "X-Inertia-Version": "stale",
+        },
+      }),
+    )
+
+    expect(res.status).toEqual(409)
+    expect(requireHeader(res, "x-inertia-location")).toEqual(route("/").toString())
   })
 
   test("finishes Google OAuth against the mock OAuth server", async () => {

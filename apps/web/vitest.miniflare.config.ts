@@ -9,6 +9,9 @@ export default defineConfig(async () => {
     plugins: [
       cloudflareTest({
         main: "./.output/server/index.mjs",
+        // Miniflare config is merged over Wrangler config, so webtestenv can
+        // override the checked-in test default with its random API port.
+        // Source: https://developers.cloudflare.com/workers/testing/vitest-integration/configuration/
         miniflare: recurringAPIOrigin
           ? {
               bindings: {

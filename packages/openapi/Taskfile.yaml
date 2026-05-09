@@ -58,7 +58,7 @@ tasks:
   generate:client:
     run: once
     vars:
-      OUT_DIR: ../../apps/web/gen/
+      OUT_DIR: ../../apps/inertia/gen/
     deps:
       - compile:recurring
     cmds:

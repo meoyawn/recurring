@@ -1,2 +1,2 @@
 /** string+email */
-export type EmailAddress = `${string}@${string}.${string}`
+export type EmailAddrStr = `${string}@${string}.${string}`

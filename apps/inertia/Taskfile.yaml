@@ -1,0 +1,114 @@
+version: 3
+
+includes:
+  compose:
+    taskfile: ../../compose/Taskfile.yaml
+    dir: ../../compose/
+
+  openapi:
+    taskfile: ../../packages/openapi/Taskfile.yaml
+    dir: ../../packages/openapi/
+
+tasks:
+  run:
+    run: once
+
+  generate:client:
+    run: once
+    deps:
+      - openapi:generate:client
+
+  cf:types:
+    run: once
+    desc: Generate Cloudflare Worker binding types
+    vars:
+      D_TS: src/worker-configuration.d.ts
+    cmd: bun wrangler types {{.D_TS}}
+    sources:
+      - wrangler.toml
+    generates:
+      - "{{.D_TS}}"
+
+  typecheck:
+    run: once
+    deps:
+      - cf:types
+      - generate:client
+    cmd: bun tsc
+    sources:
+      - ../../bun.lock
+      - package.json
+      - tsconfig.json
+      - src/**/*
+      - "*.ts"
+
+  lint:
+    run: once
+    deps:
+      - cf:types
+    cmd: bun oxlint --config ../../oxlint.config.ts src/ *.ts
+    sources:
+      - ../../bun.lock
+      - ../../oxlint.config.ts
+      - src/**/*
+      - "*.ts"
+
+  build:
+    run: once
+    desc: Build production Inertia worker
+    deps:
+      - generate:client
+    cmd: bun vite build
+    sources:
+      - ../../bun.lock
+      - ./**/*.{ts,tsx}
+      - exclude: node_modules/**/*
+    generates:
+      - dist/**/*
+
+  test:miniflare:
+    run: once
+    deps:
+      - compose:up-d
+      - build
+    cmd: go -C ../api run ./cmd/webtestenv --cwd ../inertia -- bun vitest run --config vitest.miniflare.config.ts
+    sources:
+      - Taskfile.yaml
+      - ../../bun.lock
+      - src/**/*
+      - "*.ts"
+
+  test:unit:
+    run: once
+    deps:
+      - generate:client
+    cmd: bun test --pass-with-no-tests --path-ignore-patterns 'src/miniflare/**'
+    sources:
+      - Taskfile.yaml
+      - ../../bun.lock
+      - src/**/*
+
+  test:
+    run: once
+    deps:
+      - test:unit
+      - test:miniflare
+
+  check:
+    deps:
+      - lint
+      - typecheck
+      - test
+
+  dev:
+    desc: Run Vite dev server
+    deps:
+      - generate:client
+    cmd: bun vite dev
+
+  preview:
+    desc: Preview production build
+    cmd: bun vite preview
+
+  clean:
+    cmd: rm -rf dist/

@@ -9,6 +9,10 @@ includes:
     taskfile: apps/web/Taskfile.yaml
     dir: apps/web/
 
+  inertia:
+    taskfile: apps/inertia/Taskfile.yaml
+    dir: apps/inertia/
+
   api:
     taskfile: apps/api/Taskfile.yaml
     dir: apps/api/
@@ -63,4 +67,5 @@ tasks:
     deps:
       - openapi:check
       - api:check
-      - web:check
+      - inertia:check
+      # - web:check

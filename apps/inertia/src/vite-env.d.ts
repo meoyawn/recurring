@@ -1,7 +1,7 @@
-/// <reference types="@solidjs/start/env" />
+/// <reference types="vite/client" />
 
 import type { EmailAddrStr as SharedEmailAddrStr } from "@recurring/shared-ts"
 
 declare global {
-  type EmailAddress = SharedEmailAddrStr
+  type EmailAddrStr = SharedEmailAddrStr
 }
