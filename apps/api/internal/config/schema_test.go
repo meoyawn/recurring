@@ -10,6 +10,7 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 )
 
+// TestConfigFilesMatchSchema validates app config files before deployment.
 func TestConfigFilesMatchSchema(t *testing.T) {
 	t.Parallel()
 
