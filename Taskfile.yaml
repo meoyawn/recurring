@@ -63,3 +63,4 @@ tasks:
     deps:
       - openapi:check
       - api:check
+      - web:check

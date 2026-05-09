@@ -38,11 +38,6 @@ tasks:
       - cf:types
     cmd: bun oxlint --config ../../oxlint.config.ts src/
 
-  check:
-    deps:
-      - lint
-      - typecheck
-
   build:
     run: once
     desc: Build production web app
@@ -78,6 +73,12 @@ tasks:
     deps:
       - test:unit
       - test:miniflare
+
+  check:
+    deps:
+      - lint
+      - typecheck
+      - test
 
   dev:
     desc: Run Vite dev server

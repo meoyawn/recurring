@@ -6,26 +6,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
 
 export const workerBindings = (): Env | undefined => {
-  const context = getRequestEvent()?.nativeEvent.context
-  if (!isRecord(context)) {
+  const cf = getRequestEvent()?.nativeEvent.context.cloudflare
+  if (isRecord(cf) && "env" in cf) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return cf?.env as Env | undefined
+  } else {
     return undefined
   }
-
-  const platform = context["_platform"]
-  if (!isRecord(platform)) {
-    return undefined
-  }
-
-  const cloudflare = platform.cloudflare
-  if (!isRecord(cloudflare)) {
-    return undefined
-  }
-
-  if (!isRecord(cloudflare.env)) {
-    return undefined
-  }
-
-  return cloudflare.env as Env
 }
 
 export const runtimeEnv = (
