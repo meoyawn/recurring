@@ -42,3 +42,9 @@ t_22:
 
 t_25:
   title: move [gen](apps/api/internal/gen) / `openapi` to `ogen`
+
+t_26:
+  title: run test Postgres without fsync for faster in-memory tests
+  success_criteria: >-
+    apps/api/internal/apitest and apps/api/migrations/migration_test.go start
+    Postgres with fsync disabled and test data stored in memory
