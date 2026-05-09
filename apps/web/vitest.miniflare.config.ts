@@ -9,11 +9,13 @@ export default defineConfig(async () => {
         main: "./.output/server/index.mjs",
         wrangler: {
           configPath: "./wrangler.toml",
+          environment: "test",
         },
       }),
     ],
     test: {
       disableConsoleIntercept: true,
+      globalSetup: ["./src/miniflare/oauth-test-servers.ts"],
       include: ["src/miniflare/**/*.test.ts"],
     },
   }

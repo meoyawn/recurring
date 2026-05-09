@@ -1,9 +1,3 @@
-import {
-  requiredRuntimeEnv,
-  runtimeEnv,
-  workerBindings,
-} from "./runtimeEnv.ts"
-
 const googleStateCookieName = "googleOAuthState"
 const sessionCookieName = "sessionID"
 
@@ -51,6 +45,28 @@ const defaultGoogleAuthEndpoints: GoogleAuthEndpoints = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
+
+const runtimeEnv = (name: keyof Env, bindings?: Env) => {
+  const binding = bindings?.[name]
+  if (binding && binding.length > 0) {
+    return binding
+  }
+
+  const processBinding = process.env[name]
+  if (processBinding && processBinding.length > 0) {
+    return processBinding
+  }
+
+  return undefined
+}
+
+const requiredRuntimeEnv = (name: keyof Env, bindings?: Env) => {
+  const value = runtimeEnv(name, bindings)
+  if (!value) {
+    throw new Error(`${name} is required`)
+  }
+  return value
+}
 
 const publicOrigin = (request: Request) => {
   const forwardedProto = request.headers.get("x-forwarded-proto")
@@ -120,9 +136,7 @@ const errorRedirect = (
   return redirect(url.toString(), 303, cookies)
 }
 
-export const googleAuthEndpoints = (
-  bindings: Env | undefined = workerBindings(),
-): GoogleAuthEndpoints => ({
+export const googleAuthEndpoints = (bindings?: Env): GoogleAuthEndpoints => ({
   authorizationEndpoint:
     runtimeEnv("GOOGLE_AUTHORIZATION_ENDPOINT", bindings) ??
     defaultGoogleAuthEndpoints.authorizationEndpoint,
@@ -134,10 +148,7 @@ export const googleAuthEndpoints = (
     defaultGoogleAuthEndpoints.userinfoEndpoint,
 })
 
-const authConfig = (
-  request: Request,
-  bindings: Env | undefined = workerBindings(),
-): GoogleAuthConfig => ({
+const authConfig = (request: Request, bindings?: Env): GoogleAuthConfig => ({
   ...googleAuthEndpoints(bindings),
   clientId: requiredRuntimeEnv("GOOGLE_CLIENT_ID", bindings),
   clientSecret: requiredRuntimeEnv("GOOGLE_CLIENT_SECRET", bindings),
@@ -146,11 +157,10 @@ const authConfig = (
     new URL("/auth/google/callback", publicOrigin(request)).toString(),
 })
 
-const apiOrigin = () =>
-  (runtimeEnv("RECURRING_API_ORIGIN") ?? "http://localhost:8080").replace(
-    /\/$/,
-    "",
-  )
+const apiOrigin = (bindings?: Env) =>
+  (
+    runtimeEnv("RECURRING_API_ORIGIN", bindings) ?? "http://localhost:8080"
+  ).replace(/\/$/, "")
 
 const randomState = () => {
   const bytes = new Uint8Array(32)
@@ -226,8 +236,8 @@ const fetchGoogleProfile = async (
   return parseGoogleProfile(await res.json())
 }
 
-const upsertSignup = async (profile: GoogleProfile) => {
-  const res = await fetch(`${apiOrigin()}/v1/signup`, {
+const upsertSignup = async (profile: GoogleProfile, bindings?: Env) => {
+  const res = await fetch(`${apiOrigin(bindings)}/v1/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -244,9 +254,9 @@ const upsertSignup = async (profile: GoogleProfile) => {
   return parseSignupResponse(await res.json())
 }
 
-export const startGoogleAuth = (request: Request) => {
+export const startGoogleAuth = (request: Request, bindings?: Env) => {
   try {
-    const config = authConfig(request)
+    const config = authConfig(request, bindings)
     const state = randomState()
     const url = new URL(config.authorizationEndpoint)
     url.searchParams.set("client_id", config.clientId)
@@ -268,7 +278,7 @@ export const startGoogleAuth = (request: Request) => {
   }
 }
 
-export const finishGoogleAuth = async (request: Request) => {
+export const finishGoogleAuth = async (request: Request, bindings?: Env) => {
   const secure = isSecureRequest(request)
   const clearState = clearCookie(
     googleStateCookieName,
@@ -293,10 +303,10 @@ export const finishGoogleAuth = async (request: Request) => {
       return errorRedirect(request, "invalid_state", [clearState])
     }
 
-    const config = authConfig(request)
+    const config = authConfig(request, bindings)
     const token = await exchangeCode(code, config)
     const profile = await fetchGoogleProfile(token.access_token, config)
-    const signup = await upsertSignup(profile)
+    const signup = await upsertSignup(profile, bindings)
 
     return redirect(new URL("/", publicOrigin(request)).toString(), 303, [
       clearState,

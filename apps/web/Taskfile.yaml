@@ -67,6 +67,7 @@ tasks:
       - build
     cmd: bun vitest run --config vitest.miniflare.config.ts
     sources:
+      - Taskfile.yaml
       - ../../bun.lock
       - src/**/*
 
@@ -74,8 +75,9 @@ tasks:
     run: once
     deps:
       - generate:client
-    cmd: bun test --path-ignore-patterns 'src/miniflare/**'
+    cmd: bun test --pass-with-no-tests --path-ignore-patterns 'src/miniflare/**'
     sources:
+      - Taskfile.yaml
       - ../../bun.lock
       - src/**/*
 

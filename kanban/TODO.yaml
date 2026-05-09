@@ -37,3 +37,8 @@ t_26:
   success_criteria: >-
     apps/api/internal/apitest and apps/api/migrations/migration_test.go start
     Postgres with fsync disabled and test data stored in memory
+
+t_27:
+  title: >-
+    add test in apps/web/src asserting environment keys stay synced across .env,
+    wrangler.toml, and wrangler.test.toml
