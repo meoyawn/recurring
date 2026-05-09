@@ -21,14 +21,15 @@ export const apiOrigin = (
 
 const getSessionID = () => getCookie(sessionCookieName)
 
-const api = () =>
+const api = (bindings?: Env) =>
   new DefaultApi(
     new Configuration({
       accessToken: () => getSessionID() ?? "",
-      basePath: apiOrigin(),
+      basePath: apiOrigin(bindings),
     }),
   )
 
 export const apiGetter = async <T>(
   fn: (api: DefaultApi) => Promise<T>,
-): Promise<T> => fn(api())
+  bindings?: Env,
+): Promise<T> => fn(api(bindings))

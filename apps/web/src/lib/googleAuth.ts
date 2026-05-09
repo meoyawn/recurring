@@ -1,3 +1,7 @@
+"use server"
+
+import { apiGetter } from "./api.ts"
+
 const googleStateCookieName = "googleOAuthState"
 const sessionCookieName = "sessionID"
 
@@ -25,10 +29,6 @@ type GoogleProfile = {
   email: string
   name?: string
   picture?: string
-}
-
-type SignupResponse = {
-  session_id: string
 }
 
 type GoogleAuthEndpoints = {
@@ -157,11 +157,6 @@ const authConfig = (request: Request, bindings?: Env): GoogleAuthConfig => ({
     new URL("/auth/google/callback", publicOrigin(request)).toString(),
 })
 
-const apiOrigin = (bindings?: Env) =>
-  (
-    runtimeEnv("RECURRING_API_ORIGIN", bindings) ?? "http://localhost:8080"
-  ).replace(/\/$/, "")
-
 const randomState = () => {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
@@ -191,14 +186,6 @@ const parseGoogleProfile = (value: unknown): GoogleProfile => {
     name: typeof value.name === "string" ? value.name : undefined,
     picture: typeof value.picture === "string" ? value.picture : undefined,
   }
-}
-
-const parseSignupResponse = (value: unknown): SignupResponse => {
-  if (!isRecord(value) || typeof value.session_id !== "string") {
-    throw new Error("Signup response is invalid")
-  }
-
-  return { session_id: value.session_id }
 }
 
 const exchangeCode = async (code: string, config: GoogleAuthConfig) => {
@@ -237,21 +224,16 @@ const fetchGoogleProfile = async (
 }
 
 const upsertSignup = async (profile: GoogleProfile, bindings?: Env) => {
-  const res = await fetch(`${apiOrigin(bindings)}/v1/signup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      google_sub: profile.sub,
-      email: profile.email,
-      name: profile.name,
-      picture_url: profile.picture,
-    }),
-  })
-  if (!res.ok) {
-    throw new Error(`Signup failed: ${res.status}`)
-  }
-
-  return parseSignupResponse(await res.json())
+  return apiGetter(
+    api =>
+      api.upsertSignup({
+        google_sub: profile.sub,
+        email: profile.email,
+        name: profile.name,
+        picture_url: profile.picture,
+      }),
+    bindings,
+  )
 }
 
 export const startGoogleAuth = (request: Request, bindings?: Env): Response => {

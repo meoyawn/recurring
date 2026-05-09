@@ -1,3 +1,11 @@
+t_6:
+  title: test google auth
+  success_criteria: https://github.com/axa-group/oauth2-mock-server
+  start: 2026-05-09T19:50:52+0300
+  finish: 2026-05-09T21:45:28+0300
+  deps:
+    - t_8
+
 t_14:
   title: validate apps/api/config/dev.yaml against apps/api/config/schema.yaml
   finish: 2026-05-09T14:03:48+0300
