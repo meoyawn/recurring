@@ -31,12 +31,21 @@ tasks:
       - cf:types
       - generate:client
     cmd: bun tsc
+    sources:
+      - ../../bun.lock
+      - package.json
+      - tsconfig.json
+      - src/**/*
 
   lint:
     run: once
     deps:
       - cf:types
     cmd: bun oxlint --config ../../oxlint.config.ts src/
+    sources:
+      - ../../bun.lock
+      - ../../oxlint.config.ts
+      - src/**/*
 
   build:
     run: once
@@ -59,14 +68,16 @@ tasks:
     cmd: bun vitest run --config vitest.miniflare.config.ts
     sources:
       - ../../bun.lock
-      - ./**/*.{ts,tsx}
-      - exclude: node_modules/**/*
+      - src/**/*
 
   test:unit:
     run: once
     deps:
       - generate:client
     cmd: bun test --path-ignore-patterns 'src/miniflare/**'
+    sources:
+      - ../../bun.lock
+      - src/**/*
 
   test:
     run: once
