@@ -11,3 +11,11 @@ db:
   password: not-a-secret
   sslmode: disable
   max_conns: 4
+
+sheets:
+  origin: http://recurring-sheets
+  transport:
+    kind: unix
+    path: /tmp/recurring-test-sheets.sock
+  timeout_ms: 30000
+  max_attempts: 3

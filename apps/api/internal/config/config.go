@@ -17,8 +17,9 @@ import (
 const EnvPath = "RECURRING_CONFIG"
 
 type Config struct {
-	API APIConfig `koanf:"api" yaml:"api" json:"api"`
-	DB  DBConfig  `koanf:"db" yaml:"db" json:"db"`
+	API    APIConfig    `koanf:"api" yaml:"api" json:"api"`
+	DB     DBConfig     `koanf:"db" yaml:"db" json:"db"`
+	Sheets ServiceConfig `koanf:"sheets" yaml:"sheets" json:"sheets"`
 }
 
 type APIConfig struct {
@@ -39,6 +40,18 @@ type DBConfig struct {
 	Password string `koanf:"password" yaml:"password" json:"password"`
 	SSLMode  string `koanf:"sslmode" yaml:"sslmode" json:"sslmode"`
 	MaxConns int32  `koanf:"max_conns" yaml:"max_conns" json:"max_conns"`
+}
+
+type ServiceConfig struct {
+	Origin      string          `koanf:"origin" yaml:"origin" json:"origin"`
+	Transport   TransportConfig `koanf:"transport" yaml:"transport" json:"transport"`
+	TimeoutMS   int             `koanf:"timeout_ms" yaml:"timeout_ms" json:"timeout_ms"`
+	MaxAttempts int             `koanf:"max_attempts" yaml:"max_attempts" json:"max_attempts"`
+}
+
+type TransportConfig struct {
+	Kind string `koanf:"kind" yaml:"kind" json:"kind"`
+	Path string `koanf:"path" yaml:"path,omitempty" json:"path,omitempty"`
 }
 
 func LoadFromEnv() (Config, error) {
@@ -74,10 +87,12 @@ func Load(path string) (Config, error) {
 
 func defaults() map[string]any {
 	return map[string]any{
-		"api.listener.kind": "tcp",
-		"api.listener.addr": ":8080",
-		"db.sslmode":        "disable",
-		"db.max_conns":      int32(4),
+		"api.listener.kind":  "tcp",
+		"api.listener.addr":  ":8080",
+		"db.sslmode":         "disable",
+		"db.max_conns":       int32(4),
+		"sheets.timeout_ms":  30000,
+		"sheets.max_attempts": 3,
 	}
 }
 
@@ -121,6 +136,25 @@ func (c Config) Validate() error {
 	}
 	if c.DB.MaxConns < 1 {
 		add("db.max_conns must be greater than 0")
+	}
+
+	if c.Sheets.Origin == "" {
+		add("sheets.origin is required")
+	}
+	switch c.Sheets.Transport.Kind {
+	case "tcp":
+	case "unix":
+		if c.Sheets.Transport.Path == "" {
+			add("sheets.transport.path is required for unix transport")
+		}
+	default:
+		add("sheets.transport.kind must be tcp or unix")
+	}
+	if c.Sheets.TimeoutMS < 1 {
+		add("sheets.timeout_ms must be greater than 0")
+	}
+	if c.Sheets.MaxAttempts < 1 {
+		add("sheets.max_attempts must be greater than 0")
 	}
 
 	return errors.Join(errs...)

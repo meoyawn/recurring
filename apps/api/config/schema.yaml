@@ -4,6 +4,7 @@ additionalProperties: false
 required:
   - api
   - db
+  - sheets
 properties:
   api:
     type: object
@@ -84,5 +85,46 @@ properties:
           - verify-ca
           - verify-full
       max_conns:
+        type: integer
+        minimum: 1
+  sheets:
+    type: object
+    additionalProperties: false
+    required:
+      - origin
+      - transport
+      - timeout_ms
+      - max_attempts
+    properties:
+      origin:
+        type: string
+        minLength: 1
+      transport:
+        type: object
+        oneOf:
+          - additionalProperties: false
+            required:
+              - kind
+            properties:
+              kind:
+                type: string
+                enum:
+                  - tcp
+          - additionalProperties: false
+            required:
+              - kind
+              - path
+            properties:
+              kind:
+                type: string
+                enum:
+                  - unix
+              path:
+                type: string
+                minLength: 1
+      timeout_ms:
+        type: integer
+        minimum: 1
+      max_attempts:
         type: integer
         minimum: 1

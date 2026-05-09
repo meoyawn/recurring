@@ -1,6 +1,4 @@
 .DS_Store
-.env
-.env.*.local
 *.log
 .task/
 .codex/
