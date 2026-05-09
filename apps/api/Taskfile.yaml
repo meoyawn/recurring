@@ -14,13 +14,16 @@ tasks:
   pggen:
     run: once
     desc: Generate typed Postgres query wrappers
+    vars:
+      OUT_DIR: internal/gen/pggen/
     cmds:
-      - rm -rf internal/gen/pggen/
-      - mkdir -p internal/gen/pggen/
-      - go tool pggen gen go --schema-glob 'migrations/*.sql' --query-glob 'queries/*.sql' --output-dir internal/gen/pggen --acronym url
+      - rm -rf {{.OUT_DIR}}
+      - mkdir -p {{.OUT_DIR}}
+      - go tool pggen gen go --schema-glob 'migrations/*.sql' --query-glob 'queries/*.sql' --output-dir {{.OUT_DIR}} --acronym url
     generates:
-      - internal/gen/pggen/**/*
+      - "{{.OUT_DIR}}/**/*"
     sources:
+      - Taskfile.yaml
       - migrations/*.sql
       - queries/*.sql
 
