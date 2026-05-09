@@ -1,0 +1,11 @@
+generatorName: go
+globalProperties:
+  models: ""
+  modelDocs: false
+  modelTests: false
+  apis: false
+  apiDocs: false
+  apiTests: false
+  supportingFiles: utils.go
+additionalProperties:
+  packageName: config

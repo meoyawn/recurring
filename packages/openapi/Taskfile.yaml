@@ -2,6 +2,7 @@ version: "3"
 
 vars:
   RECURRING_EMBEDDED_YAML: ../../apps/api/internal/httpapi/recurring.openapi.yaml
+  RECURRING_CONFIG_OPENAPI_YAML: ../../apps/api/config/schema.openapi.yaml
   SHEETS_OPENAPI_YAML: ../../apps/sheets/src/sheets.openapi.yaml
 
 tasks:
@@ -26,10 +27,19 @@ tasks:
     generates:
       - "{{.SHEETS_OPENAPI_YAML}}"
 
+  compile:config:
+    run: once
+    cmd: bun spec/recurring-config.responsible.ts > {{.RECURRING_CONFIG_OPENAPI_YAML}}
+    sources:
+      - spec/*.responsible.ts
+    generates:
+      - "{{.RECURRING_CONFIG_OPENAPI_YAML}}"
+
   compile:
     deps:
       - compile:recurring
       - compile:sheets
+      - compile:config
 
   generate:client:
     run: once
@@ -71,6 +81,28 @@ tasks:
     sources:
       - "{{.RECURRING_EMBEDDED_YAML}}"
       - config/go-structs.yaml
+      - openapitools.json
+    generates:
+      - "{{.OUT_DIR}}/**/*"
+
+  generate:config-go-structs:
+    run: once
+    vars:
+      OUT_DIR: ../../apps/api/internal/gen/config/
+    deps:
+      - compile:config
+    cmds:
+      - rm -rf {{.OUT_DIR}}
+      - >-
+        bun openapi-generator-cli
+        --openapitools {{.TASKFILE_DIR}}/openapitools.json
+        generate
+        -c config/go-config-structs.yaml
+        -i {{.RECURRING_CONFIG_OPENAPI_YAML}}
+        -o {{.OUT_DIR}}
+    sources:
+      - "{{.RECURRING_CONFIG_OPENAPI_YAML}}"
+      - config/go-config-structs.yaml
       - openapitools.json
     generates:
       - "{{.OUT_DIR}}/**/*"

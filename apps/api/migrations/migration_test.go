@@ -14,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/recurring/api/internal/config"
+	configgen "github.com/recurring/api/internal/gen/config"
 	"github.com/recurring/api/migrations"
 	"github.com/recurring/api/pkg/pgdocker"
 	"gotest.tools/v3/assert"
@@ -28,7 +29,7 @@ func TestMigrations(t *testing.T) {
 	devConfig := mustLoadDevConfig(t)
 	assertNoDownMigrations(t)
 
-	ctr, err := pgdocker.Start(ctx, postgresConfig(devConfig.DB))
+	ctr, err := pgdocker.Start(ctx, postgresConfig(devConfig.Db))
 	assert.NilError(t, err, "start postgres")
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -63,7 +64,7 @@ func TestMigrations(t *testing.T) {
 	assertSignupInsertBehavior(t, ctx, db)
 }
 
-func mustLoadDevConfig(t *testing.T) config.Config {
+func mustLoadDevConfig(t *testing.T) configgen.Config {
 	t.Helper()
 
 	cfg, err := config.Load(filepath.Join("..", "config", "dev.yaml"))
@@ -71,12 +72,12 @@ func mustLoadDevConfig(t *testing.T) config.Config {
 	return cfg
 }
 
-func postgresConfig(db config.DBConfig) pgdocker.Config {
+func postgresConfig(db configgen.DBConfig) pgdocker.Config {
 	return pgdocker.Config{
 		Database: db.Name,
 		User:     db.User,
 		Password: db.Password,
-		SSLMode:  db.SSLMode,
+		SSLMode:  string(db.Sslmode),
 	}
 }
 

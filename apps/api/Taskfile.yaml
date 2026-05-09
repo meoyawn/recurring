@@ -28,6 +28,7 @@ tasks:
     # TODO fs watching
     desc: Run API dev server
     deps:
+      - openapi:generate:config-go-structs
       - openapi:generate:go-structs
       - pggen
     env:
@@ -37,6 +38,7 @@ tasks:
 
   build:
     deps:
+      - openapi:generate:config-go-structs
       - openapi:generate:go-structs
       - pggen
     vars:
@@ -65,6 +67,7 @@ tasks:
   test:
     run: once
     deps:
+      - openapi:generate:config-go-structs
       - openapi:generate:go-structs
       - pggen
     cmds:
@@ -75,6 +78,7 @@ tasks:
   lint:
     run: once
     deps:
+      - openapi:generate:config-go-structs
       - openapi:generate:go-structs
       - pggen
     env:

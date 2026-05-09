@@ -1,3 +1,14 @@
+t_14:
+  title: validate apps/api/config/dev.yaml against apps/api/config/schema.yaml
+  finish: 2026-05-09T14:03:48+0300
+
+t_22:
+  title: fork pggen and upgrade it to pgx v5
+  success_criteria: >-
+    apps/api pggen query generation emits Go code under internal/gen/store that
+    imports github.com/jackc/pgx/v5 and works with the API pgxpool.Pool
+  finish: 2026-05-09T14:08:23+0300
+
 t_15:
   title: >-
     remove double OpenAPI YAML generation/copy hack from apps/api

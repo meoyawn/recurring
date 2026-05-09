@@ -2,25 +2,22 @@ package migrator
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/recurring/api/migrations"
 )
 
 const startupTimeout = 30 * time.Second
 
-func Up(ctx context.Context, connString string) error {
+func Up(ctx context.Context, pool *pgxpool.Pool) error {
 	ctx, cancel := context.WithTimeout(ctx, startupTimeout)
 	defer cancel()
 
-	db, err := sql.Open("pgx", connString)
-	if err != nil {
-		return fmt.Errorf("open migration db: %w", err)
-	}
+	db := stdlib.OpenDBFromPool(pool)
 	defer func() {
 		_ = db.Close()
 	}()

@@ -28,20 +28,8 @@ t_11:
   title: create spike for api static config shape
   success_criteria: project spike markdown
 
-t_14:
-  title: validate apps/api/config/dev.yaml against apps/api/config/schema.yaml
-
 t_21:
   title: add https://github.com/wal-g/wal-g
-
-t_22:
-  title: fork pggen and upgrade it to pgx v5
-  success_criteria: >-
-    apps/api pggen query generation emits Go code under internal/gen/store that
-    imports github.com/jackc/pgx/v5 and works with the API pgxpool.Pool
-
-t_25:
-  title: move [gen](apps/api/internal/gen) / `openapi` to `ogen`
 
 t_26:
   title: run test Postgres without fsync for faster in-memory tests

@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/recurring/api/internal/config"
 	database "github.com/recurring/api/internal/db"
+	configgen "github.com/recurring/api/internal/gen/config"
 	"github.com/recurring/api/internal/httpapi"
 	"github.com/recurring/api/internal/migrator"
 )
@@ -32,13 +33,14 @@ func Start(ctx context.Context) (*Server, error) {
 	return StartWithConfig(ctx, cfg)
 }
 
-func StartWithConfig(ctx context.Context, cfg config.Config) (*Server, error) {
-	if err := migrator.Up(ctx, cfg.DB.ConnectionString("recurring_migration")); err != nil {
+func StartWithConfig(ctx context.Context, cfg configgen.Config) (*Server, error) {
+	pool, err := database.Open(ctx, cfg.Db)
+	if err != nil {
 		return nil, err
 	}
 
-	pool, err := database.Open(ctx, cfg.DB)
-	if err != nil {
+	if err := migrator.Up(ctx, pool); err != nil {
+		pool.Close()
 		return nil, err
 	}
 
@@ -48,7 +50,7 @@ func StartWithConfig(ctx context.Context, cfg config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	listener, err := listen(cfg.API.Listener)
+	listener, err := listen(cfg.Api.Listener)
 	if err != nil {
 		pool.Close()
 		return nil, err
@@ -119,22 +121,24 @@ func (s *Server) serve() {
 	close(s.errc)
 }
 
-func listen(cfg config.ListenerConfig) (net.Listener, error) {
+func listen(cfg configgen.ListenerConfig) (net.Listener, error) {
 	switch cfg.Kind {
 	case "tcp":
-		listener, err := net.Listen("tcp", cfg.Addr)
+		addr := cfg.GetAddr()
+		listener, err := net.Listen("tcp", addr)
 		if err != nil {
-			return nil, fmt.Errorf("listen tcp %q: %w", cfg.Addr, err)
+			return nil, fmt.Errorf("listen tcp %q: %w", addr, err)
 		}
 		return listener, nil
 
 	case "unix":
-		if err := os.Remove(cfg.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("remove stale unix socket %q: %w", cfg.Path, err)
+		path := cfg.GetPath()
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("remove stale unix socket %q: %w", path, err)
 		}
-		listener, err := net.Listen("unix", cfg.Path)
+		listener, err := net.Listen("unix", path)
 		if err != nil {
-			return nil, fmt.Errorf("listen unix %q: %w", cfg.Path, err)
+			return nil, fmt.Errorf("listen unix %q: %w", path, err)
 		}
 		return listener, nil
 

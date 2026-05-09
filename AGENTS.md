@@ -15,11 +15,12 @@ Web 2.0 app
 - never run `bun patch`
 - never run `task api:test`, `task api:lint`, `task api:check` without
   escalating permissions (has docker calls inside)
+- never edit `.gitignore` without a human permission
 
 ## CLI
 
 - never call `rg --files`, call `rg --files --hidden -u -g '!.git'` instead
-- never use `bunx`, ask human to `bun i -d`, then use `bun`
+- never use `bunx`, without a human permission
 - never put commands in `package.json`s. Put them in `Taskfile.yaml`s only
 - never call `wc`, use `scc` instead
 

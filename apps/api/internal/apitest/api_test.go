@@ -22,6 +22,7 @@ import (
 
 	"github.com/recurring/api/internal/app"
 	"github.com/recurring/api/internal/config"
+	configgen "github.com/recurring/api/internal/gen/config"
 	"github.com/recurring/api/internal/serviceclient"
 	"github.com/recurring/api/pkg/pgdocker"
 	"gotest.tools/v3/assert"
@@ -82,8 +83,8 @@ func run(m *testing.M) int {
 	return code
 }
 
-func startTestEnv(ctx context.Context, devConfig config.Config) (*testEnv, error) {
-	container, err := pgdocker.Start(ctx, postgresConfig(devConfig.DB))
+func startTestEnv(ctx context.Context, devConfig configgen.Config) (*testEnv, error) {
+	container, err := pgdocker.Start(ctx, postgresConfig(devConfig.Db))
 	if err != nil {
 		return nil, fmt.Errorf("start postgres: %w", err)
 	}
@@ -118,15 +119,14 @@ func startTestEnv(ctx context.Context, devConfig config.Config) (*testEnv, error
 	return &testEnv{postgres: container, server: server, sheets: sheets, tempDir: tempDir}, nil
 }
 
-func startAPI(ctx context.Context, devConfig config.Config, container *pgdocker.Container, sheetsSocketPath string) (*app.Server, error) {
+func startAPI(ctx context.Context, devConfig configgen.Config, container *pgdocker.Container, sheetsSocketPath string) (*app.Server, error) {
 	cfg := devConfig
-	cfg.API.Listener = config.ListenerConfig{Kind: "tcp", Addr: "localhost:0"}
-	cfg.DB.Host = container.Host()
-	cfg.DB.Port = container.Port()
-	cfg.Sheets.Transport = config.TransportConfig{Kind: "unix", Path: sheetsSocketPath}
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
+	cfg.Api.Listener = configgen.ListenerConfig{Kind: "tcp"}
+	cfg.Api.Listener.SetAddr("localhost:0")
+	cfg.Db.Host = container.Host()
+	cfg.Db.Port = int32(container.Port())
+	cfg.Sheets.Transport = configgen.TransportConfig{Kind: "unix"}
+	cfg.Sheets.Transport.SetPath(sheetsSocketPath)
 
 	server, err := app.StartWithConfig(ctx, cfg)
 	if err != nil {
@@ -277,12 +277,12 @@ func stopChild(ctx context.Context, child *childProcess) error {
 	}
 }
 
-func postgresConfig(db config.DBConfig) pgdocker.Config {
+func postgresConfig(db configgen.DBConfig) pgdocker.Config {
 	return pgdocker.Config{
 		Database: db.Name,
 		User:     db.User,
 		Password: db.Password,
-		SSLMode:  db.SSLMode,
+		SSLMode:  string(db.Sslmode),
 	}
 }
 
