@@ -3,5 +3,5 @@
 import type { EmailAddrStr as SharedEmailAddrStr } from "@recurring/shared-ts"
 
 declare global {
-  type EmailAddress = SharedEmailAddrStr
+  type EmailAddrStr = SharedEmailAddrStr
 }

@@ -15,7 +15,7 @@ tasks:
   generate:client:
     run: once
     deps:
-      - openapi:generate:client
+      - openapi:generate:web-client
 
   cf:types:
     run: once
