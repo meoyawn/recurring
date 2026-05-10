@@ -1,7 +1,9 @@
-/** string+email */
+/** String+email */
 export type EmailAddrStr = `${string}@${string}.${string}`
 
 export { honoTracing, otlpTraceEndpointFromEnv } from "./hono-tracing.ts"
+
+export { delay, isRecord } from "./typescript.ts"
 
 export {
   serviceFetch,
@@ -11,6 +13,3 @@ export {
   type ServiceClientOptions,
   type ServiceClientResponseEvent,
 } from "./serviceclient.ts"
-
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null

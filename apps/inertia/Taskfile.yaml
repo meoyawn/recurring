@@ -37,6 +37,7 @@ tasks:
       - package.json
       - tsconfig.json
       - src/**/*
+      - ../shared-ts/**/*.ts
       - "*.ts"
 
   lint:
@@ -49,19 +50,7 @@ tasks:
       - bun.lock
       - oxlint.config.ts
       - apps/inertia/src/**/*
-
-  build:
-    run: once
-    desc: Build production Inertia worker
-    deps:
-      - openapi:generate:inertia-client
-    cmd: bun vite build
-    sources:
-      - ../../bun.lock
-      - ./**/*.{ts,tsx}
-      - exclude: node_modules/**/*
-    generates:
-      - dist/**/*
+      - apps/shared-ts/src/**/*
 
   test:miniflare:
     run: once
@@ -73,8 +62,9 @@ tasks:
     sources:
       - Taskfile.yaml
       - ../../bun.lock
-      - src/**/*
-      - "*.ts"
+      - ../shared-ts/**/*.ts
+      - ./**/*.{ts,tsx}
+      - exclude: node_modules/**/*
 
   test:unit:
     run: once
@@ -85,6 +75,7 @@ tasks:
       - Taskfile.yaml
       - ../../bun.lock
       - src/**/*
+      - ../shared-ts/**/*.ts
 
   test:
     run: once
@@ -97,6 +88,20 @@ tasks:
       - lint
       - typecheck
       - test
+
+  build:
+    run: once
+    desc: Build production Inertia worker
+    deps:
+      - openapi:generate:inertia-client
+    cmd: bun vite build
+    sources:
+      - ../../bun.lock
+      - ./**/*.{ts,tsx}
+      - ../shared-ts/**/*.ts
+      - exclude: node_modules/**/*
+    generates:
+      - dist/**/*
 
   dev:
     desc: Run Vite dev server

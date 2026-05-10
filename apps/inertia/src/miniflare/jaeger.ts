@@ -1,10 +1,6 @@
-import { isRecord } from "@recurring/shared-ts"
+import { delay, isRecord } from "@recurring/shared-ts"
 
 const jaegerQueryOrigin = "http://localhost:16686"
-
-const delay = async (ms: number): Promise<void> => {
-  await new Promise(resolve => setTimeout(resolve, ms))
-}
 
 const containsTraceID = (value: unknown, traceID: string): boolean => {
   if (typeof value === "string") {
