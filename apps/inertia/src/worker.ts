@@ -1,7 +1,7 @@
 import { inertia } from "@hono/inertia"
 import { Hono } from "hono"
-import { healthCheck } from "./lib/api.ts"
-import { finishGoogleAuth, startGoogleAuth } from "./lib/google-auth.ts"
+import { healthCheck } from "./app/api.ts"
+import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
 import { rootView } from "./root-view.tsx"
 
 const inertiaVersion = "recurring-inertia-1"

@@ -20,7 +20,7 @@ type CookieOptions = {
   secure: boolean
 }
 
-type GoogleProfile = {
+export type GoogleProfile = {
   sub: string
   email: EmailAddrStr
   name?: string

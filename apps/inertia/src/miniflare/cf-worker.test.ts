@@ -1,7 +1,7 @@
 import * as cfWorkers from "cloudflare:workers"
 import { describe, expect, test } from "vitest"
 
-import { apiOrigin } from "../lib/api.ts"
+import { apiOrigin } from "../app/api.ts"
 
 interface Worker {
   fetch: (request: Request) => Promise<Response> | Response

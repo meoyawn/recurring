@@ -2,6 +2,7 @@ import type { EmailAddrStr } from "@recurring/shared-ts"
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { Configuration } from "../../gen/runtime.ts"
+import { GoogleProfile } from "./google-auth.ts"
 
 type HealthPayload = {
   status: string
@@ -19,12 +20,7 @@ export const healthCheck = async (bindings: Env): Promise<HealthPayload> => {
 }
 
 export const upsertSignup = async (
-  profile: {
-    sub: string
-    email: EmailAddrStr
-    name?: string
-    picture?: string
-  },
+  profile: GoogleProfile,
   bindings: Env,
 ): Promise<SignupSession> => {
   const signup: Signup = {

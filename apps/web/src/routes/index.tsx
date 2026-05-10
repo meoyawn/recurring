@@ -2,7 +2,7 @@ import { Title } from "@solidjs/meta"
 import { createAsync, query } from "@solidjs/router"
 import type { JSX } from "solid-js"
 import { Show } from "solid-js"
-import { apiGetter } from "../lib/api.ts"
+import { apiGetter } from "../app/api.ts"
 
 type HealthPayload = {
   status: string

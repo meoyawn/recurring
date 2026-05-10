@@ -2,8 +2,8 @@ import * as cfWorkers from "cloudflare:workers"
 import { SELF } from "cloudflare:test"
 import { describe, expect, test } from "vitest"
 
-import { apiOrigin } from "../lib/api.ts"
-import { googleAuthEndpoints } from "../lib/googleAuth.ts"
+import { apiOrigin } from "../app/api.ts"
+import { googleAuthEndpoints } from "../app/googleAuth.ts"
 
 const sessionIDPattern = /^sess_[0-9a-f]{32}$/
 
