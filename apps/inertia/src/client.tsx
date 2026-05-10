@@ -1,4 +1,5 @@
 import { createInertiaApp } from "inertia-adapter-solid"
+import type { JSX } from "solid-js"
 import { render } from "solid-js/web"
 
 import { readInitialPage } from "./initial-page.ts"
@@ -20,6 +21,6 @@ void createInertiaApp({
     return (await loadPage()).default
   },
   setup({ el, App, props }) {
-    render(() => <App {...props} />, el)
+    render((): JSX.Element => <App {...props} />, el)
   },
 })
