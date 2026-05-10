@@ -2,15 +2,22 @@
 name = "recurring-web"
 compatibility_date = "2026-05-04"
 
+[vars]
+RECURRING_API_ORIGIN = "http://localhost:8080"
+GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
+
+[env.developement]
+
+[env.developement.vars]
+RECURRING_API_ORIGIN = "http://localhost:8080"
+GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
+
 [env.test]
 
-# Worker env vars are runtime bindings. Keep test Worker values here instead
-# of .env.test: Wrangler local dev loads .env.<env> as secrets, and those can
-# shadow [env.test.vars] before Miniflare starts.
-# Sources:
-# - https://developers.cloudflare.com/workers/configuration/environment-variables/
-# - https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
-# - https://developers.cloudflare.com/workers/testing/vitest-integration/configuration/
 [env.test.vars]
 RECURRING_API_ORIGIN = "http://localhost:8082"
 GOOGLE_AUTHORIZATION_ENDPOINT = "http://localhost:8081/authorize"

@@ -4,3 +4,4 @@
 dist/
 gen/
 node_modules/
+src/worker-configuration.d.ts

@@ -1,7 +1,10 @@
+.solid-start/
+.vite/
 .vinxi/
 node_modules/
 .output/
 dist/
+gen/
 .nitro/
 worker-configuration.d.ts
 .cache/
