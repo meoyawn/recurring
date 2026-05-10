@@ -16,7 +16,7 @@ tasks:
   generate:client:
     run: once
     deps:
-      - openapi:generate:client
+      - openapi:generate:inertia-client
 
   cf:types:
     run: once

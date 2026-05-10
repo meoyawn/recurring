@@ -9,9 +9,10 @@ const sessionIDPattern = /^sess_[0-9a-f]{32}$/
 
 type WorkerFetch = (request: Request) => Promise<Response>
 
-// SELF is the test service binding to the main Worker and supplies env/ctx.
-// Source: https://developers.cloudflare.com/workers/testing/vitest-integration/test-apis/
-const workerFetch: WorkerFetch = (request: Request) => SELF.fetch(request)
+const workerFetch: WorkerFetch = (request: Request) => {
+  // oxlint-disable-next-line typescript/no-deprecated
+  return SELF.fetch(request)
+}
 
 const route = (x: `/${string}`): URL => new URL(x, "http://expample.test")
 

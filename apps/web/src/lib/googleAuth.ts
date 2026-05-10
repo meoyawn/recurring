@@ -1,9 +1,14 @@
 "use server"
 
+import { OAuth2Client } from "@badgateway/oauth2-client"
+import type { EmailAddrStr } from "@recurring/shared-ts"
+
+import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { apiGetter } from "./api.ts"
 
 const googleStateCookieName = "googleOAuthState"
 const sessionCookieName = "sessionID"
+const googleAuthCallbackPath = "/auth/google/callback"
 
 type GoogleAuthConfig = {
   authorizationEndpoint: string
@@ -20,13 +25,9 @@ type CookieOptions = {
   secure: boolean
 }
 
-type GoogleTokenResponse = {
-  access_token: string
-}
-
 type GoogleProfile = {
   sub: string
-  email: EmailAddress
+  email: EmailAddrStr
   name?: string
   picture?: string
 }
@@ -46,10 +47,10 @@ const defaultGoogleAuthEndpoints: GoogleAuthEndpoints = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
 
-const isEmailAddress = (value: string): value is string & EmailAddress =>
+const isEmailAddress = (value: string): value is EmailAddrStr =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 
-const runtimeEnv = (name: keyof Env, bindings?: Env) => {
+const runtimeEnv = (name: keyof Env, bindings?: Env): string | undefined => {
   const binding = bindings?.[name]
   if (binding && binding.length > 0) {
     return binding
@@ -63,7 +64,7 @@ const runtimeEnv = (name: keyof Env, bindings?: Env) => {
   return undefined
 }
 
-const requiredRuntimeEnv = (name: keyof Env, bindings?: Env) => {
+const requiredRuntimeEnv = (name: keyof Env, bindings?: Env): string => {
   const value = runtimeEnv(name, bindings)
   if (!value) {
     throw new Error(`${name} is required`)
@@ -71,7 +72,7 @@ const requiredRuntimeEnv = (name: keyof Env, bindings?: Env) => {
   return value
 }
 
-const publicOrigin = (request: Request) => {
+const publicOrigin = (request: Request): string => {
   const forwardedProto = request.headers.get("x-forwarded-proto")
   const forwardedHost = request.headers.get("x-forwarded-host")
   if (forwardedProto && forwardedHost) {
@@ -81,10 +82,10 @@ const publicOrigin = (request: Request) => {
   return new URL(request.url).origin
 }
 
-const isSecureRequest = (request: Request) =>
+const isSecureRequest = (request: Request): boolean =>
   new URL(request.url).protocol === "https:"
 
-const cookie = (name: string, value: string, opts: CookieOptions) => {
+const cookie = (name: string, value: string, opts: CookieOptions): string => {
   const parts = [
     `${name}=${encodeURIComponent(value)}`,
     `Path=${opts.path}`,
@@ -98,7 +99,7 @@ const cookie = (name: string, value: string, opts: CookieOptions) => {
   return parts.join("; ")
 }
 
-const clearCookie = (name: string, path: string, secure: boolean) =>
+const clearCookie = (name: string, path: string, secure: boolean): string =>
   cookie(name, "", { path, maxAge: 0, secure })
 
 const readCookie = (request: Request, name: string): string | undefined => {
@@ -108,9 +109,13 @@ const readCookie = (request: Request, name: string): string | undefined => {
   }
 
   for (const pair of header.split(";")) {
-    const [rawName, ...rawValue] = pair.trim().split("=")
-    if (rawName === name) {
-      return decodeURIComponent(rawValue.join("="))
+    const trimmed = pair.trim()
+    const separator = trimmed.indexOf("=")
+    if (separator === -1) {
+      continue
+    }
+    if (trimmed.slice(0, separator) === name) {
+      return decodeURIComponent(trimmed.slice(separator + 1))
     }
   }
 
@@ -121,7 +126,7 @@ const redirect = (
   location: string,
   status: 302 | 303,
   cookies: string[] = [],
-) => {
+): Response => {
   const headers = new Headers({ Location: location })
   for (const value of cookies) {
     headers.append("Set-Cookie", value)
@@ -133,7 +138,7 @@ const errorRedirect = (
   request: Request,
   code: string,
   cookies: string[] = [],
-) => {
+): Response => {
   const url = new URL("/", publicOrigin(request))
   url.searchParams.set("auth", code)
   return redirect(url.toString(), 303, cookies)
@@ -156,67 +161,52 @@ const authConfig = (request: Request, bindings?: Env): GoogleAuthConfig => ({
   clientId: requiredRuntimeEnv("GOOGLE_CLIENT_ID", bindings),
   clientSecret: requiredRuntimeEnv("GOOGLE_CLIENT_SECRET", bindings),
   redirectURI:
-    runtimeEnv("GOOGLE_REDIRECT_URI", bindings) ??
-    new URL("/auth/google/callback", publicOrigin(request)).toString(),
+    runtimeEnv("GOOGLE_REDIRECT_URI", bindings) ||
+    new URL(googleAuthCallbackPath, publicOrigin(request)).toString(),
 })
 
-const randomState = () => {
+const oauthClient = (config: GoogleAuthConfig): OAuth2Client =>
+  new OAuth2Client({
+    authorizationEndpoint: config.authorizationEndpoint,
+    authenticationMethod: "client_secret_post",
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    tokenEndpoint: config.tokenEndpoint,
+  })
+
+const randomState = (): string => {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
   return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("")
 }
 
-const parseGoogleTokenResponse = (value: unknown): GoogleTokenResponse => {
-  if (!isRecord(value) || typeof value.access_token !== "string") {
-    throw new Error("Google token response is invalid")
-  }
-
-  return { access_token: value.access_token }
-}
-
 const parseGoogleProfile = (value: unknown): GoogleProfile => {
   if (
     !isRecord(value) ||
-    typeof value.sub !== "string" ||
-    typeof value.email !== "string" ||
-    !isEmailAddress(value.email)
+    typeof value["sub"] !== "string" ||
+    typeof value["email"] !== "string" ||
+    !isEmailAddress(value["email"])
   ) {
     throw new Error("Google profile response is invalid")
   }
 
-  return {
-    sub: value.sub,
-    email: value.email,
-    name: typeof value.name === "string" ? value.name : undefined,
-    picture: typeof value.picture === "string" ? value.picture : undefined,
+  const profile: GoogleProfile = {
+    sub: value["sub"],
+    email: value["email"],
   }
-}
-
-const exchangeCode = async (code: string, config: GoogleAuthConfig) => {
-  const body = new URLSearchParams({
-    client_id: config.clientId,
-    client_secret: config.clientSecret,
-    code,
-    grant_type: "authorization_code",
-    redirect_uri: config.redirectURI,
-  })
-
-  const res = await fetch(config.tokenEndpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  })
-  if (!res.ok) {
-    throw new Error(`Google token exchange failed: ${res.status}`)
+  if (typeof value["name"] === "string") {
+    profile.name = value["name"]
   }
-
-  return parseGoogleTokenResponse(await res.json())
+  if (typeof value["picture"] === "string") {
+    profile.picture = value["picture"]
+  }
+  return profile
 }
 
 const fetchGoogleProfile = async (
   accessToken: string,
   config: GoogleAuthConfig,
-) => {
+): Promise<GoogleProfile> => {
   const res = await fetch(config.userinfoEndpoint, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
@@ -227,34 +217,43 @@ const fetchGoogleProfile = async (
   return parseGoogleProfile(await res.json())
 }
 
-const upsertSignup = async (profile: GoogleProfile, bindings?: Env) => {
-  return apiGetter(
-    api =>
-      api.upsertSignup({
-        google_sub: profile.sub,
-        email: profile.email,
-        name: profile.name,
-        picture_url: profile.picture,
-      }),
-    bindings,
-  )
+const upsertSignup = async (
+  profile: GoogleProfile,
+  bindings?: Env,
+): Promise<SignupSession> => {
+  const signup: Signup = {
+    google_sub: profile.sub,
+    email: profile.email,
+  }
+  if (profile.name !== undefined) {
+    signup.name = profile.name
+  }
+  if (profile.picture !== undefined) {
+    signup.picture_url = profile.picture
+  }
+
+  return apiGetter(api => api.upsertSignup(signup), bindings)
 }
 
-export const startGoogleAuth = (request: Request, bindings?: Env): Response => {
+export const startGoogleAuth = async (
+  request: Request,
+  bindings?: Env,
+): Promise<Response> => {
   try {
     const config = authConfig(request, bindings)
     const state = randomState()
-    const url = new URL(config.authorizationEndpoint)
-    url.searchParams.set("client_id", config.clientId)
-    url.searchParams.set("redirect_uri", config.redirectURI)
-    url.searchParams.set("response_type", "code")
-    url.searchParams.set("scope", "openid profile email")
-    url.searchParams.set("state", state)
-    url.searchParams.set("prompt", "select_account")
+    const authorizationURL = await oauthClient(
+      config,
+    ).authorizationCode.getAuthorizeUri({
+      extraParams: { prompt: "select_account" },
+      redirectUri: config.redirectURI,
+      scope: ["openid", "profile", "email"],
+      state,
+    })
 
-    return redirect(url.toString(), 302, [
+    return redirect(authorizationURL, 302, [
       cookie(googleStateCookieName, state, {
-        path: "/auth/google/callback",
+        path: googleAuthCallbackPath,
         maxAge: 600,
         secure: isSecureRequest(request),
       }),
@@ -269,11 +268,7 @@ export const finishGoogleAuth = async (
   bindings?: Env,
 ): Promise<Response> => {
   const secure = isSecureRequest(request)
-  const clearState = clearCookie(
-    googleStateCookieName,
-    "/auth/google/callback",
-    secure,
-  )
+  const clearState = clearCookie(googleStateCookieName, googleAuthCallbackPath, secure)
 
   try {
     const url = new URL(request.url)
@@ -293,8 +288,11 @@ export const finishGoogleAuth = async (
     }
 
     const config = authConfig(request, bindings)
-    const token = await exchangeCode(code, config)
-    const profile = await fetchGoogleProfile(token.access_token, config)
+    const token = await oauthClient(config).authorizationCode.getToken({
+      code,
+      redirectUri: config.redirectURI,
+    })
+    const profile = await fetchGoogleProfile(token.accessToken, config)
     const signup = await upsertSignup(profile, bindings)
 
     return redirect(new URL("/", publicOrigin(request)).toString(), 303, [
