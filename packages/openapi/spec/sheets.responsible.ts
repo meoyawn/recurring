@@ -17,7 +17,7 @@ import {
   NonEmptyString,
   WorkbookExportResponse,
   WorkbookFormat,
-} from "./shared.responsibe.ts"
+} from "./shared.responsible.ts"
 
 const Cadence = () =>
   isoDuration({

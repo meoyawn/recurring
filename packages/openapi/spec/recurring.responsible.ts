@@ -22,7 +22,7 @@ import {
   NonEmptyString,
   WorkbookExportResponse,
   WorkbookFormat,
-} from "./shared.responsibe.ts"
+} from "./shared.responsible.ts"
 
 export const DbTimestamps = () =>
   object({

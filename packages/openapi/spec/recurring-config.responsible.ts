@@ -12,7 +12,7 @@
 import { int32, object, responsibleAPI, string } from "@responsibleapi/ts"
 import { YAML } from "bun"
 
-import { NonEmptyString } from "./shared.responsibe.ts"
+import { NonEmptyString } from "./shared.responsible.ts"
 
 const EndpointKind = () =>
   string({
