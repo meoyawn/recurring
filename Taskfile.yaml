@@ -71,3 +71,11 @@ tasks:
     cmds:
       - bun i
       - task: check-impl
+
+  bun:outdated:
+    cmd: bun outdated --filter "*"
+
+  outdated:
+    deps:
+      - api:outdated
+      - bun:outdated
