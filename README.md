@@ -6,7 +6,7 @@ It is aimed at **individuals**, **small businesses**, **teams**, and **families*
 
 ## Repository layout
 
-- **`apps/web`** — SolidStart frontend (Bun)
+- **`apps/inertia`** — Inertia frontend Worker (Bun)
 - **`packages/openapi`** — OpenAPI spec and codegen (TypeScript client, optional Go server stubs)
 - **`apps/api`** — API layer (stubs generated from the OpenAPI package where applicable)
 
@@ -17,7 +17,7 @@ Install the tools below via each project’s official installer or a package man
 | Tool | Role in this repo | Ubuntu notes |
 |------|-------------------|--------------|
 | **Go** | `apps/api` and OpenAPI server stub generation | `golang-go` (universe) or a pinned toolchain from [go.dev/dl](https://go.dev/dl/) |
-| **Bun** | JS/TS deps and `apps/web` / `packages/openapi` scripts | [bun.sh](https://bun.sh/) install script (not in default Ubuntu repos) |
+| **Bun** | JS/TS deps and `apps/inertia` / `packages/openapi` scripts | [bun.sh](https://bun.sh/) install script (not in default Ubuntu repos) |
 | **Ansible** | `ops/ansible` playbooks (Postgres, API deploy, WAL-G, etc.) | `ansible` / `ansible-core` via APT or `pip` |
 | **Terraform** | `ops/terraform` infrastructure | [HashiCorp APT repo](https://developer.hashicorp.com/terraform/install) or pinned binary |
 | **Docker Engine + Compose** | Local integration stack: Postgres in [`compose/postgres/`](compose/postgres/) (and WAL-G-related flows where you mirror them in Compose) | Docker’s [APT instructions](https://docs.docker.com/engine/install/ubuntu/); use the **Compose V2 plugin** (`docker compose`, package `docker-compose-plugin`) |
@@ -31,7 +31,7 @@ With the prerequisites installed:
 
 ```bash
 task install    # install dependencies
-task dev:web    # run the web app locally
+task inertia:dev    # run the frontend app locally
 ```
 
 Other tasks: `task --list`.

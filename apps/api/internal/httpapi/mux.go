@@ -12,10 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
+	echomiddleware "github.com/responsibleapi/echo-middleware"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-	echomiddleware "github.com/responsibleapi/echo-middleware"
 )
 
 //go:embed recurring.openapi.yaml

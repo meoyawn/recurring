@@ -39,12 +39,12 @@ Default shape:
 
 ```text
 Browser
-  -> same-origin Solid telemetry proxy
+  -> same-origin telemetry proxy
   -> Caddy protected OTLP endpoint
   -> OTel Collector
   -> trace/log backends
 
-Solid server runtime
+Frontend Worker runtime
   -> Caddy protected OTLP endpoint, or loopback if colocated
   -> OTel Collector
   -> trace/log backends
@@ -116,13 +116,13 @@ Default browser path:
 
 ```text
 Browser OTel exporter
-  -> same-origin Solid telemetry route
-  -> server-side secret added by Solid runtime
+  -> same-origin frontend telemetry route
+  -> server-side secret added by Worker runtime
   -> Caddy protected OTLP endpoint
   -> Collector
 ```
 
-The Solid telemetry route should be a separate spike because it needs browser
+The frontend telemetry route should be a separate spike because it needs browser
 abuse controls:
 
 - no long-lived secret in client code
@@ -137,7 +137,7 @@ abuse controls:
 Until this exists, browser tracing can still record locally for development or
 be disabled in production.
 
-## Solid Server Runtime
+## Frontend Worker Runtime
 
 For Node.js on the VPS:
 
@@ -147,15 +147,15 @@ For Node.js on the VPS:
 
 For Cloudflare Workers or another remote runtime:
 
-- export app-owned Solid spans to Caddy HTTPS OTLP endpoint
+- export app-owned frontend spans to Caddy HTTPS OTLP endpoint
 - include ingestion secret from Worker/server environment
 - keep browser export separate from Worker/server export
 
-Solid server spans should include:
+Frontend runtime spans should include:
 
 - `service.name=recurring-web`
 - `deployment.environment`
-- `app.framework=solidstart`
+- `app.framework=inertia`
 - `app.runtime=node|cloudflare-workers`
 - `request_id`
 - `cf_ray` when present
@@ -175,7 +175,7 @@ Use it as supplemental runtime evidence:
 - Worker logs
 
 Do not depend on Cloudflare platform traces as the primary end-to-end trace
-source. App-owned propagation from Solid server to Recurring API remains the
+source. App-owned propagation from the frontend Worker to Recurring API remains the
 correctness path.
 
 Destination shape:
@@ -276,7 +276,7 @@ Recommended first production defaults:
 
 - browser: disabled until proxy exists, then low sample rate
 - Cloudflare Worker platform traces: low sample rate
-- Solid server app spans: moderate sample rate
+- frontend app spans: moderate sample rate
 - API spans: moderate sample rate
 - errors: keep when possible
 
@@ -354,7 +354,7 @@ Later additions:
 
 ## Recommended Next Spike
 
-Create a browser telemetry proxy spike for `apps/web`.
+Create a browser telemetry proxy spike for the frontend Worker.
 
 It should answer:
 

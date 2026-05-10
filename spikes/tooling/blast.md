@@ -17,7 +17,7 @@ Reason:
   and suggested reading context
 - prior research already found that Go tooling is better for fresh symbol facts,
   while `code-review-graph` is better for repo-level structural impact
-- this repo's application center is graph-shaped: SolidStart frontend,
+- this repo's application center is graph-shaped: Inertia frontend,
   OpenAPI contract/codegen, Go API, generated clients/stubs, and migrations
 - the unsupported surfaces are important, but they are boundaries to call out,
   not a reason to demote the graph to an optional experiment
@@ -59,7 +59,7 @@ choice is native semantic tools versus a graph-shaped review workflow.
 
 This monorepo has four important surfaces:
 
-- `apps/web`: SolidStart frontend
+- `apps/inertia`: Inertia frontend Worker
 - `packages/openapi`: OpenAPI source of truth and code generation
 - `apps/api`: Go API, generated stubs, real handlers, and SQL migrations
 - `ops`: Terraform, Ansible, Caddy, inventories, roles, and deployment config
@@ -109,7 +109,7 @@ Use native TypeScript/frontend tooling for:
 - TypeScript diagnostics
 - generated client type checking
 - frontend build and lint checks
-- SolidStart/Vite configuration validation
+- Vite and Worker configuration validation
 
 Use explicit repo checks for:
 

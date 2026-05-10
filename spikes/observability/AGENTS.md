@@ -2,7 +2,7 @@
 
 Goal: distributed tracing of:
 
-- [frontend](../../apps/web/AGENTS.md),
+- [frontend](../../apps/inertia/AGENTS.md),
 - [go+echo](<(../../apps/api/AGENTS.md)>),
 - [bun + hono](../../apps/sheets/AGENTS.md)
 - postgresql

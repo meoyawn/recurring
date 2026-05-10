@@ -17,9 +17,8 @@ truth:
 ## Current State
 
 - Root `package.json` has `oxfmt`, but no root `oxlint`.
-- `apps/web/package.json` already has `oxlint`.
-- `apps/web/tsconfig.json` uses `allowJs: true`; this conflicts with the target
-  state that everything in the monorepo is TypeScript.
+- Root `package.json` has `oxlint`.
+- Frontend packages should keep TypeScript-only source.
 - `packages/openapi/tsconfig.json` already uses
   `allowImportingTsExtensions: true`, `noEmit: true`, and
   `moduleResolution: "bundler"`.
@@ -166,7 +165,7 @@ Move Oxlint ownership to the monorepo root:
 - Add `oxlint` to root `devDependencies`.
 - Add `oxlint-tsgolint` to root `devDependencies` if `options.typeAware: true`
   is kept.
-- Remove package-local `oxlint` from `apps/web` after root install works.
+- Keep Oxlint ownership at the monorepo root.
 - Keep `oxfmt` at root.
 
 Add root scripts:
@@ -187,15 +186,12 @@ Every package should support source-extension imports:
 - Set `allowImportingTsExtensions: true`.
 - Set `noEmit: true` for app/script packages that run or bundle TypeScript
   directly.
-- Keep `moduleResolution: "bundler"` for Bun, Vite, and SolidStart packages
+- Keep `moduleResolution: "bundler"` for Bun and Vite packages
   unless a package specifically needs Node's native resolver.
 - Set `allowJs: false` everywhere unless a migration package still contains
   JavaScript.
 
-Initial changes:
-
-- Change `apps/web/tsconfig.json` from `allowJs: true` to `allowJs: false`.
-- Keep `packages/openapi/tsconfig.json` on `moduleResolution: "bundler"`.
+Keep `packages/openapi/tsconfig.json` on `moduleResolution: "bundler"`.
 
 ## Rollout
 
@@ -207,7 +203,7 @@ Initial changes:
 6. Fix relative `.js` import suffixes next.
 7. Fix or temporarily override generated-code findings.
 8. Switch CI to run `bun run lint`.
-9. Remove package-local Oxlint dependency from `apps/web`.
+9. Keep package-local Oxlint dependencies out of frontend packages.
 
 ## Verification
 
@@ -217,7 +213,7 @@ Use these checks before enabling CI failure:
 bun run lint
 bun run lint -- --fix
 bun run --cwd packages/openapi tsc
-bun run --cwd apps/web build
+bun run --cwd apps/inertia build
 ```
 
 Expected import enforcement test:

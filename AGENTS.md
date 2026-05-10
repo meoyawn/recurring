@@ -4,7 +4,7 @@ Web 2.0 app
 
 - [OpenAPI](packages/openapi/AGENTS.md)
 - [golang echo http backend](apps/api/AGENTS.md)
-- [typescript SolidStart](apps/web/AGENTS.md)
+- [typescript Inertia frontend](apps/inertia/AGENTS.md)
 - [ansible](ops/ansible/AGENTS.md)
 - [terraform](ops/terraform/AGENTS.md)
 

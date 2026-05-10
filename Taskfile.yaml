@@ -5,10 +5,6 @@ includes:
     taskfile: compose/Taskfile.yaml
     dir: compose/
 
-  web:
-    taskfile: apps/web/Taskfile.yaml
-    dir: apps/web/
-
   inertia:
     taskfile: apps/inertia/Taskfile.yaml
     dir: apps/inertia/
@@ -41,10 +37,6 @@ tasks:
       - compose:up-d
       - api:dev
 
-  dev:web:
-    deps:
-      - web:dev
-
   dev:sheets:
     deps:
       - compose:up-d
@@ -73,7 +65,6 @@ tasks:
       - api:check
       - shared-ts:check
       - inertia:check
-      # - web:check
 
   check:
     cmds:

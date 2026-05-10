@@ -47,10 +47,8 @@
 
 2026-05-10T17:07:27+03:00:
   where: web
-  what: Move forward with Inertia instead of SolidStart/Nitro
+  what: Move forward with Inertia for the frontend Worker
   why: >-
     The Inertia app keeps the Cloudflare Worker boundary explicit through Hono
-    and direct bindings, while the SolidStart/Nitro path currently needs
-    adapter-specific glue to rediscover Cloudflare env bindings through runtime
-    context internals. That makes Inertia the clearer and lower-risk foundation
-    for the app until SolidStart and Nitro's Cloudflare integration matures
+    and direct bindings. That makes Inertia the clearer and lower-risk
+    foundation for the app

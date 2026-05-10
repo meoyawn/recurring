@@ -59,34 +59,11 @@ tasks:
     run: once
     deps:
       - generate:inertia-client
-      - generate:web-client
 
   generate:inertia-client:
     run: once
     vars:
       OUT_DIR: ../../apps/inertia/gen/
-    deps:
-      - compile:recurring
-    cmds:
-      - rm -rf {{.OUT_DIR}}
-      - >-
-        bun openapi-generator-cli
-        --openapitools {{.TASKFILE_DIR}}/openapitools.json
-        generate
-        -c config/ts-fetch.yaml
-        -i {{.RECURRING_EMBEDDED_YAML}}
-        -o {{.OUT_DIR}}
-    sources:
-      - "{{.RECURRING_EMBEDDED_YAML}}"
-      - config/ts-fetch.yaml
-      - openapitools.json
-    generates:
-      - "{{.OUT_DIR}}/**/*"
-
-  generate:web-client:
-    run: once
-    vars:
-      OUT_DIR: ../../apps/web/gen/
     deps:
       - compile:recurring
     cmds:

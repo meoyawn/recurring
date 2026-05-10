@@ -49,10 +49,9 @@ adapter maturity and migration choices:
   still apply to the Solid path.
 - Inertia SSR requires Node.js 22 or higher in the official deployment model.
   That affects component HTML pre-rendering only, not first-response page JSON.
-- The local migration cost looks acceptable because `apps/web` is currently a
-  small SolidStart alpha surface, while `apps/sheets` is already planned as a
-  Bun + Hono service. A Hono-owned web app gives both apps similar request,
-  routing, fetch, and observability boundaries.
+- The local migration cost looks acceptable because `apps/sheets` is already a
+  Bun + Hono service. A Hono-owned frontend app gives both apps similar
+  request, routing, fetch, and observability boundaries.
 
 Use Inertia on Workers only as a spike unless the team is willing to:
 
@@ -133,12 +132,12 @@ Hono routes:
   `sessionID`, and redirects into the app.
 - `SameSite=Lax` cookies fit the top-level OAuth redirect flow.
 
-`apps/web/src/lib/googleAuth.ts` is already close to Worker-compatible:
+The OAuth helpers should stay Worker-compatible:
 
-- It accepts standard `Request`.
-- It returns standard `Response`.
-- It uses `fetch`, `Headers`, `URL`, `URLSearchParams`, and Web Crypto.
-- It stores OAuth state and session IDs in HTTP-only cookies.
+- Accept standard `Request`.
+- Return standard `Response`.
+- Use `fetch`, `Headers`, `URL`, `URLSearchParams`, and Web Crypto.
+- Store OAuth state and session IDs in HTTP-only cookies.
 
 Cloudflare-specific concerns:
 

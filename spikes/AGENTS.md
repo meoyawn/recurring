@@ -6,7 +6,7 @@ implementation.
 Prefer this layout:
 
 - `backend/`: Go API, database, runtime, and server-side integration decisions.
-- `frontend/`: SolidStart, Cloudflare Workers, UI runtime, and frontend tests.
+- `frontend/`: Cloudflare Workers, UI runtime, and frontend tests.
 - `observability/`: logging, metrics, tracing, and collector decisions.
 - `product/`: user-facing feature and workflow research.
 - `tooling/`: repository workflow, linting, task runners, and review tooling.

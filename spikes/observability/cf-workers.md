@@ -197,7 +197,6 @@ Backend call fields:
 
 Framework-specific fields should be layered on top:
 
-- SolidStart: server function, API route, route wrapper, query/action name
 - Inertia: component, response mode, partial reload headers, asset version,
   prop-key count, prop byte size
 
@@ -274,8 +273,7 @@ this app.
 4. Forward `traceparent`, `tracestate`, and `x-request-id` in that helper.
 5. Add structured logs for request start, request finish, backend fetch, and
    error paths.
-6. Add framework-specific log fields in the SolidStart or Inertia integration
-   layer.
+6. Add framework-specific log fields in the Inertia integration layer.
 7. Configure Cloudflare OTLP destinations for traces and logs, or keep dashboard
    persistence during the first staging spike.
 8. Instrument Echo API with OpenTelemetry extraction, request logs, and
@@ -301,10 +299,8 @@ this app.
 
 ## Decision Impact
 
-Cloudflare Workers observability does not decide SolidStart versus Inertia by
-itself.
-
-Both framework options need the same Worker baseline:
+Cloudflare Workers observability needs the same Worker baseline regardless of
+frontend protocol:
 
 - explicit Worker traces and logs
 - structured JSON logging
@@ -313,16 +309,12 @@ Both framework options need the same Worker baseline:
 - request ID correlation
 - framework-specific route/component fields
 
-The framework decision should depend on application architecture:
+Inertia fits the selected application architecture: server-owned routing with
+first-response page props and later JSON page visits.
 
-- choose SolidStart if preserving current router, server functions, and app
-  shape matters most
-- choose Inertia if the desired product protocol is server-owned routing with
-  first-response page props and later JSON page visits
-
-Workers observability is strong enough for either, as long as the team accepts
-that Cloudflare's automatic Worker trace is currently a platform-local view and
-not the parent of the API/PostgreSQL trace in external tools.
+Workers observability is strong enough for this path, as long as the team
+accepts that Cloudflare's automatic Worker trace is currently a platform-local
+view and not the parent of the API/PostgreSQL trace in external tools.
 
 ## Open Questions
 
