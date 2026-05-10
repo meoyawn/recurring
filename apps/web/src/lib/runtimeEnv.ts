@@ -14,17 +14,10 @@ export const eventBindings = (event: APIEvent): Env | undefined => {
   const directCF = context.cloudflare
   if (isRecord(directCF) && "env" in directCF) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    return directCF.env as Env | undefined
+    return directCF.env as Env
   }
 
-  const platform = context["_platform"]
-  const cf = isRecord(platform) ? platform.cloudflare : undefined
-  if (isRecord(cf) && "env" in cf) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    return cf.env as Env | undefined
-  } else {
-    return undefined
-  }
+  return undefined
 }
 
 export const runtimeEnv = (
