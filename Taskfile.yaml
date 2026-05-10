@@ -63,9 +63,14 @@ tasks:
   nuke_node_modules:
     cmd: find . -name node_modules -type d -prune -exec rm -rf {} +
 
-  check:
+  check-impl:
     deps:
       - openapi:check
       - api:check
       - inertia:check
       # - web:check
+
+  check:
+    cmds:
+      - bun i
+      - task: check-impl
