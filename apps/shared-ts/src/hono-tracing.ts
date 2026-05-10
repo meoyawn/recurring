@@ -70,7 +70,9 @@ const headerValue = (headers: Headers, name: string): string | undefined => {
   return value === null || value === "" ? undefined : value
 }
 
-const parseTraceparent = (value: string | undefined): TraceContext | undefined => {
+const parseTraceparent = (
+  value: string | undefined,
+): TraceContext | undefined => {
   const match = value?.match(traceparentPattern)
   if (match === undefined || match === null) {
     return undefined
@@ -96,7 +98,9 @@ const parseTraceparent = (value: string | undefined): TraceContext | undefined =
 }
 
 const requestTraceContext = (request: Request): TraceContext => {
-  const extracted = parseTraceparent(headerValue(request.headers, headerTraceparent))
+  const extracted = parseTraceparent(
+    headerValue(request.headers, headerTraceparent),
+  )
   if (extracted !== undefined) {
     return extracted
   }
@@ -141,7 +145,10 @@ const statusCode = (c: Context): number => {
   return c.res.status
 }
 
-const stringAttribute = (key: string, value: string | undefined): OtlpAttribute[] =>
+const stringAttribute = (
+  key: string,
+  value: string | undefined,
+): OtlpAttribute[] =>
   value === undefined ? [] : [{ key, value: { stringValue: value } }]
 
 const intAttribute = (key: string, value: number): OtlpAttribute => ({
