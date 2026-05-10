@@ -83,7 +83,9 @@ const mergeHeaders = (
   init: RequestInit,
   options: ServiceClientOptions,
 ): Headers => {
-  const headers = new Headers(input instanceof Request ? input.headers : undefined)
+  const headers = new Headers(
+    input instanceof Request ? input.headers : undefined,
+  )
   for (const [name, value] of new Headers(options.headers)) {
     headers.set(name, value)
   }
@@ -221,71 +223,78 @@ const requestForAttempt = (
     signal,
   })
 
-export const serviceFetch =
-  (options: ServiceClientOptions = {}): typeof fetch => {
-    const fetchApi = options.fetch ?? fetch
+export const serviceFetch = (
+  options: ServiceClientOptions = {},
+): typeof fetch => {
+  const fetchApi = options.fetch ?? fetch
 
-    async function serviceClientFetch(
-      input: RequestInfo | URL,
-      init: RequestInit = {},
-    ): Promise<Response> {
-      const request = prepareRequest(input, init, options)
-      const maxAttempts =
-        request.retryable && request.bodyReplayable
-          ? normalizedAttempts(options.maxAttempts)
-          : 1
-      const retryBackoffMs = normalizedBackoffMs(options.retryBackoffMs)
+  async function serviceClientFetch(
+    input: RequestInfo | URL,
+    init: RequestInit = {},
+  ): Promise<Response> {
+    const request = prepareRequest(input, init, options)
+    const maxAttempts =
+      request.retryable && request.bodyReplayable
+        ? normalizedAttempts(options.maxAttempts)
+        : 1
+    const retryBackoffMs = normalizedBackoffMs(options.retryBackoffMs)
 
-      if (request.retryable && !request.bodyReplayable) {
-        throw new TypeError("retryable requests require a replayable body")
-      }
-
-      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-        const event = attemptEvent(request, attempt, maxAttempts)
-        const startedAtMs = Date.now()
-        const signal = attemptSignal(init.signal, options.timeoutMs)
-        options.onAttempt?.(event)
-
-        try {
-          const response = await fetchApi(requestForAttempt(request, signal.signal))
-          options.onResponse?.({
-            ...event,
-            durationMs: Date.now() - startedAtMs,
-            status: response.status,
-          })
-
-          if (
-            attempt < maxAttempts &&
-            request.retryable &&
-            shouldRetryResponse(response)
-          ) {
-            signal.cleanup()
-            await delay(retryBackoffMs)
-            continue
-          }
-
-          signal.cleanup()
-          return response
-        } catch (error) {
-          signal.cleanup()
-          options.onError?.({
-            ...event,
-            durationMs: Date.now() - startedAtMs,
-            error,
-          })
-
-          if (attempt < maxAttempts && request.retryable && !init.signal?.aborted) {
-            await delay(retryBackoffMs)
-            continue
-          }
-
-          throw error
-        }
-      }
-
-      throw new Error("serviceFetch exhausted attempts without a response")
+    if (request.retryable && !request.bodyReplayable) {
+      throw new TypeError("retryable requests require a replayable body")
     }
 
-    serviceClientFetch.preconnect = fetchApi.preconnect
-    return serviceClientFetch
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const event = attemptEvent(request, attempt, maxAttempts)
+      const startedAtMs = Date.now()
+      const signal = attemptSignal(init.signal, options.timeoutMs)
+      options.onAttempt?.(event)
+
+      try {
+        const response = await fetchApi(
+          requestForAttempt(request, signal.signal),
+        )
+        options.onResponse?.({
+          ...event,
+          durationMs: Date.now() - startedAtMs,
+          status: response.status,
+        })
+
+        if (
+          attempt < maxAttempts &&
+          request.retryable &&
+          shouldRetryResponse(response)
+        ) {
+          signal.cleanup()
+          await delay(retryBackoffMs)
+          continue
+        }
+
+        signal.cleanup()
+        return response
+      } catch (error) {
+        signal.cleanup()
+        options.onError?.({
+          ...event,
+          durationMs: Date.now() - startedAtMs,
+          error,
+        })
+
+        if (
+          attempt < maxAttempts &&
+          request.retryable &&
+          !init.signal?.aborted
+        ) {
+          await delay(retryBackoffMs)
+          continue
+        }
+
+        throw error
+      }
+    }
+
+    throw new Error("serviceFetch exhausted attempts without a response")
   }
+
+  serviceClientFetch.preconnect = fetchApi.preconnect
+  return serviceClientFetch
+}
