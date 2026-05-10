@@ -95,13 +95,27 @@ Instrument `GET /healthz` first.
 
 Success criteria:
 
+- `/healthz` remains `204 No Content`.
 - `/healthz` emits one server span with `service.name=recurring-api`.
-- the response includes `x-trace-id`, `x-span-id`, and `x-request-id`.
-- incoming `traceparent` is accepted.
-- the selected backend can fetch the exact trace by `x-trace-id` through an API.
-- span attributes include safe method, route, status, and duration data.
+- `/healthz` returns non-empty `x-trace-id`, `x-span-id`, and `x-request-id`
+  headers.
+- incoming `traceparent` is accepted and propagated into the server span.
+- incoming `x-request-id` is preserved in the response header and `request_id`
+  span attribute.
+- missing `x-request-id` gets a generated response header value and matching
+  `request_id` span attribute.
+- the selected backend can fetch the exact trace by `x-trace-id` through an API
+  without UI scraping or fallback search.
+- the returned trace includes the expected `/healthz` server span.
+- span attributes include safe method, route, status, and error data.
+- span duration is available from normal span timing, not a duplicate custom
+  duration attribute.
 - span attributes do not include secrets, cookies, tokens, private IPs, or
   unsafe SQL text.
+
+Fallback lookup by time window, service, route, status, or `request_id` can be
+recorded as an observation if useful, but it is not required for v1 success. UI
+checks are for human debugging and are not automated success criteria.
 
 Use this route to verify the backend spike before instrumenting signup, Sheets
 calls, database spans, or browser-driven workflows.

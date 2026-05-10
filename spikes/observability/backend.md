@@ -73,6 +73,10 @@ must use Badger because restart persistence is a success criterion.
 server span. It can also be returned as an optional debug header, but the primary
 lookup handle should be `x-trace-id`.
 
+`x-request-id` should preserve an incoming request ID when present. When absent,
+the API should generate one. The same value should be returned in the response
+header and recorded as the `request_id` span attribute.
+
 Exact trace lookup changes the backend requirement. SQL is useful for fallback
 analysis, but the v1 proof should succeed or fail first on direct trace retrieval
 by ID.
@@ -98,8 +102,10 @@ Postgres:
 - database system
 - operation
 - table or logical resource when known
-- duration
 - error status
+
+Duration should come from normal span timing rather than a duplicate custom
+duration attribute.
 
 Do not put secrets, OAuth codes, cookies, tokens, private IPs, or full unsafe SQL
 text in span attributes.
@@ -252,20 +258,29 @@ Phase 2 is API instrumentation:
 - Echo middleware creates one server span for `GET /healthz`.
 - The server span has `service.name=recurring-api`.
 - Incoming `traceparent` is accepted.
-- `/healthz` response includes `x-trace-id`, `x-span-id`, and `x-request-id`.
-- Span attributes include safe method, route, status, and duration data.
+- `/healthz` remains `204 No Content`.
+- `/healthz` response includes non-empty `x-trace-id`, `x-span-id`, and
+  `x-request-id`.
+- Incoming `x-request-id` is preserved in the response header and `request_id`
+  span attribute.
+- Missing `x-request-id` gets a generated response header value and matching
+  `request_id` span attribute.
+- Span attributes include safe method, route, status, and error data.
+- Span duration is available from normal span timing.
 - Span attributes do not include secrets, cookies, tokens, private IPs, or
   unsafe SQL text.
 
 Phase 3 is exact trace lookup:
 
 - A request to `GET /healthz` captures `x-trace-id`.
-- Jaeger returns the exact `/healthz` trace by API without UI scraping.
+- Jaeger returns the exact `/healthz` trace by API without UI scraping or
+  fallback search.
 - The returned trace includes the expected API server span.
 - Exact-trace query latency is recorded.
-- Fallback lookup by time window plus service, route, status, or `request_id` is
-  recorded.
-- The Jaeger UI is good enough for debugging the same trace.
+
+Fallback lookup by time window, service, route, status, or `request_id` can be
+recorded as an observation if useful, but it is not required for v1 success. The
+Jaeger UI is for human debugging and is not an automated success criterion.
 
 ## Success Criteria Status
 
@@ -281,7 +296,6 @@ Unresolved until implementation:
 - exact Jaeger v2 Compose command and Badger config path
 - host and Compose-network OTLP endpoint values for `apps/api`
 - tracer-provider package location in `apps/api`
-- whether `/healthz` remains `204 No Content`
 - exact Jaeger API call for trace lookup by `x-trace-id`
 - resource measurements for idle RAM, restart disk growth, and lookup latency
 
