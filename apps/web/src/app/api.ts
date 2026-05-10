@@ -8,9 +8,7 @@ import { runtimeEnv } from "./runtimeEnv.ts"
 
 const sessionCookieName = "sessionID"
 
-export const apiOrigin = (
-  bindings?: Env,
-): string => {
+export const apiOrigin = (bindings?: Env): string => {
   const origin = runtimeEnv("RECURRING_API_ORIGIN", bindings)
   if (!origin || origin.length === 0) {
     throw new Error("RECURRING_API_ORIGIN is required")

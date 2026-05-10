@@ -1,5 +1,5 @@
-import * as cfWorkers from "cloudflare:workers"
 import { isRecord } from "@recurring/shared-ts"
+import * as cfWorkers from "cloudflare:workers"
 import { describe, expect, test } from "vitest"
 
 import { apiOrigin } from "../app/api.ts"
@@ -198,7 +198,9 @@ describe("inertia worker", () => {
     )
 
     expect(res.status).toEqual(409)
-    expect(requireHeader(res, "x-inertia-location")).toEqual(route("/").toString())
+    expect(requireHeader(res, "x-inertia-location")).toEqual(
+      route("/").toString(),
+    )
   })
 
   test("finishes Google OAuth against the mock OAuth server", async () => {
