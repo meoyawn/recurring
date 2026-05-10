@@ -1,6 +1,7 @@
 .cache/
 .task/
 .wrangler/
+coverage/
 dist/
 gen/
 node_modules/

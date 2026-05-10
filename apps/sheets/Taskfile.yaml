@@ -12,6 +12,33 @@ tasks:
     cmd: bun --hot src/cmd.ts
 
   typecheck:
+    run: once
     deps:
       - openapi:compile:sheets
     cmd: bun tsc
+    sources:
+      - bun.lock
+      - src/**/*
+
+  lint:
+    run: once
+    dir: ../..
+    cmd: bun oxlint --config oxlint.config.ts apps/sheets/src/
+    sources:
+      - bun.lock
+      - oxlint.config.ts
+      - apps/sheets/src/**/*
+
+  test:
+    run: once
+    cmd: bun test
+    sources:
+      - bun.lock
+      - src/**/*
+
+  check:
+    run: once
+    deps:
+      - lint
+      - typecheck
+      - test

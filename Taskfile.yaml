@@ -65,6 +65,7 @@ tasks:
       - api:check
       - shared-ts:check
       - inertia:check
+      - sheets:check
 
   check:
     cmds:

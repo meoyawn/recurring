@@ -13,11 +13,6 @@ tasks:
   run:
     run: once
 
-  generate:client:
-    run: once
-    deps:
-      - openapi:generate:inertia-client
-
   cf:types:
     run: once
     desc: Generate Cloudflare Worker binding types
@@ -35,7 +30,7 @@ tasks:
     run: once
     deps:
       - cf:types
-      - generate:client
+      - openapi:generate:inertia-client
     cmd: bun tsc
     sources:
       - ../../bun.lock
@@ -48,18 +43,18 @@ tasks:
     run: once
     deps:
       - cf:types
-    cmd: bun oxlint --config ../../oxlint.config.ts src/ *.ts
+    dir: ../../
+    cmd: bun oxlint --config oxlint.config.ts apps/inertia/src/
     sources:
-      - ../../bun.lock
-      - ../../oxlint.config.ts
-      - src/**/*
-      - "*.ts"
+      - bun.lock
+      - oxlint.config.ts
+      - apps/inertia/src/**/*
 
   build:
     run: once
     desc: Build production Inertia worker
     deps:
-      - generate:client
+      - openapi:generate:inertia-client
     cmd: bun vite build
     sources:
       - ../../bun.lock
@@ -70,10 +65,11 @@ tasks:
 
   test:miniflare:
     run: once
+    desc: Run Miniflare tests; pass coverage with `task test:miniflare -- --coverage`
     deps:
       - compose:up-d
       - build
-    cmd: go -C ../api run ./cmd/webtestenv --cwd ../inertia -- bun vitest run --config vitest.miniflare.config.ts
+    cmd: go -C ../api run ./cmd/webtestenv --cwd ../inertia -- bun vitest run --config vitest.miniflare.config.ts {{.CLI_ARGS}}
     sources:
       - Taskfile.yaml
       - ../../bun.lock
@@ -83,7 +79,7 @@ tasks:
   test:unit:
     run: once
     deps:
-      - generate:client
+      - openapi:generate:inertia-client
     cmd: bun test --pass-with-no-tests --path-ignore-patterns 'src/miniflare/**'
     sources:
       - Taskfile.yaml
@@ -105,7 +101,7 @@ tasks:
   dev:
     desc: Run Vite dev server
     deps:
-      - generate:client
+      - openapi:generate:inertia-client
     cmd: bun vite dev
 
   preview:
