@@ -38,6 +38,9 @@
     },
     "apps/shared-ts": {
       "name": "@recurring/shared-ts",
+      "dependencies": {
+        "hono": "^4.12.18",
+      },
       "devDependencies": {
         "typescript": "^6.0.3",
       },

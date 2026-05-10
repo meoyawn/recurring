@@ -17,7 +17,7 @@ Web 2.0 app
 - never run `task api:test`, `task api:lint`, `task api:check` without
   escalating permissions (has docker calls inside)
 - never edit `.gitignore` without a human permission
-- never skip running `task check` after editing `apps/` or `packages/`
+- never skip running `task check` after multiple `apps/` or `packages/` have been modified. 
 
 ## CLI
 

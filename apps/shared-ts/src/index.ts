@@ -1,6 +1,8 @@
 /** string+email */
 export type EmailAddrStr = `${string}@${string}.${string}`
 
+export { honoTracing, otlpTraceEndpointFromEnv } from "./hono-tracing.ts"
+
 export {
   serviceFetch,
   type ServiceClientAttemptEvent,

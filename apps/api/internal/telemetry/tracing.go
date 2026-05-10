@@ -2,7 +2,8 @@ package telemetry
 
 import (
 	"context"
-	"os"
+	"net/url"
+	"strings"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -10,6 +11,8 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
+	configgen "github.com/recurring/api/internal/gen/config"
 )
 
 const (
@@ -17,7 +20,7 @@ const (
 	localEnv    = "local"
 )
 
-func Start(ctx context.Context) (func(context.Context) error, error) {
+func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Context) error, error) {
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
@@ -28,7 +31,7 @@ func Start(ctx context.Context) (func(context.Context) error, error) {
 		resource.WithTelemetrySDK(),
 		resource.WithAttributes(
 			attribute.String("service.name", serviceName),
-			attribute.String("deployment.environment", deploymentEnvironment()),
+			attribute.String("deployment.environment", deploymentEnvironment(cfg)),
 		),
 	)
 	if err != nil {
@@ -38,8 +41,8 @@ func Start(ctx context.Context) (func(context.Context) error, error) {
 	opts := []sdktrace.TracerProviderOption{
 		sdktrace.WithResource(res),
 	}
-	if traceExporterConfigured() {
-		exporter, err := otlptracehttp.New(ctx)
+	if traceExporterConfigured(cfg) {
+		exporter, err := otlptracehttp.New(ctx, traceExporterOptions(cfg)...)
 		if err != nil {
 			return nil, err
 		}
@@ -51,14 +54,36 @@ func Start(ctx context.Context) (func(context.Context) error, error) {
 	return provider.Shutdown, nil
 }
 
-func traceExporterConfigured() bool {
-	return os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" ||
-		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != ""
+func traceExporterConfigured(cfg configgen.TelemetryConfig) bool {
+	return cfg.HasOtlpEndpoint() || cfg.HasOtlpTracesEndpoint()
 }
 
-func deploymentEnvironment() string {
-	if env := os.Getenv("DEPLOYMENT_ENVIRONMENT"); env != "" {
-		return env
+func traceExporterOptions(cfg configgen.TelemetryConfig) []otlptracehttp.Option {
+	if cfg.HasOtlpTracesEndpoint() {
+		return []otlptracehttp.Option{
+			otlptracehttp.WithEndpointURL(cfg.GetOtlpTracesEndpoint()),
+		}
+	}
+	if cfg.HasOtlpEndpoint() {
+		return []otlptracehttp.Option{
+			otlptracehttp.WithEndpointURL(traceEndpointURL(cfg.GetOtlpEndpoint())),
+		}
+	}
+	return nil
+}
+
+func traceEndpointURL(endpoint string) string {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return endpoint
+	}
+	u.Path = strings.TrimRight(u.Path, "/") + "/v1/traces"
+	return u.String()
+}
+
+func deploymentEnvironment(cfg configgen.TelemetryConfig) string {
+	if cfg.DeploymentEnvironment != "" {
+		return cfg.DeploymentEnvironment
 	}
 	return localEnv
 }

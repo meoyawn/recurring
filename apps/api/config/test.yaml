@@ -19,3 +19,6 @@ sheets:
     path: /tmp/recurring-test-sheets.sock
   timeout_ms: 30000
   max_attempts: 3
+
+telemetry:
+  deployment_environment: test

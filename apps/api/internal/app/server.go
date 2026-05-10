@@ -36,7 +36,7 @@ func Start(ctx context.Context) (*Server, error) {
 }
 
 func StartWithConfig(ctx context.Context, cfg configgen.Config) (*Server, error) {
-	traceStop, err := telemetry.Start(ctx)
+	traceStop, err := telemetry.Start(ctx, cfg.Telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("start telemetry: %w", err)
 	}

@@ -1,9 +1,9 @@
-import { Hono } from "hono"
 import { rmSync } from "node:fs"
-
-const app = new Hono()
-
-app.get("/healthz", c => c.body(null, 200))
+import {
+  honoTracing,
+  otlpTraceEndpointFromEnv,
+} from "@recurring/shared-ts/hono-tracing"
+import { Hono } from "hono"
 
 type Config =
   | {
@@ -17,22 +17,28 @@ type Config =
     }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const listener = env["RECURRING_SHEETS_LISTENER_KIND"] ?? "tcp"
+  const listener = env["RECURRING_SHEETS_LISTENER_KIND"]
   if (listener === "unix") {
     const path = env["RECURRING_SHEETS_SOCKET_PATH"]
     if (!path) {
-      throw new Error("RECURRING_SHEETS_SOCKET_PATH is required for unix listener")
+      throw new Error(
+        "RECURRING_SHEETS_SOCKET_PATH is required for unix listener",
+      )
     }
     return { listener, path }
   }
   if (listener === "tcp") {
-    const port = Number(env["RECURRING_SHEETS_PORT"] ?? env["PORT"] ?? "3000")
+    const hostname = env["RECURRING_SHEETS_HOST"]
+    if (!hostname) {
+      throw new Error("RECURRING_SHEETS_HOST is required for tcp listener")
+    }
+    const port = Number(env["RECURRING_SHEETS_PORT"])
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       throw new Error("RECURRING_SHEETS_PORT must be a TCP port")
     }
     return {
       listener,
-      hostname: env["RECURRING_SHEETS_HOST"] ?? "127.0.0.1",
+      hostname,
       port,
     }
   }
@@ -40,6 +46,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 }
 
 export function start(config: Config = loadConfig()): Bun.Server<undefined> {
+  const app = new Hono()
+
+  app.use(
+    honoTracing({
+      deploymentEnvironment: () =>
+        process.env["DEPLOYMENT_ENVIRONMENT"] ?? "local",
+      serviceName: "recurring-sheets",
+      traceEndpoint: () => otlpTraceEndpointFromEnv(process.env),
+    }),
+  )
+  app.get("/healthz", c => c.body(null, 200))
+
   if (config.listener === "unix") {
     rmSync(config.path, { force: true })
     const server = Bun.serve({

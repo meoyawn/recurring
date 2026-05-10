@@ -36,8 +36,6 @@ tasks:
       - pggen
     env:
       RECURRING_CONFIG: config/dev.yaml
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
-      DEPLOYMENT_ENVIRONMENT: local
     cmds:
       - go run ./cmd/api
 

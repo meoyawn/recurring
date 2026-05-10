@@ -2,11 +2,6 @@ t_20:
   title: register Google OAuth app for local auth testing
   success_criteria: keep local Google OAuth client settings out of committed Wrangler vars
 
-t_9:
-  title: >-
-    forward W3C `traceparent` and `tracestate` from Solid server requests to
-    Recurring API requests
-
 t_17:
   title: >-
     OpenAPI router like

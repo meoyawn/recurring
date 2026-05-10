@@ -19,3 +19,7 @@ sheets:
     path: /tmp/recurring-sheets.sock
   timeout_ms: 30000
   max_attempts: 3
+
+telemetry:
+  deployment_environment: local
+  otlp_endpoint: http://localhost:4318

@@ -3,6 +3,7 @@ import * as cfWorkers from "cloudflare:workers"
 import { describe, expect, test } from "vitest"
 
 import { apiOrigin } from "../app/api.ts"
+import { waitForJaegerTrace } from "./jaeger.ts"
 
 interface Worker {
   fetch: (request: Request) => Promise<Response> | Response
@@ -29,7 +30,16 @@ type CapturedAPIRequest = {
   url: string
 }
 
+type ParsedTraceparent = {
+  flags: string
+  spanID: string
+  traceID: string
+}
+
 const sessionIDPattern = /^sess_[0-9a-f]{32}$/
+const traceIDPattern = /^[0-9a-f]{32}$/
+const spanIDPattern = /^[0-9a-f]{16}$/
+const traceparentPattern = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/
 const apiCaptureOrigin = "http://localhost:8083"
 
 function getFetch(exports: WorkerExports): Worker["fetch"] {
@@ -46,6 +56,21 @@ const requireHeader = (response: Response, name: string): string => {
   }
 
   return value
+}
+
+const parseTraceparent = (value: string | undefined): ParsedTraceparent => {
+  const match = value?.match(traceparentPattern)
+  if (match === null || match === undefined) {
+    throw new Error("traceparent is invalid")
+  }
+  const traceID = match[1]
+  const spanID = match[2]
+  const flags = match[3]
+  if (traceID === undefined || spanID === undefined || flags === undefined) {
+    throw new Error("traceparent match is invalid")
+  }
+
+  return { flags, spanID, traceID }
 }
 
 const cookieValue = (setCookie: string, name: string): string => {
@@ -111,9 +136,13 @@ describe("inertia worker", () => {
     })
   })
 
-  test("serves the Hono health check", async () => {
+  test("serves the Hono health check with a Jaeger lookup trace ID", async () => {
     const res = await workerFetch(new Request(route("/healthz")))
+
     expect(res.status).toEqual(200)
+    expect(requireHeader(res, "x-trace-id")).toMatch(traceIDPattern)
+    expect(requireHeader(res, "x-span-id")).toMatch(spanIDPattern)
+    await waitForJaegerTrace(requireHeader(res, "x-trace-id"))
   })
 
   test("serves first Inertia visit as HTML with initial page props", async () => {
@@ -170,14 +199,57 @@ describe("inertia worker", () => {
       )
 
       expect(res.status).toEqual(200)
+      const responseTraceID = requireHeader(res, "x-trace-id")
+      const responseSpanID = requireHeader(res, "x-span-id")
       const requests = await capturedAPIRequests()
+      const apiTraceparent = parseTraceparent(requests[0]?.headers["traceparent"])
       expect(requests.length).toEqual(1)
       expect({
-        traceparent: requests[0]?.headers["traceparent"],
+        requestID: requests[0]?.headers["x-request-id"],
         tracestate: requests[0]?.headers["tracestate"],
+        traceFlags: apiTraceparent.flags,
+        traceID: apiTraceparent.traceID,
+        traceSpanID: apiTraceparent.spanID,
       }).toEqual({
-        traceparent: "00-00000000000000000000000000000001-0000000000000002-01",
+        requestID: requireHeader(res, "x-request-id"),
         tracestate: "vendor=value",
+        traceFlags: "01",
+        traceID: responseTraceID,
+        traceSpanID: responseSpanID,
+      })
+    } finally {
+      Object.defineProperty(cfWorkers.env, "RECURRING_API_ORIGIN", {
+        configurable: true,
+        value: originalAPIOrigin,
+      })
+    }
+  })
+
+  test("creates trace headers for Recurring API calls without inbound trace context", async () => {
+    const originalAPIOrigin = cfWorkers.env.RECURRING_API_ORIGIN
+    await fetch(`${apiCaptureOrigin}/__reset`, { method: "POST" })
+    Object.defineProperty(cfWorkers.env, "RECURRING_API_ORIGIN", {
+      configurable: true,
+      value: apiCaptureOrigin,
+    })
+
+    try {
+      const res = await workerFetch(new Request(route("/")))
+
+      expect(res.status).toEqual(200)
+      const requests = await capturedAPIRequests()
+      const apiTraceparent = parseTraceparent(requests[0]?.headers["traceparent"])
+      expect(requests.length).toEqual(1)
+      expect({
+        requestID: requests[0]?.headers["x-request-id"],
+        traceFlags: apiTraceparent.flags,
+        traceID: apiTraceparent.traceID,
+        traceSpanID: apiTraceparent.spanID,
+      }).toEqual({
+        requestID: requireHeader(res, "x-request-id"),
+        traceFlags: "01",
+        traceID: requireHeader(res, "x-trace-id"),
+        traceSpanID: requireHeader(res, "x-span-id"),
       })
     } finally {
       Object.defineProperty(cfWorkers.env, "RECURRING_API_ORIGIN", {

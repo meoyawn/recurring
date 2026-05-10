@@ -102,8 +102,8 @@ describe("serviceFetch", () => {
   })
 
   test("retries retryable POST with an idempotency key and replayable body", async () => {
-    const capture = captureFetch((_, attempt) =>
-      new Response(null, { status: attempt === 1 ? 503 : 201 }),
+    const capture = captureFetch(
+      (_, attempt) => new Response(null, { status: attempt === 1 ? 503 : 201 }),
     )
     const fetchApi = serviceFetch({
       fetch: capture.fetch,
@@ -169,10 +169,11 @@ describe("serviceFetch", () => {
   })
 
   test("retries 502 503 and 504 responses", async () => {
-    const capture = captureFetch((_, attempt) =>
-      new Response(null, {
-        status: [502, 503, 504, 204][attempt - 1],
-      }),
+    const capture = captureFetch(
+      (_, attempt) =>
+        new Response(null, {
+          status: [502, 503, 504, 204][attempt - 1],
+        }),
     )
     const fetchApi = serviceFetch({
       fetch: capture.fetch,

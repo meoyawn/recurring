@@ -1,3 +1,14 @@
+t_9:
+  title: >-
+    forward W3C `traceparent` and `tracestate` from Solid server requests to
+    Recurring API requests
+  success_criteria: >-
+    calling /healthz returns x-trace-id that can be looked up in the Jaeger
+    service from compose/docker-compose.yml, and cf-worker.test.ts verifies it
+    automatically
+  start: 2026-05-10T21:25:26+0300
+  finish: 2026-05-10T21:34:29+0300
+
 t_6:
   title: test google auth
   success_criteria: https://github.com/axa-group/oauth2-mock-server

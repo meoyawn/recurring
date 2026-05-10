@@ -8,6 +8,12 @@ RECURRING_API_ORIGIN = "http://localhost:8080"
 GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
+OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
+DEPLOYMENT_ENVIRONMENT = "local"
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.05
 
 [env.developement]
 
@@ -16,6 +22,8 @@ RECURRING_API_ORIGIN = "http://localhost:8080"
 GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
+OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
+DEPLOYMENT_ENVIRONMENT = "local"
 
 [env.test]
 
@@ -27,3 +35,5 @@ GOOGLE_USERINFO_ENDPOINT = "http://localhost:8081/userinfo"
 GOOGLE_CLIENT_ID = "test-google-client"
 GOOGLE_CLIENT_SECRET = "test-google-secret"
 GOOGLE_REDIRECT_URI = ""
+OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
+DEPLOYMENT_ENVIRONMENT = "test"
