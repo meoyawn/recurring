@@ -8,7 +8,7 @@ main = "./src/worker.ts"
 enabled = true
 head_sampling_rate = 0.05
 
-
+# this [env.development]
 [vars]
 RECURRING_API_ORIGIN = "http://localhost:8080"
 GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -16,7 +16,8 @@ GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
 DEPLOYMENT_ENVIRONMENT = "local"
-
+[secrets]
+required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
 
 [env.test]
 
@@ -41,3 +42,5 @@ GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
 DEPLOYMENT_ENVIRONMENT = "local"
+[env.production.secrets]
+required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
