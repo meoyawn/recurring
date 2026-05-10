@@ -1,6 +1,7 @@
 t_20:
   title: register Google OAuth app for local auth testing
   success_criteria: keep local Google OAuth client settings out of committed Wrangler vars
+  created: 2026-05-05T02:19:16+0300
 
 t_17:
   title: >-
@@ -11,23 +12,28 @@ t_17:
     apps/api uses the OpenAPI router and
     github.com/getkin/kin-openapi is only an indirect dependency in
     apps/api/go.mod
+  created: 2026-05-03T01:32:14+0300
   deps:
     - t_9
 
 t_11:
   title: create spike for api static config shape
   success_criteria: project spike markdown
+  created: 2026-05-03T00:03:34+0300
 
 t_21:
   title: add https://github.com/wal-g/wal-g
+  created: 2026-05-05T02:16:27+0300
 
 t_26:
   title: run test Postgres without fsync for faster in-memory tests
   success_criteria: >-
     apps/api/internal/apitest and apps/api/migrations/migration_test.go start
     Postgres with fsync disabled and test data stored in memory
+  created: 2026-05-09T12:27:36+0300
 
 t_27:
   title: >-
     add test in apps/web/src asserting environment keys stay synced across .env,
     wrangler.toml, and wrangler.test.toml
+  created: 2026-05-09T21:39:11+0300

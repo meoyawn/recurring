@@ -108,6 +108,8 @@ tasks:
     desc: Run Vite dev server
     deps:
       - openapi:generate:inertia-client
+    env:
+      CLOUDFLARE_ENV: development
     cmd: bun vite dev
 
   preview:

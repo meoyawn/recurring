@@ -148,6 +148,65 @@ describe("honoTracing", () => {
       stringValue: "recurring-test",
     })
   })
+
+  test("logs a structured warning when trace export fails", async () => {
+    async function fetchMock(): Promise<Response> {
+      return new Response(null, { status: 500 })
+    }
+
+    fetchMock.preconnect = fetch.preconnect
+
+    const warnCalls: unknown[][] = []
+    const originalWarn = console.warn
+    console.warn = (...data: unknown[]) => {
+      warnCalls.push(data)
+    }
+
+    try {
+      const app = new Hono()
+      app.use(
+        honoTracing({
+          deploymentEnvironment: "local",
+          fetch: fetchMock,
+          serviceName: "recurring-inertia",
+          traceEndpoint: "https://collector.test/v1/traces",
+        }),
+      )
+      app.get("/healthz", c => c.body(null, 204))
+
+      const response = await app.request("/healthz", {
+        headers: {
+          traceparent:
+            "00-00000000000000000000000000000001-0000000000000002-01",
+          "x-request-id": "req-1",
+        },
+      })
+      const responseSpanID = requireHeader(response, "x-span-id")
+      const logLine = warnCalls[0]?.[0]
+      if (typeof logLine !== "string") {
+        throw new Error("structured warning log is missing")
+      }
+
+      expect(response.status).toEqual(204)
+      expect(warnCalls.length).toEqual(1)
+      expect(JSON.parse(logLine)).toEqual<Record<string, string | number>>({
+        level: "warn",
+        message: "OTLP trace export failed",
+        service_name: "recurring-inertia",
+        deployment_environment: "local",
+        trace_id: "00000000000000000000000000000001",
+        span_id: responseSpanID,
+        request_id: "req-1",
+        http_request_method: "GET",
+        http_route: "/healthz",
+        http_response_status_code: 204,
+        error_type: "Error",
+        error_message: "OTLP trace export failed: 500",
+      })
+    } finally {
+      console.warn = originalWarn
+    }
+  })
 })
 
 describe("otlpTraceEndpointFromEnv", () => {

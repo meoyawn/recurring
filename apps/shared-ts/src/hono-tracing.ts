@@ -51,6 +51,8 @@ const headerSpanID = "x-span-id"
 const headerRequestID = "x-request-id"
 const traceparentPattern =
   /^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/
+const unsafeErrorMessagePattern =
+  /\bhttps?:\/\/|\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}\b|\b192\.168\.\d{1,3}\.\d{1,3}\b|\bbearer\s+|[?&](?:access_token|authorization|code|cookie|refresh_token|session|token)=/i
 const zeroTraceID = "00000000000000000000000000000000"
 const zeroSpanID = "0000000000000000"
 const tracerName = "@recurring/shared-ts/hono-tracing"
@@ -165,6 +167,21 @@ const unixNanoNow = (): bigint => BigInt(Date.now()) * 1_000_000n
 const durationNano = (startedAtMs: number): bigint =>
   BigInt(Math.max(0, Math.round((performance.now() - startedAtMs) * 1_000_000)))
 
+const safeErrorType = (error: unknown): string =>
+  error instanceof Error ? error.name : typeof error
+
+const safeErrorMessage = (error: unknown): string => {
+  if (
+    !(error instanceof Error) ||
+    error.message === "" ||
+    unsafeErrorMessagePattern.test(error.message)
+  ) {
+    return "OTLP trace export failed"
+  }
+
+  return error.message.slice(0, 256)
+}
+
 const otlpSpan = <E extends Env>(
   c: Context<E>,
   context: TraceContext,
@@ -243,6 +260,28 @@ const exportSpan = async (
   }
 }
 
+const traceExportFailureLog = <E extends Env>(
+  c: Context<E>,
+  context: TraceContext,
+  requestID: string,
+  serviceName: string,
+  deploymentEnvironment: string | undefined,
+  error: unknown,
+): Record<string, string | number> => ({
+  level: "warn",
+  message: "OTLP trace export failed",
+  service_name: serviceName,
+  deployment_environment: deploymentEnvironment ?? "unknown",
+  trace_id: context.traceID,
+  span_id: context.spanID,
+  request_id: requestID,
+  http_request_method: c.req.method,
+  http_route: routePath(c),
+  http_response_status_code: statusCode(c),
+  error_type: safeErrorType(error),
+  error_message: safeErrorMessage(error),
+})
+
 export const otlpTraceEndpointFromEnv = (
   env: Record<string, string | undefined>,
 ): string | undefined => {
@@ -308,7 +347,18 @@ export const honoTracing = <E extends Env>(
         span,
       )
     } catch (error) {
-      console.warn(error)
+      console.warn(
+        JSON.stringify(
+          traceExportFailureLog(
+            c,
+            context,
+            requestID,
+            config.serviceName,
+            deploymentEnvironment,
+            error,
+          ),
+        ),
+      )
     }
   }
 
