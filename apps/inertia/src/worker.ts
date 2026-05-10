@@ -5,14 +5,20 @@ import { finishGoogleAuth, startGoogleAuth } from "./lib/google-auth.ts"
 import { rootView } from "./root-view.tsx"
 
 const inertiaVersion = "recurring-inertia-1"
+const googleAuthStartPath = "/auth/google/start"
+const googleAuthCallbackPath = "/auth/google/callback"
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.use(inertia({ version: inertiaVersion, rootView }))
 
 app.get("/healthz", c => c.body(null, 200))
-app.get("/auth/google/start", c => startGoogleAuth(c.req.raw, c.env))
-app.get("/auth/google/callback", c => finishGoogleAuth(c.req.raw, c.env))
+app.get(googleAuthStartPath, c =>
+  startGoogleAuth(c.req.raw, c.env, googleAuthCallbackPath),
+)
+app.get(googleAuthCallbackPath, c =>
+  finishGoogleAuth(c.req.raw, c.env, googleAuthCallbackPath),
+)
 app.get("/", async c => {
   const health = await healthCheck(c.env)
 

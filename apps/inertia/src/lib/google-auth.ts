@@ -34,12 +34,6 @@ type GoogleAuthEndpoints = {
   userinfoEndpoint: string
 }
 
-const defaultGoogleAuthEndpoints: GoogleAuthEndpoints = {
-  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-  tokenEndpoint: "https://oauth2.googleapis.com/token",
-  userinfoEndpoint: "https://openidconnect.googleapis.com/v1/userinfo",
-}
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
 
@@ -118,23 +112,19 @@ const errorRedirect = (
   return redirect(url.toString(), 303, cookies)
 }
 
-export const googleAuthEndpoints = (
-  bindings?: Env,
-): GoogleAuthEndpoints => ({
-  authorizationEndpoint:
-    runtimeEnv("GOOGLE_AUTHORIZATION_ENDPOINT", bindings) ??
-    defaultGoogleAuthEndpoints.authorizationEndpoint,
-  tokenEndpoint:
-    runtimeEnv("GOOGLE_TOKEN_ENDPOINT", bindings) ??
-    defaultGoogleAuthEndpoints.tokenEndpoint,
-  userinfoEndpoint:
-    runtimeEnv("GOOGLE_USERINFO_ENDPOINT", bindings) ??
-    defaultGoogleAuthEndpoints.userinfoEndpoint,
+export const googleAuthEndpoints = (bindings: Env): GoogleAuthEndpoints => ({
+  authorizationEndpoint: requiredRuntimeEnv(
+    "GOOGLE_AUTHORIZATION_ENDPOINT",
+    bindings,
+  ),
+  tokenEndpoint: requiredRuntimeEnv("GOOGLE_TOKEN_ENDPOINT", bindings),
+  userinfoEndpoint: requiredRuntimeEnv("GOOGLE_USERINFO_ENDPOINT", bindings),
 })
 
 const authConfig = (
   request: Request,
-  bindings?: Env,
+  bindings: Env,
+  callbackPath: string,
 ): GoogleAuthConfig => {
   const endpoints = googleAuthEndpoints(bindings)
 
@@ -146,7 +136,7 @@ const authConfig = (
     clientSecret: requiredRuntimeEnv("GOOGLE_CLIENT_SECRET", bindings),
     redirectURI:
       runtimeEnv("GOOGLE_REDIRECT_URI", bindings) ??
-      new URL("/auth/google/callback", publicOrigin(request)).toString(),
+      new URL(callbackPath, publicOrigin(request)).toString(),
   }
 }
 
@@ -204,10 +194,11 @@ const fetchGoogleProfile = async (
 
 export const startGoogleAuth = async (
   request: Request,
-  bindings?: Env,
+  bindings: Env,
+  callbackPath: string,
 ): Promise<Response> => {
   try {
-    const config = authConfig(request, bindings)
+    const config = authConfig(request, bindings, callbackPath)
     const state = randomState()
     const authorizationURL = await oauthClient(
       config,
@@ -220,7 +211,7 @@ export const startGoogleAuth = async (
 
     return redirect(authorizationURL, 302, [
       cookie(googleStateCookieName, state, {
-        path: "/auth/google/callback",
+        path: callbackPath,
         maxAge: 600,
         secure: isSecureRequest(request),
       }),
@@ -232,14 +223,11 @@ export const startGoogleAuth = async (
 
 export const finishGoogleAuth = async (
   request: Request,
-  bindings?: Env,
+  bindings: Env,
+  callbackPath: string,
 ): Promise<Response> => {
   const secure = isSecureRequest(request)
-  const clearState = clearCookie(
-    googleStateCookieName,
-    "/auth/google/callback",
-    secure,
-  )
+  const clearState = clearCookie(googleStateCookieName, callbackPath, secure)
 
   try {
     const url = new URL(request.url)
@@ -258,7 +246,7 @@ export const finishGoogleAuth = async (
       return errorRedirect(request, "invalid_state", [clearState])
     }
 
-    const config = authConfig(request, bindings)
+    const config = authConfig(request, bindings, callbackPath)
     const token = await oauthClient(config).authorizationCode.getToken({
       code,
       redirectUri: config.redirectURI,

@@ -26,7 +26,7 @@ export default defineConfig(async () => {
     plugins: [plugin],
     test: {
       disableConsoleIntercept: true,
-      globalSetup: ["./src/miniflare/oauth-server.ts"],
+      globalSetup: ["./src/miniflare/oauth2-mock-server.ts"],
       include: ["src/miniflare/**/*.test.ts"],
     },
   }

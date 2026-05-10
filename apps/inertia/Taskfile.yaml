@@ -22,12 +22,13 @@ tasks:
     run: once
     desc: Generate Cloudflare Worker binding types
     vars:
-      D_TS: src/worker-configuration.d.ts
-    cmd: bun wrangler types {{.D_TS}}
+      WORKER_TYPES: src/worker-configuration.d.ts
+    cmd: bun wrangler types {{.WORKER_TYPES}}
     sources:
       - wrangler.toml
+      - ../../bun.lock
     generates:
-      - "{{.D_TS}}"
+      - "{{.WORKER_TYPES}}"
 
   typecheck:
     run: once
