@@ -1,4 +1,5 @@
 import * as cfWorkers from "cloudflare:workers"
+import { isRecord } from "@recurring/shared-ts"
 import { describe, expect, test } from "vitest"
 
 import { apiOrigin } from "../app/api.ts"
@@ -58,9 +59,6 @@ const parseInertiaPage = async (response: Response): Promise<InertiaPage> => {
 
   return page
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
 
 const isInertiaPage = (value: unknown): value is InertiaPage =>
   isRecord(value) &&

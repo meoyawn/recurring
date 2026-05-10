@@ -1,7 +1,6 @@
 import type { APIEvent } from "@solidjs/start/server"
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
+import { isRecord } from "@recurring/shared-ts"
 
 const cloudflareEnv = (value: unknown): Env | undefined => {
   if (!isRecord(value) || !("env" in value)) {

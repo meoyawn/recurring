@@ -1,7 +1,7 @@
 "use server"
 
 import { OAuth2Client } from "@badgateway/oauth2-client"
-import type { EmailAddrStr } from "@recurring/shared-ts"
+import { isRecord, type EmailAddrStr } from "@recurring/shared-ts"
 
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { apiGetter } from "./api.ts"
@@ -43,9 +43,6 @@ const defaultGoogleAuthEndpoints: GoogleAuthEndpoints = {
   tokenEndpoint: "https://oauth2.googleapis.com/token",
   userinfoEndpoint: "https://openidconnect.googleapis.com/v1/userinfo",
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
 
 const isEmailAddress = (value: string): value is EmailAddrStr =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)

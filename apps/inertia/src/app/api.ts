@@ -1,8 +1,7 @@
-import type { EmailAddrStr } from "@recurring/shared-ts"
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { Configuration } from "../../gen/runtime.ts"
-import { GoogleProfile } from "./google-auth.ts"
+import type { GoogleProfile } from "./google-auth.ts"
 
 type HealthPayload = {
   status: string

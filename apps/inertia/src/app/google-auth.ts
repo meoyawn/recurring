@@ -1,5 +1,5 @@
 import { OAuth2Client } from "@badgateway/oauth2-client"
-import type { EmailAddrStr } from "@recurring/shared-ts"
+import { isRecord, type EmailAddrStr } from "@recurring/shared-ts"
 import { upsertSignup } from "./api.ts"
 
 const googleStateCookieName = "googleOAuthState"
@@ -26,9 +26,6 @@ export type GoogleProfile = {
   name?: string
   picture?: string
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
 
 const isEmailAddress = (value: string): value is EmailAddrStr =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
