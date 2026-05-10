@@ -248,7 +248,7 @@ func getHealthz(ctx context.Context, url string, client *http.Client) error {
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("status %s", resp.Status)
 	}
 	return nil

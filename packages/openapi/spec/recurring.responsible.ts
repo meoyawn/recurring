@@ -151,7 +151,7 @@ const api = responsibleAPI({
       description:
         "Operational health check for reverse proxies and load balancers.",
       res: {
-        200: resp({
+        204: resp({
           description: "Service is healthy.",
         }),
       },

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,7 +21,13 @@ import (
 	"github.com/recurring/api/internal/app"
 	"github.com/recurring/api/internal/config"
 	configgen "github.com/recurring/api/internal/gen/config"
+	"github.com/recurring/api/internal/httpapi"
 	"github.com/recurring/api/pkg/pgdocker"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"gotest.tools/v3/assert"
 )
 
@@ -175,10 +182,82 @@ func TestHealthz(t *testing.T) {
 		_ = resp.Body.Close()
 	}()
 
-	assert.Equal(t, resp.StatusCode, http.StatusOK, "GET /healthz status")
+	assert.Equal(t, resp.StatusCode, http.StatusNoContent, "GET /healthz status")
+	assertTraceHeaders(t, resp.Header)
 	body, err := io.ReadAll(resp.Body)
 	assert.NilError(t, err, "read GET /healthz body")
 	assert.Equal(t, string(body), "", "GET /healthz body")
+}
+
+func TestHealthzTraceSpan(t *testing.T) {
+	t.Parallel()
+
+	exporter := tracetest.NewInMemoryExporter()
+	res := resource.NewSchemaless(
+		attribute.String("service.name", "recurring-api"),
+		attribute.String("deployment.environment", "local"),
+	)
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter), sdktrace.WithResource(res))
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		assert.NilError(t, provider.Shutdown(ctx))
+	})
+
+	handler, err := httpapi.NewEcho(nil, httpapi.WithTracerProvider(provider))
+	assert.NilError(t, err, "create echo")
+
+	req, err := http.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	assert.NilError(t, err, "create GET /healthz request")
+	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	req.Header.Set("x-request-id", "request-from-client")
+	resp := httptestResponse(t, handler, req)
+
+	assert.Equal(t, resp.StatusCode, http.StatusNoContent, "GET /healthz status")
+	assert.Equal(t, resp.Header.Get("x-request-id"), "request-from-client", "response x-request-id")
+	assertTraceHeaders(t, resp.Header)
+
+	spans := exporter.GetSpans()
+	assert.Equal(t, len(spans), 1, "span count")
+	span := spans[0]
+	assert.Equal(t, span.Name, "GET /healthz", "span name")
+	assert.Equal(t, span.SpanKind, trace.SpanKindServer, "span kind")
+	assert.Equal(t, span.SpanContext.TraceID().String(), resp.Header.Get("x-trace-id"), "trace header")
+	assert.Equal(t, span.SpanContext.SpanID().String(), resp.Header.Get("x-span-id"), "span header")
+	assert.Equal(t, span.Parent.TraceID().String(), "4bf92f3577b34da6a3ce929d0e0e4736", "parent trace id")
+	assertResourceAttribute(t, span, "service.name", "recurring-api")
+	assertResourceAttribute(t, span, "deployment.environment", "local")
+	assertSpanAttribute(t, span, "request_id", "request-from-client")
+	assertSpanAttribute(t, span, "http.request.method", http.MethodGet)
+	assertSpanAttribute(t, span, "http.route", "/healthz")
+	assertSpanAttribute(t, span, "http.response.status_code", int64(http.StatusNoContent))
+	assertNoSpanAttribute(t, span, "duration")
+}
+
+func TestHealthzGeneratedRequestID(t *testing.T) {
+	t.Parallel()
+
+	exporter := tracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		assert.NilError(t, provider.Shutdown(ctx))
+	})
+
+	handler, err := httpapi.NewEcho(nil, httpapi.WithTracerProvider(provider))
+	assert.NilError(t, err, "create echo")
+
+	req, err := http.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	assert.NilError(t, err, "create GET /healthz request")
+	resp := httptestResponse(t, handler, req)
+
+	assert.Equal(t, resp.StatusCode, http.StatusNoContent, "GET /healthz status")
+	assertTraceHeaders(t, resp.Header)
+
+	spans := exporter.GetSpans()
+	assert.Equal(t, len(spans), 1, "span count")
+	assertSpanAttribute(t, spans[0], "request_id", resp.Header.Get("x-request-id"))
 }
 
 func TestOpenAPIValidation(t *testing.T) {
@@ -282,4 +361,57 @@ func assertGeneratedSessionID(t *testing.T, sessionID string) {
 	t.Helper()
 
 	assert.Assert(t, sessionIDPattern.MatchString(sessionID), "session_id = %q, want generated session id", sessionID)
+}
+
+func httptestResponse(t *testing.T, handler http.Handler, req *http.Request) *http.Response {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	return recorder.Result()
+}
+
+func assertTraceHeaders(t *testing.T, header http.Header) {
+	t.Helper()
+
+	traceID := header.Get("x-trace-id")
+	spanID := header.Get("x-span-id")
+	requestID := header.Get("x-request-id")
+	assert.Assert(t, traceID != "", "x-trace-id is empty")
+	assert.Assert(t, spanID != "", "x-span-id is empty")
+	assert.Assert(t, requestID != "", "x-request-id is empty")
+	assert.Assert(t, traceID != "00000000000000000000000000000000", "x-trace-id is zero")
+	assert.Assert(t, spanID != "0000000000000000", "x-span-id is zero")
+}
+
+func assertSpanAttribute(t *testing.T, span tracetest.SpanStub, key string, expected any) {
+	t.Helper()
+
+	for _, attr := range span.Attributes {
+		if string(attr.Key) == key {
+			assert.Equal(t, fmt.Sprint(attr.Value.AsInterface()), fmt.Sprint(expected), key)
+			return
+		}
+	}
+	t.Fatalf("span attribute %q not found", key)
+}
+
+func assertNoSpanAttribute(t *testing.T, span tracetest.SpanStub, key string) {
+	t.Helper()
+
+	for _, attr := range span.Attributes {
+		assert.Assert(t, string(attr.Key) != key, "span attribute %q should not be present", key)
+	}
+}
+
+func assertResourceAttribute(t *testing.T, span tracetest.SpanStub, key string, expected string) {
+	t.Helper()
+
+	for _, attr := range span.Resource.Attributes() {
+		if string(attr.Key) == key {
+			assert.Equal(t, attr.Value.AsString(), expected, key)
+			return
+		}
+	}
+	t.Fatalf("resource attribute %q not found", key)
 }

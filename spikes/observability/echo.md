@@ -120,6 +120,38 @@ checks are for human debugging and are not automated success criteria.
 Use this route to verify the backend spike before instrumenting signup, Sheets
 calls, database spans, or browser-driven workflows.
 
+## Verification Results
+
+Answered:
+
+- `/healthz` remains `204 No Content`; `apps/api/internal/apitest/api_test.go`
+  asserts `http.StatusNoContent`, and a live request returned HTTP 204.
+- `/healthz` emits one server span with `service.name=recurring-api`;
+  `TestHealthzTraceSpan` verifies the span kind, name, and resource attribute.
+- `/healthz` returns non-empty `x-trace-id`, `x-span-id`, and `x-request-id`
+  headers; `TestHealthz` and `TestHealthzTraceSpan` assert these headers.
+- Incoming `traceparent` is accepted and propagated; `TestHealthzTraceSpan`
+  asserts the parent trace ID, and the live Jaeger trace included
+  `parentSpanId=00f067aa0ba902b7`.
+- Incoming `x-request-id` is preserved in the response header and the
+  `request_id` span attribute; `TestHealthzTraceSpan` asserts both.
+- Missing `x-request-id` gets a generated response header value and matching
+  `request_id` span attribute; `TestHealthzGeneratedRequestID` asserts this.
+- Jaeger fetched the exact trace by `x-trace-id` without UI scraping or fallback
+  search through `GET /api/v3/traces/{x-trace-id}`.
+- The returned trace included the expected `GET /healthz` server span.
+- Span attributes include safe method, route, status, and request ID data.
+- Span duration is available from normal span timing; `TestHealthzTraceSpan`
+  asserts no duplicate `duration` span attribute.
+- API span attributes do not include secrets, cookies, tokens, private IPs, or
+  unsafe SQL text; the middleware only writes method, route, status, request ID,
+  and error type.
+
+Not in scope for this proof:
+
+- Database spans are not part of this first `/healthz` proof because this route
+  does not touch Postgres.
+
 ## Collector placement
 
 The OpenTelemetry Collector should usually sit between the service and the observability backends.

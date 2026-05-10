@@ -112,13 +112,14 @@ text in span attributes.
 
 ## Current Repo Observations
 
-`compose/docker-compose.yml` currently defines:
+`compose/docker-compose.yml` now defines:
 
 - one `postgres` service
-- one `recurring_pgdata` volume
 - no API service
-- no trace backend service
-- no observability network or config mounts
+- one `jaeger` service
+- one `recurring_pgdata` volume
+- one `recurring_jaeger_badger` volume
+- one Jaeger config mount at `compose/jaeger-config.yaml`
 
 `apps/api` currently has:
 
@@ -126,16 +127,18 @@ text in span attributes.
 - `GET /healthz` returning `204 No Content`
 - request logging middleware
 - OpenAPI request validation middleware
+- API trace middleware in `apps/api/internal/httpapi/tracing.go`
+- tracer-provider setup in `apps/api/internal/telemetry/tracing.go`
 - service-client trace context propagation code under
   `apps/api/internal/serviceclient`
 - OpenTelemetry dependencies already present in `apps/api/go.mod`
 
-Unresolved before implementation:
+Resolved by implementation:
 
-- where API tracer-provider setup should live
-- how local API execution will point to Jaeger
-- whether `/healthz` should stay `204` or move to `200` for existing tests and
-  external probes
+- API tracer-provider setup lives in `apps/api/internal/telemetry`.
+- Local API execution points to Jaeger through
+  `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`.
+- `/healthz` stays `204 No Content`; tests and web test readiness accept it.
 
 ## Chosen Backend: Jaeger v2 With Badger
 
@@ -290,14 +293,38 @@ Answered:
 - one-service observability constraint: keep only Jaeger beside Postgres
 - OpenObserve license concern: acceptable locally, but not needed for v1
 - collector placement: no separate Collector for v1
+- exact Jaeger v2 Compose command and Badger config path:
+  `task compose:up-d` runs `docker compose up -d postgres jaeger`; Jaeger uses
+  `compose/jaeger-config.yaml` and the `recurring_jaeger_badger` volume mounted
+  at `/badger`
+- host OTLP endpoint for `apps/api`: `http://localhost:4318`, set in
+  `apps/api/Taskfile.yaml` for `task api:dev`
+- Compose-network OTLP endpoint for future Compose services: `http://jaeger:4318`
+- tracer-provider package location: `apps/api/internal/telemetry`
+- exact Jaeger API call for trace lookup by `x-trace-id`:
+  `GET http://localhost:16686/api/v3/traces/{x-trace-id}`
+- exact lookup proof: `GET /healthz` returned
+  `x-trace-id=582e5293924223f2683aa59631b6aa33`, and
+  `GET /api/v3/traces/582e5293924223f2683aa59631b6aa33` returned HTTP 200 with
+  one `GET /healthz` server span
+- incoming `traceparent` proof:
+  `traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`
+  returned `x-trace-id=4bf92f3577b34da6a3ce929d0e0e4736`; the Jaeger v3 trace
+  response included `parentSpanId=00f067aa0ba902b7`
+- restart persistence proof: after `docker compose restart jaeger`, the same
+  exact trace lookup returned HTTP 200
+- resource measurements: Jaeger exposed query port `16686`, OTLP HTTP port
+  `4318`, and OTLP gRPC port `4317`; idle memory was 12.44 MiB before restart
+  and 10.83 MiB after restart; Badger disk use was 48.0 KiB before restart and
+  40.0 KiB after restart; exact trace lookup latency was 0.001338 seconds before
+  restart and 0.001597 seconds after restart
 
-Unresolved until implementation:
+Not in scope for this proof:
 
-- exact Jaeger v2 Compose command and Badger config path
-- host and Compose-network OTLP endpoint values for `apps/api`
-- tracer-provider package location in `apps/api`
-- exact Jaeger API call for trace lookup by `x-trace-id`
-- resource measurements for idle RAM, restart disk growth, and lookup latency
+- database spans are intentionally not proven in this first target because
+  `GET /healthz` does not touch Postgres. The Echo spike directs this proof to
+  verify `/healthz` before signup, Sheets calls, database spans, or
+  browser-driven workflows.
 
 A candidate implementation fails if Jaeger needs another storage service or
 observability UI service, cannot return an exact `/healthz` trace by API, cannot

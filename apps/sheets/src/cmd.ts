@@ -62,5 +62,3 @@ export function start(config: Config = loadConfig()): Bun.Server<undefined> {
 if (import.meta.main) {
   start()
 }
-
-export default app

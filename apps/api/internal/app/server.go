@@ -16,12 +16,14 @@ import (
 	configgen "github.com/recurring/api/internal/gen/config"
 	"github.com/recurring/api/internal/httpapi"
 	"github.com/recurring/api/internal/migrator"
+	"github.com/recurring/api/internal/telemetry"
 )
 
 type Server struct {
 	httpServer *http.Server
 	listener   net.Listener
 	pool       *pgxpool.Pool
+	traceStop  func(context.Context) error
 	errc       chan error
 }
 
@@ -34,25 +36,34 @@ func Start(ctx context.Context) (*Server, error) {
 }
 
 func StartWithConfig(ctx context.Context, cfg configgen.Config) (*Server, error) {
+	traceStop, err := telemetry.Start(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("start telemetry: %w", err)
+	}
+
 	pool, err := database.Open(ctx, cfg.Db)
 	if err != nil {
+		_ = traceStop(context.Background())
 		return nil, err
 	}
 
 	if err := migrator.Up(ctx, pool); err != nil {
 		pool.Close()
+		_ = traceStop(context.Background())
 		return nil, err
 	}
 
 	handler, err := httpapi.NewEcho(pool)
 	if err != nil {
 		pool.Close()
+		_ = traceStop(context.Background())
 		return nil, err
 	}
 
 	listener, err := listen(cfg.Api.Listener)
 	if err != nil {
 		pool.Close()
+		_ = traceStop(context.Background())
 		return nil, err
 	}
 
@@ -61,6 +72,7 @@ func StartWithConfig(ctx context.Context, cfg configgen.Config) (*Server, error)
 		httpServer: httpServer,
 		listener:   listener,
 		pool:       pool,
+		traceStop:  traceStop,
 		errc:       make(chan error, 1),
 	}
 	go server.serve()
@@ -99,6 +111,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if serveErr, ok := <-s.errc; ok && serveErr != nil {
 		return serveErr
 	}
+	if s.traceStop != nil {
+		if err := s.traceStop(ctx); err != nil {
+			return fmt.Errorf("shutdown telemetry: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -107,7 +124,12 @@ func (s *Server) Close() error {
 		s.pool.Close()
 	}
 	if s.listener != nil {
-		return s.listener.Close()
+		if err := s.listener.Close(); err != nil {
+			return err
+		}
+	}
+	if s.traceStop != nil {
+		return s.traceStop(context.Background())
 	}
 	return nil
 }
