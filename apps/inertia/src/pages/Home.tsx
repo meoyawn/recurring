@@ -1,5 +1,6 @@
 import { Link } from "inertia-adapter-solid"
 import type { JSX } from "solid-js"
+import { WebPath } from "../paths.ts"
 
 type HealthPayload = {
   status: string
@@ -13,8 +14,7 @@ export default function Home(props: HomeProps): JSX.Element {
   return (
     <main>
       <nav>
-        <Link href="/">Home</Link>
-        <Link href="/status">Status</Link>
+        <Link href={WebPath.home}>Home</Link>
       </nav>
       <h1>Recurring</h1>
       <p>Server API check from a Worker-owned Inertia route:</p>

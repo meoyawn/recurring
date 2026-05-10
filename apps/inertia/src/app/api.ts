@@ -3,6 +3,7 @@ import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { Configuration } from "../../gen/runtime.ts"
 import type { GoogleProfile } from "./google-auth.ts"
+import { readSessionID } from "./session-cookie.ts"
 
 type HealthPayload = {
   status: string
@@ -43,6 +44,7 @@ const serviceClientContextFromRequest = (
 const api = (bindings: Env, request: Request): DefaultApi =>
   new DefaultApi(
     new Configuration({
+      accessToken: readSessionID(request),
       basePath: apiOrigin(bindings),
       fetchApi: serviceFetch({
         context: serviceClientContextFromRequest(request),

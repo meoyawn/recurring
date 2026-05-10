@@ -1,8 +1,9 @@
 import { isRecord, type EmailAddrStr } from "@recurring/shared-ts"
+import { WebPath } from "../paths.ts"
 import { upsertSignup } from "./api.ts"
+import { readCookie, sessionCookieName } from "./session-cookie.ts"
 
 const googleStateCookieName = "googleOAuthState"
-const sessionCookieName = "sessionID"
 
 type GoogleAuthConfig = {
   authorizationEndpoint: string
@@ -59,29 +60,9 @@ const cookie = (name: string, value: string, opts: CookieOptions): string => {
 const clearCookie = (name: string, path: string, secure: boolean): string =>
   cookie(name, "", { path, maxAge: 0, secure })
 
-const readCookie = (request: Request, name: string): string | undefined => {
-  const header = request.headers.get("cookie")
-  if (!header) {
-    return undefined
-  }
-
-  for (const pair of header.split(";")) {
-    const trimmed = pair.trim()
-    const separator = trimmed.indexOf("=")
-    if (separator === -1) {
-      continue
-    }
-    if (trimmed.slice(0, separator) === name) {
-      return decodeURIComponent(trimmed.slice(separator + 1))
-    }
-  }
-
-  return undefined
-}
-
 const redirect = (
   location: string,
-  status: 302 | 303,
+  status: 302,
   cookies: string[] = [],
 ): Response => {
   const headers = new Headers({ Location: location })
@@ -96,9 +77,9 @@ const errorRedirect = (
   code: string,
   cookies: string[] = [],
 ): Response => {
-  const url = new URL("/", publicOrigin(request))
+  const url = new URL(WebPath.home, publicOrigin(request))
   url.searchParams.set("auth", code)
-  return redirect(url.toString(), 303, cookies)
+  return redirect(url.toString(), 302, cookies)
 }
 
 const authConfig = (
@@ -256,14 +237,18 @@ export const finishGoogleAuth = async (
     const profile = await fetchGoogleProfile(accessToken, config)
     const signup = await upsertSignup(request, profile, bindings)
 
-    return redirect(new URL("/", publicOrigin(request)).toString(), 303, [
-      clearState,
-      cookie(sessionCookieName, signup.session_id, {
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30,
-        secure,
-      }),
-    ])
+    return redirect(
+      new URL(WebPath.home, publicOrigin(request)).toString(),
+      302,
+      [
+        clearState,
+        cookie(sessionCookieName, signup.session_id, {
+          path: WebPath.home,
+          maxAge: 60 * 60 * 24 * 30,
+          secure,
+        }),
+      ],
+    )
   } catch {
     return errorRedirect(request, "login_failed", [clearState])
   }
