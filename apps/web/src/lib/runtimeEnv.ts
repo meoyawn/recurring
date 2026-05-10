@@ -8,16 +8,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export const eventBindings = (event: APIEvent): Env | undefined => {
   const context = event.nativeEvent.context
   if (!isRecord(context)) {
-    return undefined
+    throw new Error("empty ctx")
   }
 
-  const directCF = context.cloudflare
-  if (isRecord(directCF) && "env" in directCF) {
+  const cf = context.cloudflare
+  if (isRecord(cf) && "env" in cf) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    return directCF.env as Env
+    return cf.env as Env
   }
 
-  return undefined
+  throw new Error(`CF bindings missing in ${JSON.stringify(event)}`)
 }
 
 export const runtimeEnv = (
