@@ -1,743 +1,599 @@
-# Recommended Observability Stack for Inertia.js v3 on Cloudflare Workers
+# Server-First Observability for Inertia on Cloudflare Workers
 
-As of April 28, 2026, the recommended production setup for an Inertia.js app
-served by Cloudflare Workers is:
+As of May 10, 2026, the Inertia spike should not start with browser-side
+telemetry. The first useful milestone is Worker-owned observability for the
+Inertia server boundary, OAuth routes, and Recurring API calls.
 
-- browser tracing: OpenTelemetry browser SDK with document-load, XHR, fetch, and
-  optional user-interaction instrumentation; XHR is mandatory because Inertia v3
-  follow-up visits are documented as XHR requests
-- Inertia navigation telemetry: small app-owned wrapper around Inertia router
-  events for page transition spans and attributes
-- Inertia transport telemetry: treat the v3 HTTP protocol as the contract; do
-  not depend on router events exposing normal response headers
-- Worker tracing: Cloudflare Workers automatic tracing for handler and `fetch()`
-  subrequest spans
-- Worker logs: structured `console` JSON logs with request ID, Cloudflare Ray
-  ID, route, Inertia component, Inertia request mode, and API target
-- Hono adapter telemetry: structured logging around `@hono/inertia`
-  `c.render(component, props)` calls and response-mode decisions
-- shared Hono observability surface with the Bun + Hono `apps/sheets` service:
-  request IDs, request-local context, structured log fields, backend fetch
-  helpers, trace-context forwarding, and API-call summaries
-- API propagation: browser XHR instrumentation injects `traceparent` into
-  same-origin Inertia visits; Hono reads request headers and explicit
-  `tracedFetch()` forwarding carries `traceparent` and `tracestate` to the
-  Recurring API
-- transport and routing: OpenTelemetry Collector for app-owned browser/API
-  telemetry, plus Cloudflare OTLP export for Worker traces and logs
-- metrics: Web Vitals and Inertia navigation measures from the browser,
-  Cloudflare Worker built-in metrics, API and database metrics from the backend
-- tracing backend: Tempo, Jaeger, Honeycomb, Sentry, Axiom, or another
-  OTLP-compatible tracing system
-- log backend: Loki, Elasticsearch, OpenSearch, or another log store
+This keeps the work focused:
 
-## Verdict
+- no browser OpenTelemetry setup yet
+- no client-side Inertia router span bridge yet
+- the Cloudflare Worker starts and ends the app-owned trace for now
+- the Worker forwards trace context to the Go API
+- the Worker emits trace spans and response correlation headers that make
+  Inertia response decisions, backend calls, request IDs, and OAuth outcomes
+  debuggable through the trace backend
 
-Inertia v3 is observable enough, but it does not provide an observability
-adapter or a tracing model by itself.
+Future browser JavaScript can join this model later by sending `traceparent` on
+Inertia XHR visits. That is intentionally not critical for the current spike.
 
-That is acceptable for this app because Inertia navigation is plain browser HTTP
-plus JSON page objects. Browser OpenTelemetry can instrument the network
-requests, and Inertia's router events can add page-level navigation spans.
+## Current App State
 
-Inertia v3 gives a clearer observability contract than SolidStart because its
-protocol has stable HTTP and page-object facts:
+`apps/inertia` already has the right runtime shape for a server-first spike:
 
-- first visit is a normal HTML request and response
-- first HTML response contains the page object in a
-  `<script type="application/json">` element
-- later visits are XHR requests with `X-Inertia: true`
-- page objects include `component`, `props`, `url`, `version`, and v3 protocol
-  fields such as `deferredProps`, `mergeProps`, `scrollProps`, `sharedProps`,
-  and `onceProps` when those features are used
-- request and response headers expose partial reloads, asset versions,
-  prefetching, once props, redirects, and response mode
+- Hono Worker entrypoint: `apps/inertia/src/worker.ts`
+- `@hono/inertia` middleware installed and used
+- Solid Inertia adapter installed
+- route handlers call `c.render(component, props)`
+- Recurring API client calls use `@recurring/shared-ts` `serviceFetch`
+- incoming `traceparent` and `tracestate` are already forwarded to the API
+- miniflare tests already cover trace-header forwarding
+- miniflare tests already cover Inertia asset mismatch responses
 
-The frontend adapter story changed on April 28, 2026: Hono now publishes
-experimental `@hono/inertia` middleware. That package gives the Worker a
-concrete Hono integration point for observability: route handlers call
-`c.render(component, props)`, the middleware chooses HTML, Inertia JSON, or
-props JSON response mode, and asset-version mismatches return `409` with
-`X-Inertia-Location`.
+The missing work is not basic Inertia wiring. The missing work is app-owned
+observability around the Worker boundary.
 
-The client adapter choice is also now more concrete. The current app direction
-is Inertia v3 plus Solid with the freshest `inertia-adapter-solid` beta,
-accepting fork maintenance and upstream contributions if protocol or telemetry
-gaps appear. For observability, that means the spike must verify that the Solid
-adapter works against Inertia v3 and exposes router lifecycle events, or that
-the app can wrap `@inertiajs/core` directly.
+## Target Runtime Shape
 
-Transport header access should be treated precisely:
-
-- Hono has full request-header access through the Worker request and Hono
-  context, so `traceparent`, `tracestate`, `X-Inertia`, partial reload headers,
-  and asset-version headers are available server-side
-- Inertia router events expose visit and page lifecycle details; they are the
-  right source for user-visible navigation spans
-- Inertia router events should not be the normal source of response headers or
-  trace propagation data
-- browser OpenTelemetry XHR instrumentation is the primary way to inject
-  `traceparent` into Inertia v3 visits
-- browser fetch instrumentation remains enabled for non-Inertia app traffic and
-  as protection if a client adapter changes transport
-
-This Hono shape also aligns the web Worker with the planned Bun + Hono
-`apps/sheets` service. The runtime exporters are different, but a large amount
-of app-owned observability code can be shared: request IDs, context helpers,
-structured log schemas, backend `tracedFetch()`, trace-context propagation, and
-safe API-call summaries.
-
-The blocker is not Inertia. The blocker is the Cloudflare Workers trace context
-gap. Cloudflare Workers automatic tracing is useful for Worker-local handler and
-subrequest timing, but Cloudflare currently documents that exported Worker trace
-IDs are not propagated to other services. It also documents custom spans and
-attributes as roadmap work.
-
-So the pragmatic recommendation is:
-
-- use browser OpenTelemetry for user-visible Inertia visits
-- enable Cloudflare automatic Worker tracing for Worker-local timing
-- forward W3C `traceparent` and `tracestate` headers manually from Worker
-  requests to Recurring API requests
-- instrument the Go Echo API and PostgreSQL normally
-- correlate Worker traces with app traces by `request_id`, `cf_ray`, URL, and
-  timestamp until Cloudflare trace propagation matures
-
-Do not choose Inertia expecting one clean automatic trace from click to
-PostgreSQL through Cloudflare Workers today.
-
-## Runtime Shape
-
-Target request flow:
+Current phase:
 
 ```text
 Browser
-  |- document load span
-  |- inertia.visit span
-  |- XHR client span with traceparent for later Inertia visits
-  |- fetch client span with traceparent for non-Inertia same-origin app traffic
+  |- normal document request
+  |- later Inertia XHR without app-owned browser tracing for now
+
 Cloudflare Worker
-  |- Cloudflare automatic fetch handler span
-  |- Hono route handler
-  |- Hono reads traceparent/tracestate and Inertia protocol headers
-  |- @hono/inertia response-mode decision
-  |- app-owned tracedFetch() forwards trace context to Recurring API
-  |- Cloudflare automatic outbound fetch span to Recurring API
-  |- structured logs with request_id/cf_ray/inertia fields
+  |- app-owned root trace span starts here
+  |- Hono request ID middleware creates or accepts request ID
+  |- Hono route handler loads props
+  |- @hono/inertia chooses HTML, page JSON, props JSON, or asset mismatch
+  |- traced Recurring API fetch forwards trace context and request ID
+  |- trace correlation headers are attached to the response
+  |- app-owned root trace span ends here
+
 Go Echo API
-  |- HTTP server span from traceparent
-  |- app spans
-  |- PostgreSQL client spans
+  |- extracts Worker trace context
+  |- creates downstream API spans
+  |- PostgreSQL spans attach under API request span
+
 PostgreSQL
-  |- DB spans/metrics through API-side instrumentation
+  |- DB spans and metrics through API instrumentation
 ```
 
-This gives two practical views:
+Future phase:
 
-- user-facing view: browser route transitions, Inertia XHR requests, API spans,
-  DB spans
-- Worker-local view: Cloudflare handler timing, subrequest timing, CPU/wall
-  time, Cloudflare colo, Ray ID, outcome
+```text
+Browser
+  |- document-load span
+  |- Inertia router event spans
+  |- XHR/fetch instrumentation sends traceparent
 
-The ideal single trace needs Cloudflare to propagate trace context, or the app
-to own a Worker-compatible custom tracing layer. Cloudflare's current docs say
-automatic cross-service trace propagation is still in progress.
+Cloudflare Worker
+  |- extracts browser trace context
+  |- creates child Worker span
+  |- forwards child context to API
+```
 
-## Browser Tracing
+## Trace Ownership
 
-Use browser OpenTelemetry for real user monitoring.
+The current spike should treat the Worker as the root of the app-owned
+distributed trace.
 
-Recommended browser instrumentations:
+Cloudflare automatic Worker tracing is still useful, but it is not enough for
+this requirement by itself:
 
-- `@opentelemetry/sdk-trace-web`
-- `@opentelemetry/instrumentation-document-load`
-- `@opentelemetry/instrumentation-xml-http-request`
-- `@opentelemetry/instrumentation-fetch`
-- optionally `@opentelemetry/instrumentation-user-interaction`
+- it captures handler and outbound `fetch()` timing
+- it exports Worker-local spans when configured
+- it does not give the app reliable Hono-level route attributes
+- it does not solve app-owned trace propagation to the API by itself
+- custom app spans and attributes in Cloudflare's automatic tracing remain a
+  limitation
 
-Use both XHR and fetch instrumentation, but treat XHR as required. Inertia v3
-documents follow-up visits as XHR requests with `X-Inertia: true` and
-`X-Requested-With: XMLHttpRequest`. That is the main path where browser OTel
-should inject `traceparent`. Fetch instrumentation is still useful for
-non-Inertia same-origin calls and for client-adapter drift.
+So the Worker needs an app-owned tracing path in addition to Cloudflare
+automatic tracing.
 
-Do not rely on Inertia router event payloads for trace propagation. Router
-events are for navigation semantics. HTTP instrumentation and Hono request
-headers are for trace context.
+Preferred order:
 
-Browser spans should include:
+1. Try official Hono-maintained tracing first: `@hono/otel`.
+2. For Cloudflare Workers runtime support, pair it with the Worker-compatible
+   OpenTelemetry provider/exporter required by the package docs, such as
+   `@microlabs/otel-cf-workers`, if it is compatible with the app's current
+   Wrangler/Vite setup.
+3. If the official Hono middleware cannot satisfy Workers runtime constraints,
+   keep the fallback small and isolated: one Worker tracing middleware, one
+   trace-context helper, and no broad hand-built observability framework.
 
-- `service.name=recurring-web`
-- `deployment.environment`
-- `app.framework=inertia`
-- `app.frontend_adapter=solid-community-beta`
-- `app.inertia.component`
-- `app.inertia.visit.method`
-- `app.inertia.visit.url`
-- `app.inertia.partial=true|false`
-- `app.inertia.partial.data`
-- `app.inertia.partial.except`
-- `app.inertia.once_props.excluded`
-- `app.inertia.asset_version`
-- `app.inertia.response_mode=html|page-json|props-json|asset-mismatch`
+The fallback is acceptable only if it preserves these properties:
 
-Configure trace propagation only for application traffic:
+- one root span per Worker request
+- route, method, status, and duration attributes
+- safe Inertia attributes
+- safe OAuth attributes
+- trace context injected into Recurring API calls
+- request ID included in every span, response, and API call
 
-- the same web origin
-- any explicitly approved API origin if the browser ever talks to it
-- exclude the browser telemetry export endpoint or telemetry proxy route from
-  HTTP instrumentation and propagation where possible
+## Hono Libraries
 
-For this app's intended shape, browser application traffic should only call the
-web origin. The Worker should call the Recurring API server-side. Browser
-telemetry export is not application traffic and does not need `traceparent`;
-excluding it avoids recursive spans.
+Prefer Hono libraries where they exist.
 
-## Inertia Navigation Spans
+Use:
 
-Add a small app-owned Inertia telemetry module.
+- `hono/request-id` for request IDs
+- `@hono/otel` for Hono request tracing if it works cleanly on Workers
+- `@hono/inertia` for the Inertia server adapter
 
-Inertia exposes router lifecycle events such as:
+Do not hand-code replacements for those responsibilities unless the library
+does not work in the Cloudflare Workers runtime or cannot expose the required
+data.
 
-- `start`
-- `progress`
-- `success`
-- `error`
-- `httpException`
-- `networkError`
-- `finish`
-- `navigate`
-- `prefetching`
-- `prefetched`
+Important clarification: an Inertia router telemetry module is not a Hono
+library. It would be browser-side code around `@inertiajs/core` router events.
+That work is deferred with browser telemetry.
 
-Use these to create logical route transition spans around Inertia visits.
+For the server-side equivalent, instrument Hono and `@hono/inertia` boundaries:
 
-Recommended span names:
+- middleware before and after the route handler
+- a `renderInertiaPage()` helper around `c.render(component, props)`
+- `serviceFetch` hooks around backend calls
+- OAuth route wrappers around redirect, token exchange, profile fetch, and
+  session creation
 
-- `inertia.visit GET /dashboard`
-- `inertia.form POST /settings`
-- `inertia.prefetch GET /items`
-- `inertia.reload GET /items`
+## Worker Request IDs
 
-Recommended attributes:
+Add request ID middleware early in the Hono stack.
 
-- `app.inertia.component`
-- `app.inertia.target_url`
-- `app.inertia.method`
-- `app.inertia.completed`
-- `app.inertia.cancelled`
-- `app.inertia.interrupted`
-- `app.inertia.validation_error`
-- `app.inertia.http_exception`
-- `app.inertia.network_error`
-- `app.inertia.partial.reload`
-- `app.inertia.only`
-- `app.inertia.except`
-- `app.inertia.prefetch`
+Preferred behavior:
 
-This span is not a replacement for HTTP spans. It captures the user-visible page
-transition, including client-side work before and after the network request.
-Use HTTP spans and Worker logs for request/response headers.
+- accept inbound `X-Request-Id` if present
+- otherwise use Cloudflare Ray ID as the first generated ID source
+- otherwise fall back to `crypto.randomUUID()`
+- set `X-Request-Id` on the response
+- forward request ID to Recurring API calls
+- include request ID in every Worker-owned span
 
-## Worker Tracing
+Cloudflare Ray ID source:
 
-Enable Cloudflare Workers traces in Wrangler.
+- read `CF-Ray` from request headers when present
+- confirm exact casing and availability in production
+- confirm whether Miniflare exposes it
+- if Miniflare does not expose it, tests should cover fallback generation
+
+This gives stable correlation immediately without inventing a second ID when
+Cloudflare already gave the request one.
+
+## Worker Tracing Config
+
+Enable Cloudflare automatic traces in `apps/inertia/wrangler.toml`:
 
 ```toml
 [observability.traces]
 enabled = true
 head_sampling_rate = 0.05
-
-[observability.logs]
-enabled = true
-head_sampling_rate = 0.6
 ```
 
-Cloudflare automatic Worker tracing currently covers:
+If exporting to an external backend, configure Cloudflare Observability
+destinations separately and add destination names to Wrangler only after the
+destination exists.
 
-- Worker handler calls
-- outbound `fetch()` calls
-- supported binding calls
-
-It also exports OpenTelemetry-compatible traces and logs to configured
-destinations.
-
-Important limitations:
-
-- exported Worker trace IDs are not propagated to other services
-- custom app spans and attributes inside Workers are not generally available yet
-- service binding and Durable Object calls may appear as separate traces
-- non-I/O spans can report `0 ms`
-- Worker OTLP metrics export is not currently supported
-
-For Inertia, this means Cloudflare can show that a route handler made a slow API
-subrequest, but an external backend may not automatically show that Worker span
-as the parent of the Go API span.
+Cloudflare automatic traces are the Worker-local view. App-owned Hono tracing is
+the distributed trace view from Worker to API to PostgreSQL.
 
 ## Trace Propagation
 
-Use W3C Trace Context headers.
+Current state:
 
-For Inertia follow-up visits:
+- `apps/inertia/src/app/api.ts` already reads `traceparent`
+- `apps/inertia/src/app/api.ts` already reads `tracestate`
+- `serviceFetch` already writes those headers to Recurring API requests
+- test coverage already verifies forwarding
 
-- browser XHR instrumentation injects `traceparent` into same-origin Inertia
-  visits
-- Worker receives `traceparent` and optional `tracestate`
-- Hono middleware reads those headers from the request
-- the shared `tracedFetch()` helper forwards them when calling the Recurring API
-- Echo extracts it and creates downstream spans
-- PostgreSQL spans attach under the API request span
+Needed change:
 
-Until Cloudflare automatic trace propagation is fixed, prefer forwarding the
-incoming `traceparent` unchanged when no app-owned Worker span is exported.
-This keeps API and database spans connected to the browser network span. If the
-app later owns Worker-side OpenTelemetry spans that can be exported reliably,
-then the Worker may create a child span and inject that child context instead.
+- when no inbound `traceparent` exists, the Worker tracing middleware should
+  create a root trace context
+- Recurring API calls should receive that Worker trace context
+- if future browser telemetry sends `traceparent`, the Worker should extract it
+  and create a child server span
 
-For first HTML visits:
+This is what makes the end-to-end app trace start at the Worker today and later
+extend naturally back into the browser.
 
-- browser normally does not send `traceparent` on the top-level navigation
-- Worker automatic tracing creates a Worker trace
-- browser document-load tracing can measure the load after boot
-- the Worker should generate a request ID and may generate an app trace context
-  for server-side prop loading
-- API calls made while rendering initial page props should carry request ID and,
-  if generated, server-side `traceparent`
+## Inertia Server Trace Attributes
 
-Do not rely on a clean first-load browser-to-Worker trace. Top-level navigation
-starts before browser JavaScript can inject trace context. Use request ID,
-`cf_ray`, URL, timestamp, and optional server-generated trace context for first
-HTML correlation.
+Add trace attributes around the Inertia route boundary.
 
-## Initial HTML Props
+Create a helper such as:
 
-The first Inertia v3 response includes an HTML shell and a JSON page object in a
-`<script type="application/json">` element. Track the initial prop-loading path
-server-side.
+```ts
+renderInertiaPage(c, component, props, options)
+```
 
-Worker logs should include:
+Responsibilities:
 
-- `event=inertia.initial`
-- `request_id`
-- `cf_ray`
-- `method`
-- `path`
-- `component`
-- `asset_version`
-- `props.keys`
-- `props.bytes`
-- `deferred_props.keys`
-- `merge_props.keys`
-- `shared_props.keys`
-- `once_props.keys`
-- `api.calls.count`
-- `api.calls.duration_ms`
-- `status`
+- call `c.render(component, props)`
+- attach component name
+- attach prop keys, not prop values
+- attach serialized prop byte size
+- attach asset version
+- attach request mode
+- attach response mode
+- attach partial reload request headers
+- attach status
+- attach `X-Inertia` response header
+- attach `Vary`
+- attach `X-Inertia-Location` for asset mismatch
 
-Avoid logging prop values. Props can contain user data.
+Response modes:
 
-Browser telemetry should record:
+- `html`: normal first-page response
+- `page-json`: `X-Inertia: true` page object response
+- `props-json`: `Accept: application/json` props response
+- `asset-mismatch`: `409` plus `X-Inertia-Location`
 
-- document load timing
-- app boot timing
-- first Inertia component name
-- page object byte size
-- asset version
-
-## Later Inertia Visits
-
-Later visits are easier to observe because they are normal browser HTTP requests
-with Inertia headers.
-
-Track these request headers in Worker logs and span attributes where possible:
-
-- `X-Inertia`
-- `X-Inertia-Version`
-- `X-Inertia-Partial-Component`
-- `X-Inertia-Partial-Data`
-- `X-Inertia-Partial-Except`
-- `X-Inertia-Reset`
-- `X-Inertia-Error-Bag`
-- `X-Inertia-Infinite-Scroll-Merge-Intent`
-- `X-Inertia-Except-Once-Props`
-- `Purpose: prefetch`
-
-Track these response facts:
-
-- status
-- `X-Inertia` response header
-- `Vary: X-Inertia`
-- `X-Inertia-Redirect`
-- component
-- prop keys
-- deferred prop keys
-- merge prop keys
-- once prop keys
-- shared prop keys
-- response bytes
-- asset mismatch `409`
-- `X-Inertia-Location`
-- redirect status
-- validation error presence
-
-These fields make Inertia-specific problems debuggable:
-
-- stale assets causing reload loops
-- unexpected full reloads
-- oversized page props
-- slow partial reload props
-- broken deferred props
-- unexpected once-prop reuse or reload
-- form redirects that use the wrong status
-- non-Inertia error responses causing `httpException`
-
-## Metrics
-
-Use multiple metric paths.
-
-Browser:
-
-- Web Vitals
-- Inertia visit duration
-- Inertia request duration
-- Inertia error count
-- asset mismatch count
-- page object byte size
-- deferred prop request duration
-- once-prop reuse/exclusion count
-- route/component load count
-
-Worker:
-
-- Cloudflare request count
-- error rate
-- CPU time
-- wall time
-- subrequest count
-- subrequest duration
-- response status
-- cache status if static assets are served by Worker
-
-API and database:
-
-- HTTP RED metrics from Echo
-- API outbound/internal operation metrics
-- PostgreSQL query duration
-- PostgreSQL pool wait time
-- PostgreSQL error count
-
-Do not expect Inertia itself to expose metrics. Treat it as a source of browser
-events and HTTP protocol fields.
-
-## Logging
-
-Use structured logs in the Worker and browser error pipeline.
-
-Worker log fields:
+Trace attributes for every Inertia request:
 
 - `service=recurring-web-worker`
 - `environment`
 - `request_id`
 - `cf_ray`
+- `trace_id`
 - `traceparent_in`
 - `tracestate_in`
-- `trace_context_source=browser|worker|none`
 - `method`
 - `path`
 - `route`
-- `hono.route`
-- `inertia.adapter=@hono/inertia`
-- `inertia=true|false`
+- `hono_route`
+- `inertia_adapter=@hono/inertia`
+- `inertia`
 - `inertia_component`
 - `inertia_partial`
-- `inertia_response_mode=html|page-json|props-json|asset-mismatch`
+- `inertia_partial_component`
+- `inertia_partial_data`
+- `inertia_partial_except`
+- `inertia_response_mode`
 - `inertia_asset_mismatch`
-- `inertia_deferred_props`
-- `inertia_once_props`
+- `inertia_asset_version`
+- `props_keys`
+- `props_bytes`
 - `status`
 - `duration_ms`
-- `api_status`
+- `api_calls_count`
 - `api_duration_ms`
+- `api_status_class`
 
-Browser error/event fields:
+Never attach prop values.
 
-- `service=recurring-web-browser`
-- `session_id` or anonymous stable client ID if allowed
-- `request_id`
-- `trace_id`
-- `url`
-- `component`
-- `visit_method`
-- `visit_status`
-- `error_type`
-- `asset_version`
+## API Call Summaries
 
-Never log cookies, OAuth codes, session IDs, Google OAuth state values, or prop
-payloads.
+Extend `serviceFetch` usage in `apps/inertia/src/app/api.ts`.
+
+Use existing hooks:
+
+- `onAttempt`
+- `onResponse`
+- `onError`
+
+Capture per request:
+
+- API call count
+- total API duration
+- max API duration
+- API status class
+- retry count
+- target service name
+- target path or route template, not full sensitive URLs
+- error class when failed
+
+The summary should be available to:
+
+- `renderInertiaPage()`
+- Worker span attributes
+- OAuth route spans
+
+Keep detailed backend telemetry in the Go API. The Worker should trace safe
+summaries, not duplicate backend internals.
 
 ## OAuth Routes
 
-Google OAuth start and callback routes are not Inertia responses, but they still
-need telemetry.
+Add safe telemetry around Google OAuth routes.
 
 Track:
 
 - `/auth/google/start` redirect creation
 - OAuth state cookie set result
 - `/auth/google/callback` status
-- Google token exchange duration and status class
-- Recurring API session creation duration and status class
+- callback error class
+- state validation result
+- Google token exchange duration
+- Google token exchange status class
+- Google userinfo duration
+- Google userinfo status class
+- Recurring API session creation duration
+- Recurring API session creation status class
 - session cookie set result
 - final redirect target path
 
-Do not trace or log:
+Never attach to spans:
 
 - authorization code
 - access token
 - refresh token
 - ID token
 - client secret
-- raw cookie headers
+- raw cookie header
+- session ID
+- Google OAuth state value
+- full profile payload
 
-The OAuth callback is a top-level browser navigation, so it has the same
-first-load trace limitation as initial Inertia HTML visits.
-
-## Adapter Impact
-
-Observability no longer needs an app-owned adapter as the first option.
-
-The frontend spike now identifies `@hono/inertia` as the preferred adapter
-candidate:
-
-- no official Solid client adapter
-- current preference is `inertia-adapter-solid@1.0.0-beta.3`
-- no official Inertia Cloudflare Workers server adapter in the Inertia docs
-- experimental Hono-maintained `@hono/inertia` middleware exists
-
-For observability, the adapter choice mostly changes where hooks are installed:
-
-- React/Vue/Svelte official adapters can use official Inertia v3 router events
-- the Solid community beta must expose equivalent lifecycle events or let the
-  app wrap the core router directly
-- `@hono/inertia` exposes the route-level `c.render(component, props)` boundary
-  where component name, prop keys, prop byte size, and backend API summaries can
-  be logged before returning the response
-- Hono middleware around `@hono/inertia` can record request mode, status,
-  response headers, asset mismatch, and redirect decisions
-
-`@hono/inertia` improves observability because it makes the server-side page
-boundary explicit. It is still experimental, and the spike should verify that
-telemetry code can see component name, visit URL, partial reload headers,
-response status, response mode, asset mismatch, and redirect behavior.
-For trace propagation, adapter internals matter less than the HTTP boundary:
-browser OTel injects into XHR, Hono reads headers, and `tracedFetch()` forwards
-to the backend.
+OAuth routes are not Inertia responses, but they must share the same request ID,
+trace context, and API summary shape.
 
 ## Shared Hono Surface
 
-The Inertia Worker and `apps/sheets` should share Hono observability concepts
-where Cloudflare Workers allows it.
+Share Hono observability concepts between `apps/inertia` and `apps/sheets`
+where runtime assumptions allow it.
 
 Shared code should include:
 
-- request ID creation and propagation
-- request-local context shape
-- structured log field names
-- backend `tracedFetch()` wrapper
-- W3C `traceparent` and `tracestate` forwarding
-- API-call timing and status summaries
+- request ID options and field names
+- request context shape
+- trace-context extraction/injection helpers
+- backend fetch summary shape
 - safe error serialization
 - route and target-service naming conventions
 
 Runtime-specific code should stay separate:
 
-- Cloudflare Worker tracing and OTLP export for the web Worker
-- OpenTelemetry JS SDK plus `@hono/otel` for the Bun + Hono sheets service
-- `@hono/prometheus` and `prom-client` metrics for sheets
-- Cloudflare Worker metrics and logs for web
+- Cloudflare Worker provider/exporter setup for `apps/inertia`
+- Bun/OpenTelemetry setup for `apps/sheets`
+- Cloudflare automatic tracing config
+- Worker-specific `CF-Ray` extraction
 
-This keeps the shared layer honest. Share app-owned Hono behavior and telemetry
-schema, not assumptions that Cloudflare Workers and Bun expose the same
-OpenTelemetry runtime.
+This keeps shared code honest: share schema and Hono behavior, not runtime
+internals.
 
-## Default Recommendation
+## Deferred Browser Work
 
-For an Inertia-on-Workers spike, choose this:
+Do not implement these in the current spike:
 
-- browser tracing: OpenTelemetry browser SDK with document-load, XHR, fetch, and
-  a small Inertia router event bridge
-- client adapter: `inertia-adapter-solid@1.0.0-beta.3`, with router event
-  verification or a core-router wrapper
-- server adapter: Hono plus experimental `@hono/inertia`, with app-owned logging
-  middleware around route handlers and responses
-- shared Hono observability: reuse request IDs, context helpers, structured log
-  fields, backend fetch helpers, and trace propagation with the Bun + Hono
-  sheets service
-- Worker tracing: Cloudflare automatic tracing and OTLP export
-- trace propagation: browser XHR instrumentation injects `traceparent`; Hono
-  reads request headers; `tracedFetch()` forwards `traceparent` and
-  `tracestate` from Worker to API
-- Worker logs: structured JSON logs with `request_id`, `cf_ray`, Inertia fields,
-  and API call summary
-- API tracing: OpenTelemetry Go SDK, Echo middleware, outbound/database
-  instrumentation, PostgreSQL spans
-- metrics: Web Vitals and Inertia navigation metrics in browser, Cloudflare
-  Worker metrics, Prometheus/OTel metrics in API and PostgreSQL
+- browser OpenTelemetry SDK setup
+- document-load instrumentation
+- XHR instrumentation
+- fetch instrumentation
+- user-interaction instrumentation
+- Web Vitals
+- client-side Inertia router spans
+- browser telemetry export endpoint
 
-This is the most practical setup because it uses stable browser and backend
-OpenTelemetry paths while accepting Cloudflare Workers tracing as currently beta
-and partly separate.
+Leave room for them:
+
+- accept inbound `traceparent`
+- keep propagation origin policy documented for later
+- keep Inertia router telemetry as a future module
+- keep span attribute names compatible with future browser spans
+
+The future client module would listen to Inertia router events and create
+logical `inertia.visit` spans. It is not Hono code and should not block the
+server-first spike.
+
+## Implementation Work
+
+1. Remove browser telemetry from current scope.
+
+   Do not add browser OpenTelemetry packages or client instrumentation yet.
+   Keep `apps/inertia/src/client.tsx` focused on app boot.
+
+2. Defer Inertia router telemetry.
+
+   This is not a Hono library. It is browser-side code over Inertia router
+   events. The server-first equivalent is Hono tracing around
+   `@hono/inertia` and `c.render()`.
+
+3. Add Worker request observability middleware.
+
+   Use `hono/request-id` for request IDs. Prefer `@hono/otel` for Hono tracing
+   if compatible with Cloudflare Workers. The trace must start at the Worker
+   request and end when the Worker response is complete.
+
+4. Add `renderInertiaPage()`.
+
+   Replace direct `c.render("Home", props)` calls with a helper that records
+   component, prop keys, prop bytes, request mode, response mode, status, and
+   API summary.
+
+5. Add API call summaries.
+
+   Keep trace forwarding in `serviceFetch`, but add hook-based timing and
+   status summaries for Worker spans.
+
+6. Add request ID generation and propagation.
+
+   Reuse `CF-Ray` as the generated request ID when possible. Fall back to
+   `crypto.randomUUID()` where `CF-Ray` is absent, including Miniflare if needed.
+
+7. Add OAuth telemetry.
+
+   Attach safe OAuth status and timing fields. Do not trace secrets, tokens, codes,
+   raw cookies, session IDs, or OAuth state values.
+
+8. Enable Wrangler observability.
+
+   Add `[observability.traces]` to `apps/inertia/wrangler.toml`.
+
+9. Factor shared Hono observability helpers.
+
+   Put shared schema/helpers in shared TS code only after `apps/inertia` proves
+   the shape. Keep Worker runtime setup local to `apps/inertia`.
+
+10. Add acceptance tests.
+
+    Cover request ID behavior, trace propagation, API summaries,
+    Inertia response modes, asset mismatch, partial reload fields, and OAuth
+    safe telemetry.
+
+## Success Criteria
+
+Backend prerequisite:
+
+- `spikes/observability/backend.md` has selected either Jaeger v2 with Badger or
+  OpenObserve single-node local mode for the current proof.
+- `compose/docker-compose.yml` runs the selected backend with persistent local
+  storage and an OTLP endpoint reachable by local app services.
+- A trace can be fetched from the selected backend by exact `trace_id` through
+  an API, not UI scraping.
+
+Response correlation:
+
+- Every Worker response includes `X-Request-Id`, `x-trace-id`, and `x-span-id`.
+- Optional debug exposure of `traceparent` is documented before enabling it.
+- When `CF-Ray` is present, the generated request ID uses it. When `CF-Ray` is
+  absent, including in Miniflare, request ID generation falls back to
+  `crypto.randomUUID()`.
+- Recurring API calls receive `traceparent`, `tracestate` when present, and
+  `X-Request-Id`.
+
+Worker trace:
+
+- A normal first HTML response creates a Worker-owned root trace when no inbound
+  `traceparent` exists.
+- A later request with inbound `traceparent` extracts that context and creates a
+  Worker server span under it.
+- The Worker span includes safe core attributes: `service.name`,
+  `deployment.environment`, `request_id`, `app.route.path`,
+  `http.request.method`, `http.response.status_code`, and `error.type` when
+  failed.
+- The Worker span includes safe Inertia attributes for component name, prop
+  keys, prop byte size, request mode, response mode, status, asset version, and
+  partial reload fields.
+- Prop values are never attached to spans.
+
+Inertia protocol coverage:
+
+- First-page document response is traced with `html` response mode.
+- Inertia `X-Inertia: true` request is traced with `page-json` response mode.
+- `Accept: application/json` props request is traced with `props-json` response
+  mode.
+- Asset version mismatch is traced with status `409`, `asset-mismatch` response
+  mode, and `X-Inertia-Location`.
+- Partial reload request is traced with requested prop keys and component name.
+
+Backend span linkage:
+
+- Recurring API spans appear under the Worker-started trace in the selected
+  backend.
+- PostgreSQL spans appear under the API span when backend database
+  instrumentation is enabled.
+- The same trace can be summarized by service, operation, duration, status, and
+  parent-child relationship from backend API results.
+
+OAuth tracing:
+
+- `/auth/google/start` and `/auth/google/callback` create Worker spans or span
+  events with safe status and timing attributes.
+- OAuth spans never include authorization codes, access tokens, refresh tokens,
+  ID tokens, client secrets, raw cookies, session IDs, OAuth state values, or
+  full profile payloads.
+
+Automated checks:
+
+- Miniflare tests cover request ID fallback when `CF-Ray` is absent.
+- Miniflare tests cover response correlation headers.
+- Miniflare tests cover trace propagation to Recurring API calls.
+- Miniflare tests cover Inertia response modes, asset mismatch, and partial
+  reload trace attributes.
+- Tests or a documented local smoke command prove exact trace lookup in the
+  selected backend after a browser click.
+
+Explicit non-goals:
+
+- Browser OpenTelemetry is not required for this spike.
+- Inertia router event spans are not required for this spike.
+- Structured application logs are not required for this spike.
+- Cloudflare automatic trace correlation is useful evidence, but the success
+  path is the app-owned Worker-to-API-to-PostgreSQL trace in the selected
+  backend.
 
 ## Avoid
 
+- adding browser telemetry in this phase
 - assuming Inertia has built-in tracing
-- assuming Inertia router events automatically create distributed traces
-- assuming `@hono/inertia` logs all useful protocol decisions by itself
-- assuming Cloudflare Worker exported traces currently join Go API traces
-- logging Inertia prop payloads
-- logging OAuth secrets, OAuth codes, tokens, raw cookies, or session IDs
-- sending browser telemetry directly to a third-party origin without reviewing
-  CSP, CORS, sampling, and privacy rules
-- allowing arbitrary trace propagation origins in browser instrumentation
-- treating Worker metrics export over OTLP as available today
-
-## Recommended Spike
-
-Build the smallest useful observability spike alongside the Inertia runtime
-spike:
-
-- add browser OpenTelemetry setup before the Inertia app boots
-- add XHR and fetch instrumentation with propagation limited to the web origin
-- add an `inertiaTelemetry` module that listens to router events
-- create logical `inertia.visit` spans and navigation metrics
-- add Worker request logging around `@hono/inertia`
-- factor shared Hono request context, structured log fields, and backend
-  `tracedFetch()` so `apps/web` and `apps/sheets` can reuse them where their
-  runtimes allow
-- log every `c.render(component, props)` route boundary before returning the
-  response
-- log component, request mode, prop keys, prop byte size, asset version, and API
-  call summary
-- read `traceparent` and `tracestate` from the incoming Hono request
-- forward `traceparent` and `tracestate` from the incoming Worker request to
-  Recurring API calls through `tracedFetch()`
-- enable Cloudflare Worker traces and logs in Wrangler
-- verify the Go Echo API extracts `traceparent`
-- verify PostgreSQL spans attach under the API request span
-
-Acceptance checks:
-
-- first HTML response logs component, prop keys, prop byte size, API duration,
-  request ID, and Cloudflare Ray ID
-- later Inertia navigation creates a browser XHR span and an `inertia.visit`
-  span
-- `@hono/inertia` response modes are observable as
-  `html|page-json|props-json|asset-mismatch`
-- later Inertia navigation sends `traceparent` to the Worker through XHR
-  instrumentation
-- Worker forwards `traceparent` and `tracestate` to the Recurring API
-- Go API and PostgreSQL spans appear under the browser Inertia request trace
-- Worker automatic trace appears in Cloudflare or exported OTLP with handler and
-  outbound fetch spans
-- Worker trace can be correlated to browser/API trace by request ID, URL,
-  timestamp, and Cloudflare Ray ID
-- asset version mismatch logs `409` and `X-Inertia-Location`
-- fragment-preserving redirect logs `X-Inertia-Redirect` when present
-- partial reload logs requested prop keys and evaluated prop keys
-- deferred props, merge props, shared props, scroll props, and once props are
-  visible as key names, not values
-- OAuth callback logs safe status and timing fields without secrets
+- assuming `@hono/inertia` exposes protocol decisions by itself
+- hand-coding request IDs instead of using `hono/request-id`
+- hand-coding Hono tracing before trying `@hono/otel`
+- relying only on Cloudflare automatic tracing for app-owned distributed traces
+- attaching Inertia prop payloads to spans
+- attaching OAuth secrets, OAuth codes, tokens, raw cookies, session IDs, or
+  state values
+- sending browser telemetry to any external origin before a separate privacy,
+  CSP, and CORS review
 
 ## Evidence Level
 
 Known-supported:
 
-- Inertia v3 protocol uses first HTML responses containing JSON page objects and
-  follow-up XHR JSON responses with `X-Inertia: true`.
-- Inertia v3 page objects include component, props, URL, version, and optional
-  protocol fields.
-- Inertia v3 documents request and response headers for partial reloads, asset
-  versions, redirects, prefetching, and once props.
-- Inertia v3 documents follow-up visits as XHR requests with `X-Inertia: true`
-  and `X-Requested-With: XMLHttpRequest`.
-- Inertia v3 exposes browser router events that can be used for telemetry hooks,
-  including `httpException` and `networkError` error-path events.
-- `inertia-adapter-solid@1.0.0-beta.3` exists and is the intended Solid adapter
-  starting point for the app spike.
-- `@hono/inertia` 0.2.0 exists as experimental Hono middleware and provides
-  `c.render(component, props)`, `rootView`, `serializePage`, asset version
-  mismatch handling, and a Vite page-name generation plugin.
-- OpenTelemetry browser SDK supports document-load, fetch, XHR, and
-  user-interaction instrumentation.
-- OpenTelemetry context propagation uses W3C Trace Context by default.
-- Cloudflare Workers automatic tracing covers handler, outbound fetch, and
-  binding operations.
-- Cloudflare Workers can export traces and logs to OTLP destinations.
+- `@hono/inertia` provides Hono middleware and `c.render(component, props)`.
+- The current app already uses `@hono/inertia`.
+- The current app already uses `inertia-adapter-solid@1.0.0-beta.3`.
+- The Solid adapter exports the Inertia `router`, so client router telemetry is
+  possible later.
+- Hono has built-in `requestId` middleware via `hono/request-id`.
+- `@hono/otel` exists as Hono-maintained OpenTelemetry middleware.
+- `@hono/otel` requires a runtime-compatible OpenTelemetry SDK/provider on
+  Cloudflare Workers.
+- Cloudflare Workers automatic tracing can capture handler, outbound fetch, and
+  binding spans.
+- Cloudflare Workers can export traces to OpenTelemetry-compatible
+  destinations.
+- `serviceFetch` already supports trace header injection and event hooks.
 
 Known-limited:
 
-- Cloudflare Workers trace context is not currently propagated to other services
-  when exporting traces.
-- Cloudflare Workers custom spans and attributes are still documented as future
-  work.
-- Cloudflare Workers OTLP export does not currently support metrics.
-- Browser top-level navigation does not naturally carry a browser-generated
-  trace context to the Worker.
-- Inertia router events are not the primary mechanism for normal response-header
-  access or trace propagation.
+- Cloudflare automatic tracing does not replace app-owned Hono tracing.
+- Cloudflare Workers custom spans and attributes remain limited in automatic
+  tracing.
+- Browser top-level navigation does not carry app-generated trace context before
+  JavaScript runs.
+- `CF-Ray` availability must be verified in Miniflare.
+- Worker OpenTelemetry libraries must be verified against the app's current
+  Vite, Wrangler, and Cloudflare compatibility settings.
 
 Needs project spike:
 
-- whether `inertia-adapter-solid@1.0.0-beta.3` exposes enough router events
-- whether `@hono/inertia` exposes enough protocol state directly, or whether
-  app-owned Hono middleware must add response-mode logging around it
-- how much Hono observability code can be shared with the Bun + Hono sheets
-  service without mixing Cloudflare Worker and Bun runtime assumptions
-- whether browser XHR instrumentation catches the exact Inertia v3 transport
-  used by the Solid adapter
-- whether browser fetch instrumentation is needed for any non-Inertia app
-  traffic
-- whether partial reloads, validation errors, redirects, and shared props are
-  visible enough through `@hono/inertia` plus app code
-- whether direct browser OTLP export or a first-party telemetry endpoint is the
-  better privacy and CSP fit
-- whether Cloudflare's current Worker traces can be correlated cleanly enough
-  with backend traces for incidents
-- whether first HTML prop-loading should generate synthetic trace context or
-  rely on request ID correlation
+- whether `@hono/otel` plus a Workers-compatible provider works cleanly here
+- whether `CF-Ray` is present in Miniflare tests
+- whether using `CF-Ray` as `X-Request-Id` has any downstream constraints
+- exact shape of shared Hono observability helpers for `apps/inertia` and
+  `apps/sheets`
+- how API and PostgreSQL spans appear under the Worker-started trace in the
+  chosen backend
+- whether Cloudflare automatic traces correlate cleanly enough with app-owned
+  traces through request ID and Ray ID
 
 ## References
 
-- Inertia v3 introduction: https://inertiajs.com/docs/v3/getting-started
-- Inertia protocol: https://inertiajs.com/docs/v3/core-concepts/the-protocol
-- Inertia events: https://inertiajs.com/docs/v3/advanced/events
-- Inertia progress indicators: https://inertiajs.com/progress-indicators
-- Inertia partial reloads: https://inertiajs.com/partial-reloads
-- Inertia asset versioning:
-  https://inertiajs.com/docs/v3/advanced/asset-versioning
+- Hono request ID middleware:
+  https://www.honojs.com/docs/middleware/builtin/request-id
+- Hono middleware guide:
+  https://hono.dev/docs/guides/middleware
+- Hono third-party middleware repository:
+  https://github.com/honojs/middleware
+- `@hono/otel`:
+  https://www.npmjs.com/package/@hono/otel
 - `@hono/inertia`:
   https://github.com/honojs/middleware/tree/main/packages/inertia
-- `@hono/inertia` npm: https://www.npmjs.com/package/@hono/inertia
-- `inertia-adapter-solid`: https://github.com/iksaku/inertia-adapter-solid
-- `inertia-adapter-solid` npm:
-  https://www.npmjs.com/package/inertia-adapter-solid
-- OpenTelemetry browser docs:
-  https://opentelemetry.io/docs/languages/js/getting-started/browser/
-- OpenTelemetry context propagation:
-  https://opentelemetry.io/docs/concepts/context-propagation/
-- OpenTelemetry JS propagation:
-  https://opentelemetry.io/docs/languages/js/propagation/
-- OpenTelemetry fetch instrumentation:
-  https://www.npmjs.com/package/@opentelemetry/instrumentation-fetch
-- OpenTelemetry XHR instrumentation:
-  https://open-telemetry.github.io/opentelemetry-js/modules/_opentelemetry_instrumentation-xml-http-request.html
-- Cloudflare Workers observability:
-  https://developers.cloudflare.com/workers/observability/
+- `@hono/inertia` npm:
+  https://www.npmjs.com/package/@hono/inertia
+- `@microlabs/otel-cf-workers`:
+  https://www.npmjs.com/package/@microlabs/otel-cf-workers
 - Cloudflare Workers traces:
   https://developers.cloudflare.com/workers/observability/traces/
-- Cloudflare Workers trace spans and attributes:
-  https://developers.cloudflare.com/workers/observability/traces/spans-and-attributes/
 - Cloudflare Workers trace known limitations:
   https://developers.cloudflare.com/workers/observability/traces/known-limitations/
 - Cloudflare Workers OTLP export:
   https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/
+- Inertia protocol:
+  https://inertiajs.com/docs/v3/core-concepts/the-protocol
+- Inertia events:
+  https://inertiajs.com/docs/v3/advanced/events
+- `inertia-adapter-solid`:
+  https://github.com/iksaku/inertia-adapter-solid
