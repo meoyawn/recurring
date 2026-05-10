@@ -8,7 +8,7 @@ import { Hono } from "hono"
 import { healthCheck } from "./app/api.ts"
 import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
 import { readSessionID } from "./app/session-cookie.ts"
-import { WebPath } from "./paths.ts"
+import { Paths } from "./paths.ts"
 import { rootView } from "./root-view.tsx"
 
 const inertiaVersion = "recurring-inertia-1"
@@ -28,20 +28,20 @@ const createApp = () => {
   )
   app.use(inertia({ version: inertiaVersion, rootView }))
 
-  app.get(WebPath.healthz, c => c.body(null, 200))
+  app.get(Paths.healthz, c => c.body(null, 200))
 
-  app.get(WebPath.googleAuthStart, c =>
-    startGoogleAuth(tracedRequest(c), c.env, WebPath.googleAuthCallback),
+  app.get(Paths.googleAuthStart, c =>
+    startGoogleAuth(tracedRequest(c), c.env, Paths.googleAuthCallback),
   )
-  app.get(WebPath.googleAuthCallback, c =>
-    finishGoogleAuth(tracedRequest(c), c.env, WebPath.googleAuthCallback),
+  app.get(Paths.googleAuthCallback, c =>
+    finishGoogleAuth(tracedRequest(c), c.env, Paths.googleAuthCallback),
   )
 
-  app.get(WebPath.login, c => c.render("Login"))
+  app.get(Paths.login, c => c.render("Login"))
 
-  app.get(WebPath.home, async c => {
+  app.get(Paths.home, async c => {
     if (readSessionID(c.req.raw) === undefined) {
-      return c.redirect(new URL(WebPath.login, c.req.url).toString(), 302)
+      return c.redirect(new URL(Paths.login, c.req.url).toString(), 302)
     }
 
     const health = await healthCheck(tracedRequest(c), c.env)

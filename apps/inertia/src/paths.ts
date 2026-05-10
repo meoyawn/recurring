@@ -5,7 +5,7 @@ export type WebPathLiteral =
   | "/healthz"
   | "/login"
 
-export const WebPath = {
+export const Paths = {
   googleAuthCallback: "/auth/google/callback",
   googleAuthStart: "/auth/google/start",
   healthz: "/healthz",

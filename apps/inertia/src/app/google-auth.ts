@@ -1,5 +1,5 @@
 import { isRecord, type EmailAddrStr } from "@recurring/shared-ts"
-import { WebPath } from "../paths.ts"
+import { Paths } from "../paths.ts"
 import { upsertSignup } from "./api.ts"
 import { readCookie, sessionCookieName } from "./session-cookie.ts"
 
@@ -77,7 +77,7 @@ const errorRedirect = (
   code: string,
   cookies: string[] = [],
 ): Response => {
-  const url = new URL(WebPath.home, publicOrigin(request))
+  const url = new URL(Paths.home, publicOrigin(request))
   url.searchParams.set("auth", code)
   return redirect(url.toString(), 302, cookies)
 }
@@ -238,12 +238,12 @@ export const finishGoogleAuth = async (
     const signup = await upsertSignup(request, profile, bindings)
 
     return redirect(
-      new URL(WebPath.home, publicOrigin(request)).toString(),
+      new URL(Paths.home, publicOrigin(request)).toString(),
       302,
       [
         clearState,
         cookie(sessionCookieName, signup.session_id, {
-          path: WebPath.home,
+          path: Paths.home,
           maxAge: 60 * 60 * 24 * 30,
           secure,
         }),

@@ -3,7 +3,7 @@ import * as cfWorkers from "cloudflare:workers"
 import { describe, expect, test } from "vitest"
 
 import { apiOrigin } from "../app/api.ts"
-import { WebPath, type WebPathLiteral } from "../paths.ts"
+import { Paths, type WebPathLiteral } from "../paths.ts"
 import { waitForJaegerTrace } from "./jaeger.ts"
 
 interface Worker {
@@ -138,7 +138,7 @@ describe("inertia worker", () => {
   })
 
   test("serves the Hono health check with a Jaeger lookup trace ID", async () => {
-    const res = await workerFetch(new Request(route(WebPath.healthz)))
+    const res = await workerFetch(new Request(route(Paths.healthz)))
 
     expect(res.status).toEqual(200)
     expect(requireHeader(res, "x-trace-id")).toMatch(traceIDPattern)
@@ -148,17 +148,17 @@ describe("inertia worker", () => {
 
   test("redirects first visit without a session cookie to login", async () => {
     const res = await workerFetch(
-      new Request(route(WebPath.home), { redirect: "manual" }),
+      new Request(route(Paths.home), { redirect: "manual" }),
     )
 
     expect(res.status).toEqual(302)
     expect(requireHeader(res, "location")).toEqual(
-      route(WebPath.login).toString(),
+      route(Paths.login).toString(),
     )
   })
 
   test("serves login as HTML with Login page payload", async () => {
-    const res = await workerFetch(new Request(route(WebPath.login)))
+    const res = await workerFetch(new Request(route(Paths.login)))
 
     expect(res.status).toEqual(200)
     expect(requireHeader(res, "content-type")).toContain("text/html")
@@ -169,7 +169,7 @@ describe("inertia worker", () => {
 
   test("serves first Inertia visit as HTML with initial page props", async () => {
     const res = await workerFetch(
-      new Request(route(WebPath.home), {
+      new Request(route(Paths.home), {
         headers: { Cookie: "sessionID=sess_test" },
       }),
     )
@@ -184,7 +184,7 @@ describe("inertia worker", () => {
 
   test("serves Inertia navigation as page JSON", async () => {
     const res = await workerFetch(
-      new Request(route(WebPath.home), {
+      new Request(route(Paths.home), {
         headers: {
           Accept: "text/html, application/xhtml+xml",
           Cookie: "sessionID=sess_test",
@@ -201,7 +201,7 @@ describe("inertia worker", () => {
     expect(page).toEqual<InertiaPage>({
       component: "Home",
       props: { health: { status: "ok" } },
-      url: WebPath.home,
+      url: Paths.home,
       version: "recurring-inertia-1",
     })
   })
@@ -216,7 +216,7 @@ describe("inertia worker", () => {
 
     try {
       const res = await workerFetch(
-        new Request(route(WebPath.home), {
+        new Request(route(Paths.home), {
           headers: {
             Cookie: "sessionID=sess_test",
             traceparent:
@@ -230,7 +230,9 @@ describe("inertia worker", () => {
       const responseTraceID = requireHeader(res, "x-trace-id")
       const responseSpanID = requireHeader(res, "x-span-id")
       const requests = await capturedAPIRequests()
-      const apiTraceparent = parseTraceparent(requests[0]?.headers["traceparent"])
+      const apiTraceparent = parseTraceparent(
+        requests[0]?.headers["traceparent"],
+      )
       expect(requests.length).toEqual(1)
       expect({
         requestID: requests[0]?.headers["x-request-id"],
@@ -263,14 +265,16 @@ describe("inertia worker", () => {
 
     try {
       const res = await workerFetch(
-        new Request(route(WebPath.home), {
+        new Request(route(Paths.home), {
           headers: { Cookie: "sessionID=sess_test" },
         }),
       )
 
       expect(res.status).toEqual(200)
       const requests = await capturedAPIRequests()
-      const apiTraceparent = parseTraceparent(requests[0]?.headers["traceparent"])
+      const apiTraceparent = parseTraceparent(
+        requests[0]?.headers["traceparent"],
+      )
       expect(requests.length).toEqual(1)
       expect({
         requestID: requests[0]?.headers["x-request-id"],
@@ -293,7 +297,7 @@ describe("inertia worker", () => {
 
   test("returns Inertia asset mismatch reload response", async () => {
     const res = await workerFetch(
-      new Request(route(WebPath.home), {
+      new Request(route(Paths.home), {
         headers: {
           "X-Inertia": "true",
           "X-Inertia-Version": "stale",
@@ -303,13 +307,13 @@ describe("inertia worker", () => {
 
     expect(res.status).toEqual(409)
     expect(requireHeader(res, "x-inertia-location")).toEqual(
-      route(WebPath.home).toString(),
+      route(Paths.home).toString(),
     )
   })
 
   test("finishes Google OAuth against the mock OAuth server", async () => {
     const startRes = await workerFetch(
-      new Request(route(WebPath.googleAuthStart), { redirect: "manual" }),
+      new Request(route(Paths.googleAuthStart), { redirect: "manual" }),
     )
     expect(startRes.status).toEqual(302)
 
@@ -322,7 +326,7 @@ describe("inertia worker", () => {
       "test-google-client",
     )
     expect(authorizationURL.searchParams.get("redirect_uri")).toEqual(
-      route(WebPath.googleAuthCallback).toString(),
+      route(Paths.googleAuthCallback).toString(),
     )
     expect(authorizationURL.searchParams.get("response_type")).toEqual("code")
     expect(authorizationURL.searchParams.get("scope")).toEqual(
@@ -336,8 +340,8 @@ describe("inertia worker", () => {
     expect(authorizationRes.status).toEqual(302)
 
     const callbackURL = new URL(requireHeader(authorizationRes, "location"))
-    expect(callbackURL.origin).toEqual(route(WebPath.home).origin)
-    expect(callbackURL.pathname).toEqual(WebPath.googleAuthCallback)
+    expect(callbackURL.origin).toEqual(route(Paths.home).origin)
+    expect(callbackURL.pathname).toEqual(Paths.googleAuthCallback)
     expect(callbackURL.searchParams.get("state")).toEqual(state)
 
     const finishRes = await workerFetch(
@@ -348,7 +352,7 @@ describe("inertia worker", () => {
     )
     expect(finishRes.status).toEqual(302)
     expect(requireHeader(finishRes, "location")).toEqual(
-      route(WebPath.home).toString(),
+      route(Paths.home).toString(),
     )
     expect(
       sessionIDPattern.test(
