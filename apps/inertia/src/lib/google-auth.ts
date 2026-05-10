@@ -1,7 +1,6 @@
 import { OAuth2Client } from "@badgateway/oauth2-client"
 import type { EmailAddrStr } from "@recurring/shared-ts"
 import { upsertSignup } from "./api.ts"
-import { requiredRuntimeEnv, runtimeEnv } from "./runtime-env.ts"
 
 const googleStateCookieName = "googleOAuthState"
 const sessionCookieName = "sessionID"
@@ -26,12 +25,6 @@ type GoogleProfile = {
   email: EmailAddrStr
   name?: string
   picture?: string
-}
-
-type GoogleAuthEndpoints = {
-  authorizationEndpoint: string
-  tokenEndpoint: string
-  userinfoEndpoint: string
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -112,30 +105,26 @@ const errorRedirect = (
   return redirect(url.toString(), 303, cookies)
 }
 
-export const googleAuthEndpoints = (bindings: Env): GoogleAuthEndpoints => ({
-  authorizationEndpoint: requiredRuntimeEnv(
-    "GOOGLE_AUTHORIZATION_ENDPOINT",
-    bindings,
-  ),
-  tokenEndpoint: requiredRuntimeEnv("GOOGLE_TOKEN_ENDPOINT", bindings),
-  userinfoEndpoint: requiredRuntimeEnv("GOOGLE_USERINFO_ENDPOINT", bindings),
-})
-
 const authConfig = (
   request: Request,
   bindings: Env,
   callbackPath: string,
 ): GoogleAuthConfig => {
-  const endpoints = googleAuthEndpoints(bindings)
+  if (
+    bindings.GOOGLE_CLIENT_ID === undefined ||
+    bindings.GOOGLE_CLIENT_SECRET === undefined
+  ) {
+    throw new Error("Google OAuth client credentials are required")
+  }
 
   return {
-    authorizationEndpoint: endpoints.authorizationEndpoint,
-    tokenEndpoint: endpoints.tokenEndpoint,
-    userinfoEndpoint: endpoints.userinfoEndpoint,
-    clientId: requiredRuntimeEnv("GOOGLE_CLIENT_ID", bindings),
-    clientSecret: requiredRuntimeEnv("GOOGLE_CLIENT_SECRET", bindings),
+    authorizationEndpoint: bindings.GOOGLE_AUTHORIZATION_ENDPOINT,
+    tokenEndpoint: bindings.GOOGLE_TOKEN_ENDPOINT,
+    userinfoEndpoint: bindings.GOOGLE_USERINFO_ENDPOINT,
+    clientId: bindings.GOOGLE_CLIENT_ID,
+    clientSecret: bindings.GOOGLE_CLIENT_SECRET,
     redirectURI:
-      runtimeEnv("GOOGLE_REDIRECT_URI", bindings) ??
+      bindings.GOOGLE_REDIRECT_URI ||
       new URL(callbackPath, publicOrigin(request)).toString(),
   }
 }

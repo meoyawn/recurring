@@ -25,6 +25,7 @@ tasks:
       WORKER_TYPES: src/worker-configuration.d.ts
     cmd: bun wrangler types {{.WORKER_TYPES}} --include-runtime=false
     sources:
+      - Taskfile.yaml
       - wrangler.toml
       - ../../bun.lock
     generates:

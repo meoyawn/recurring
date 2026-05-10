@@ -2,19 +2,18 @@ import type { EmailAddrStr } from "@recurring/shared-ts"
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { Configuration } from "../../gen/runtime.ts"
-import { requiredRuntimeEnv } from "./runtime-env.ts"
 
 type HealthPayload = {
   status: string
 }
 
-export const apiOrigin = (bindings?: Env): string =>
-  requiredRuntimeEnv("RECURRING_API_ORIGIN", bindings).replace(/\/$/, "")
+export const apiOrigin = (bindings: Env): string =>
+  bindings.RECURRING_API_ORIGIN.replace(/\/$/, "")
 
-const api = (bindings?: Env): DefaultApi =>
+const api = (bindings: Env): DefaultApi =>
   new DefaultApi(new Configuration({ basePath: apiOrigin(bindings) }))
 
-export const healthCheck = async (bindings?: Env): Promise<HealthPayload> => {
+export const healthCheck = async (bindings: Env): Promise<HealthPayload> => {
   await api(bindings).healthCheck()
   return { status: "ok" }
 }
@@ -26,7 +25,7 @@ export const upsertSignup = async (
     name?: string
     picture?: string
   },
-  bindings?: Env,
+  bindings: Env,
 ): Promise<SignupSession> => {
   const signup: Signup = {
     google_sub: profile.sub,

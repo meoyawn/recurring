@@ -2,7 +2,6 @@ import * as cfWorkers from "cloudflare:workers"
 import { describe, expect, test } from "vitest"
 
 import { apiOrigin } from "../lib/api.ts"
-import { googleAuthEndpoints } from "../lib/google-auth.ts"
 
 interface Worker {
   fetch: (request: Request) => Promise<Response> | Response
@@ -80,7 +79,11 @@ describe("inertia worker", () => {
   })
 
   test("reads the Wrangler Google OAuth endpoint bindings from Miniflare", () => {
-    expect(googleAuthEndpoints(cfWorkers.env)).toEqual({
+    expect({
+      authorizationEndpoint: cfWorkers.env.GOOGLE_AUTHORIZATION_ENDPOINT,
+      tokenEndpoint: cfWorkers.env.GOOGLE_TOKEN_ENDPOINT,
+      userinfoEndpoint: cfWorkers.env.GOOGLE_USERINFO_ENDPOINT,
+    }).toEqual({
       authorizationEndpoint: "http://localhost:8081/authorize",
       tokenEndpoint: "http://localhost:8081/token",
       userinfoEndpoint: "http://localhost:8081/userinfo",
