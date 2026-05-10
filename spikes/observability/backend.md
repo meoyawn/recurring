@@ -1,88 +1,99 @@
 # Trace Backend Spike
 
-As of April 29, 2026, the trace backend decision should stay between two
-single-service candidates:
+This spike chooses the local trace backend for the current repo shape:
 
-- Jaeger v2 with Badger storage
-- OpenObserve single-node local mode
+- `compose/docker-compose.yml` currently starts only Postgres.
+- `apps/api` is the Echo backend that should emit and verify traces first.
+- v1 should add exactly one observability backend service beside Postgres.
 
-Do not write off OpenObserve. Its SQL and PromQL query surfaces are materially
-useful for LLM agents. Jaeger is still attractive when the agent can get exact
-trace IDs from browser responses and only needs trace lookup plus span summary.
+## Decision
+
+Choose **Jaeger v2 with Badger storage** for v1.
+
+Decision inputs:
+
+- The v1 workflow needs trace-first debugging, not a full observability stack.
+- Exact trace lookup by `x-trace-id` is the primary requirement.
+- Jaeger v2 can run as one service, receive OTLP directly, persist traces with
+  Badger, expose query APIs, and serve the Jaeger UI.
+- OpenObserve's AGPL-3.0 license is acceptable for local tooling, but its broader
+  logs, metrics, dashboard, alerting, and SQL/search surface is not needed for
+  the first proof.
+- Keeping v1 trace-only reduces local Compose complexity before the API has
+  proven request tracing, headers, and exact lookup.
+
+Do not add OpenObserve for v1. Revisit it only if Jaeger's tag, service,
+operation, duration, and time-window search is not enough for API debugging after
+trace emission is working.
 
 ## Goal
 
-Choose the local and production trace backend for this workflow:
+Use this workflow:
 
 ```text
-Playwright launches browser
-  -> clicks through the web app
-  -> watches document and fetch responses
-  -> reads response correlation headers
-  -> queries trace backend by trace_id
-  -> summarizes frontend, backend, and database spans
-  -> optionally correlates compose or journald logs by trace_id/span_id/request_id
+Echo API handles request
+  -> response includes correlation headers
+  -> Jaeger receives OTLP trace data directly from apps/api
+  -> exact trace is fetched by x-trace-id through Jaeger API
+  -> API spans are summarized by route, operation, duration, status, and errors
 ```
 
-The backend must work in two places:
+The first verification target is `GET /healthz` in `apps/api`. The current route
+is registered in `apps/api/internal/httpapi/mux.go`, and it is already covered by
+API tests in `apps/api/internal/apitest/api_test.go`.
 
-- local Docker Compose stack
-- production Ubuntu 24 VPS under systemd, colocated with API, sheets, Caddy, and
-  Postgres
+## Constraints
 
-The VPS constraint matters. The backend should be efficient in CPU, RAM, and
-disk, and should not require a heavyweight cluster.
+Keep v1 to Postgres plus one Jaeger service.
 
-## Key Design Change
+Do not add:
 
-The original discovery path was time-window based:
+- a separate OpenTelemetry Collector
+- OpenObserve
+- Grafana
+- ClickHouse
+- Elasticsearch
+- Loki
+- NATS
+- S3
+- a second Compose file
 
-```text
-click timestamp -> query traces around that timestamp -> infer which trace belongs to the click
-```
+Jaeger memory storage is acceptable only for throwaway checks. The proof result
+must use Badger because restart persistence is a success criterion.
 
-The better path is exact trace lookup:
+## Required API Headers
 
-```text
-click -> response headers -> trace_id -> backend trace lookup
-```
-
-Recommended response headers:
+`apps/api` should return these headers on traced responses:
 
 - `x-trace-id`
 - `x-span-id`
 - `x-request-id`
 
-Optional debug header:
+`traceparent` should be accepted on incoming requests and propagated into the
+server span. It can also be returned as an optional debug header, but the primary
+lookup handle should be `x-trace-id`.
 
-- `traceparent`
+Exact trace lookup changes the backend requirement. SQL is useful for fallback
+analysis, but the v1 proof should succeed or fail first on direct trace retrieval
+by ID.
 
-Use `traceparent` for request propagation. Use `x-trace-id` as the agent and
-human lookup handle.
+## Required Span Attributes
 
-This weakens the need for SQL as the primary lookup mechanism. It does not
-remove SQL's value for fallback queries, missing-span analysis, latency rollups,
-and ad hoc agent questions.
+Every first-party API span should carry enough metadata for Jaeger queries and
+debug summaries.
 
-## Trace Correlation Attributes
+Core API attributes:
 
-Every first-party span should carry enough metadata for backend queries and
-agent summaries.
-
-Core attributes:
-
-- `service.name`
+- `service.name=recurring-api`
 - `deployment.environment`
 - `request_id`
-- `session.id`
-- `app.action.id`
-- `app.action.name`
-- `app.route.path`
 - `http.request.method`
+- `http.route`
 - `http.response.status_code`
 - `error.type` when failed
 
-Database spans should include safe database metadata:
+Database spans should include safe database metadata when API routes touch
+Postgres:
 
 - database system
 - operation
@@ -90,25 +101,49 @@ Database spans should include safe database metadata:
 - duration
 - error status
 
-Do not put secrets, OAuth codes, cookies, tokens, private IPs, or full unsafe
-SQL text in span attributes.
+Do not put secrets, OAuth codes, cookies, tokens, private IPs, or full unsafe SQL
+text in span attributes.
 
-`session.id` is currently an OpenTelemetry semantic convention in development,
-but it is useful for browser session grouping and should be used intentionally.
+## Current Repo Observations
 
-## Candidate: Jaeger v2 with Badger
+`compose/docker-compose.yml` currently defines:
 
-Jaeger v2 is a distributed tracing backend. It can run as one binary or one
-container, receive OTLP traces, store traces, expose query APIs, and serve the
-Jaeger UI.
+- one `postgres` service
+- one `recurring_pgdata` volume
+- no API service
+- no trace backend service
+- no observability network or config mounts
+
+`apps/api` currently has:
+
+- Echo setup in `apps/api/internal/httpapi/mux.go`
+- `GET /healthz` returning `204 No Content`
+- request logging middleware
+- OpenAPI request validation middleware
+- service-client trace context propagation code under
+  `apps/api/internal/serviceclient`
+- OpenTelemetry dependencies already present in `apps/api/go.mod`
+
+Unresolved before implementation:
+
+- where API tracer-provider setup should live
+- how local API execution will point to Jaeger
+- whether `/healthz` should stay `204` or move to `200` for existing tests and
+  external probes
+
+## Chosen Backend: Jaeger v2 With Badger
+
+Jaeger v2 is the smallest trace-first option. It can run as one container,
+receive OTLP traces, store traces on local disk through Badger, expose query
+APIs, and serve the Jaeger UI.
 
 Relevant properties:
 
-- single service for local and VPS deployment
+- one Compose service
 - OTLP HTTP ingest on `/v1/traces`
-- OTLP gRPC ingest available
-- stable query gRPC API on `:16685`
-- stable query HTTP JSON API under `/api/v3/*`
+- OTLP gRPC ingest available if needed
+- query gRPC API on `:16685`
+- query HTTP JSON API under `/api/v3/*`
 - built-in UI on `:16686`
 - trace-only backend
 - no SQL for traces
@@ -117,270 +152,146 @@ Relevant properties:
 - Badger storage is embedded local filesystem storage
 - memory storage exists but is not persistent
 
-Badger is an embedded key-value store used inside the Jaeger binary. It is
-similar in role to RocksDB: local disk, no separate server, persistent across
-restarts, and single-node only.
-
-Jaeger works best for this agent flow:
+Jaeger fits the exact lookup path:
 
 ```text
-trace_id known -> GET trace by ID -> summarize returned spans locally
+x-trace-id known -> fetch trace by ID -> summarize spans locally
 ```
 
-Jaeger is weaker for this agent flow:
+Jaeger is weaker for exploratory questions:
 
 ```text
-unknown trace -> arbitrary SQL-like exploration over spans
+unknown trace -> ask arbitrary SQL-like questions over recent spans
 ```
 
-Jaeger can search traces by service, operation, tags, duration, and time range.
-That is enough for fallback lookup when `x-trace-id` is missing, but it is not a
-general analytical query engine.
+That tradeoff is acceptable for v1. Jaeger can still search by service,
+operation, tags, duration, and time range, which is enough for fallback lookup
+after the API returns `x-trace-id` and `x-request-id`.
 
-Service Performance Monitoring in Jaeger can use span-derived RED metrics and a
-PromQL-compatible metrics backend, but that introduces another storage service.
-It should not be part of v1 if the goal is one small trace backend.
+## Compose Shape
 
-### Jaeger Local Shape
+Add one service to `compose/docker-compose.yml`.
 
-Use Badger by default, not memory, unless explicitly doing throwaway tests.
+Required shape:
 
-```text
-docker compose
-  -> jaeger service
-  -> Badger data volume
-  -> expose UI/query locally
-  -> expose OTLP only to local app network
-```
+- `postgres` remains unchanged except for dependencies only if needed later.
+- `jaeger` runs as one service.
+- Badger data is stored in a named volume.
+- UI/query port is reachable from the host.
+- OTLP HTTP is reachable from other Compose services.
+- OTLP gRPC is exposed only if the API exporter needs it.
 
-Memory storage is acceptable only for throwaway development:
+Do not use memory storage for the proof result.
 
-- faster setup
-- no disk volume
-- traces disappear on restart
-- not representative of production persistence
+## Rejected For V1
 
-### Jaeger Production Shape
+OpenObserve is rejected for v1, despite being viable local tooling.
 
-Run Jaeger as one systemd service.
+Evidence and tradeoff:
 
-Suggested layout:
+- OpenObserve single-node local mode exists.
+- It can receive OTLP directly.
+- It provides a UI and trace APIs.
+- It can query logs, traces, and metrics through richer search or SQL-like APIs.
+- Its AGPL-3.0 license is acceptable for local tooling.
+- Its broader product surface is unnecessary for proving exact API trace lookup.
 
-- config: `/etc/recurring/jaeger.yaml`
-- data: `/var/lib/jaeger`
-- user: dedicated unprivileged `jaeger`
-- OTLP HTTP: `localhost:4318`
-- OTLP gRPC: `localhost:4317` if needed
-- query UI/API: loopback, optionally Caddy-proxied behind auth
-- retention: start at 48 hours
+OpenObserve becomes worth revisiting if v1 needs these questions before adding a
+separate analytics backend:
 
-Local producers on the VPS export directly to loopback. Remote producers should
-go through Caddy with an allowlisted OTLP path and an ingestion secret.
-
-## Candidate: OpenObserve
-
-OpenObserve is a single-binary observability platform for traces, logs, metrics,
-dashboards, alerts, and RUM.
-
-Relevant properties:
-
-- single-node local mode exists
-- local mode uses SQLite metadata and local disk storage by default
-- OTLP-native ingestion
-- UI included
-- traces API exists
-- trace data can be queried through search APIs
-- logs and traces can use SQL
-- metrics can use SQL or PromQL
-- broader product surface than Jaeger
-- AGPL-3.0 for the open-source edition
-
-OpenObserve works best for this agent flow:
-
-```text
-trace_id known -> fetch exact trace
-unknown trace -> SQL query over recent spans/logs
-agent asks ad hoc questions -> SQL/PromQL against stored telemetry
-```
-
-Useful agent questions OpenObserve can answer more naturally than Jaeger:
-
-- find traces for a browser `session.id`
-- find spans where `app.action.id` exists but backend span is missing
-- group failed spans by route over the last 15 minutes
+- find recent traces for `GET /healthz`
+- group failed API spans by route over the last 15 minutes
 - find database spans slower than a threshold
-- query logs and traces with the same correlation IDs
-- query metrics with PromQL when metrics are ingested
+- query logs and traces with the same `trace_id` or `request_id` if logs are
+  sent there later
+- query metrics with PromQL if metrics are sent there later
 
-OpenObserve is not automatically the right choice. It is a larger system than
-Jaeger, even if it is still one service. The AGPL license must be acceptable for
-this repo and deployment.
+Tempo is a strong trace backend in the Grafana ecosystem, but it is not the best
+first fit here because useful human debugging normally adds Grafana. That makes
+the local proof at least two observability services.
 
-### OpenObserve Local Shape
+Elastic APM is too heavy for this stage. A self-managed setup normally brings
+Elasticsearch, Kibana, APM Server or Elastic Agent, lifecycle management, and
+more RAM than the current local proof should spend.
 
-Use one OpenObserve service in Compose.
-
-```text
-docker compose
-  -> openobserve service
-  -> local data volume
-  -> UI/API on local port
-  -> OTLP endpoint for app services
-```
-
-Use local mode with disk storage. Do not add S3, NATS, or cluster metadata
-services for v1.
-
-### OpenObserve Production Shape
-
-Run OpenObserve as one systemd service.
-
-Suggested layout:
-
-- env file: `/etc/recurring/openobserve.env`
-- data: `/var/lib/openobserve`
-- user: dedicated unprivileged `openobserve`
-- UI/API: loopback or Caddy-proxied behind auth
-- OTLP ingest: loopback for local producers
-- remote ingest: Caddy path allowlist and auth header if needed
-
-OpenObserve can become the single observability UI later if logs and metrics are
-intentionally sent there. For v1, it can still be used as trace-first storage.
-
-## Candidate: Tempo with Grafana
-
-Tempo can run in monolithic mode and handle modest trace volumes with local
-storage. It is a strong trace backend in the Grafana ecosystem.
-
-For this project, Tempo is not the best first backend because:
-
-- useful human UI normally means Grafana too
-- query ergonomics are best in Grafana or TraceQL workflows
-- it becomes at least two services for the human-facing path
-- the project does not know Grafana yet
-
-Keep Tempo as a later option if the system moves toward Grafana, Loki, and
-Prometheus.
-
-## Candidate: Elastic APM
-
-Elastic APM is powerful and worth knowing about, but it is too heavy for this
-stage.
-
-Self-managed Elastic APM normally means:
-
-- Elasticsearch
-- Kibana
-- APM Server, Elastic Agent, or EDOT Collector
-- index lifecycle and storage management
-- more RAM and operational surface than the current VPS goal wants
-
-It is a good platform when the team wants the Elastic ecosystem. It is not the
-right first local trace backend for a 6 GB local budget and one small VPS.
+SigNoz-style ClickHouse stacks are also too large for the first proof because
+they add another storage service before the API has proven basic trace lookup.
 
 ## Collector Placement
 
 Do not require a separate OpenTelemetry Collector for v1.
 
-Both leading candidates can receive OTLP directly:
+Jaeger v2 receives OTLP directly and internally uses Collector-style pipelines.
 
-- Jaeger v2 receives OTLP and internally uses Collector-style pipelines.
-- OpenObserve receives OTLP directly.
-
-Add a separate Collector later if these become important:
+Add a separate Collector later only if these become important:
 
 - centralized redaction
 - tail sampling
 - multi-backend fanout
-- buffering/retry policy independent from backend
+- buffering and retry policy independent from backend
 - metrics conversion through spanmetrics
 - per-source routing
 
-For now, a separate Collector adds another service before there is a clear need.
+For this proof, a Collector adds another service before there is a clear need.
 
-## LLM Query Interface
+## Implementation Plan
 
-The LLM agent should not rely on UI scraping. It should call backend APIs.
+Phase 1 is Jaeger boot:
 
-For both candidates, v1 agent logic should be:
+- `docker compose` starts Postgres plus Jaeger.
+- Jaeger uses Badger storage through a persistent named volume.
+- OTLP HTTP ingest is reachable from other Compose services.
+- Jaeger UI or query API is reachable from the host.
+- Restart keeps already-ingested traces.
+- Idle RAM, disk growth after restart, and exposed ports are recorded.
 
-1. Capture response headers after each Playwright click.
-2. Prefer `x-trace-id`.
-3. Query exact trace by trace ID.
-4. If missing, query by time window plus `session.id` or `app.action.id`.
-5. Summarize spans by service, operation, duration, status, and parent-child
-   relationship.
-6. Read compose logs or journald logs only when the trace indicates an error or
-   missing span.
+Phase 2 is API instrumentation:
 
-Backend-specific behavior:
+- `apps/api` configures an OpenTelemetry tracer provider.
+- `apps/api` exports OTLP directly to Jaeger.
+- Echo middleware creates one server span for `GET /healthz`.
+- The server span has `service.name=recurring-api`.
+- Incoming `traceparent` is accepted.
+- `/healthz` response includes `x-trace-id`, `x-span-id`, and `x-request-id`.
+- Span attributes include safe method, route, status, and duration data.
+- Span attributes do not include secrets, cookies, tokens, private IPs, or
+  unsafe SQL text.
 
-- Jaeger: use exact trace lookup first; use service/tag/time search as fallback.
-- OpenObserve: use exact trace lookup first; use SQL/search API for fallback and
-  analysis.
+Phase 3 is exact trace lookup:
 
-## RAM And Disk Expectation
+- A request to `GET /healthz` captures `x-trace-id`.
+- Jaeger returns the exact `/healthz` trace by API without UI scraping.
+- The returned trace includes the expected API server span.
+- Exact-trace query latency is recorded.
+- Fallback lookup by time window plus service, route, status, or `request_id` is
+  recorded.
+- The Jaeger UI is good enough for debugging the same trace.
 
-With 6 GB available locally, the realistic targets are:
+## Success Criteria Status
 
-- app services
-- Postgres
-- one trace backend
+Answered:
 
-Avoid local stacks that add Elasticsearch, Kibana, ClickHouse, Grafana, Loki, or
-multiple collectors by default.
+- backend choice: Jaeger v2 with Badger
+- one-service observability constraint: keep only Jaeger beside Postgres
+- OpenObserve license concern: acceptable locally, but not needed for v1
+- collector placement: no separate Collector for v1
 
-Jaeger with Badger should be the smallest trace-only option.
+Unresolved until implementation:
 
-OpenObserve should still be reasonable as one service, but must be measured in
-this repo's actual Compose stack because it does more than traces.
+- exact Jaeger v2 Compose command and Badger config path
+- host and Compose-network OTLP endpoint values for `apps/api`
+- tracer-provider package location in `apps/api`
+- whether `/healthz` remains `204 No Content`
+- exact Jaeger API call for trace lookup by `x-trace-id`
+- resource measurements for idle RAM, restart disk growth, and lookup latency
 
-Elastic APM and SigNoz-style ClickHouse stacks are not good first fits for this
-memory budget.
-
-## Decision Criteria
-
-Run a small proof for both Jaeger and OpenObserve before finalizing.
-
-The proof should answer:
-
-- Can local Compose boot within the 6 GB budget?
-- Can Playwright capture `x-trace-id` after a click?
-- Can the backend return that exact trace quickly by API?
-- Can the agent summarize frontend, Solid server, API, and database spans?
-- Can the backend find a trace when response headers are missing?
-- Can it filter by `session.id` and `app.action.id`?
-- What are idle RAM, click-time RAM, disk growth, and query latency?
-- Is the human UI good enough for debugging?
-- Is production systemd deployment simple enough?
-
-If Jaeger passes and OpenObserve's SQL does not change the agent workflow much,
-choose Jaeger.
-
-If OpenObserve's SQL/search API makes missing-span and fallback analysis much
-better without unacceptable resource cost, choose OpenObserve.
-
-## Current Recommendation
-
-Keep two viable tracks:
-
-- minimal trace backend: Jaeger v2 with Badger
-- agent-query backend: OpenObserve single-node local mode
-
-Do not choose Elastic APM for v1.
-
-Do not choose Tempo unless the project intentionally adopts Grafana.
-
-Do not add a separate OpenTelemetry Collector until direct-to-backend OTLP
-proves insufficient.
-
-The next implementation spike should wire response trace headers first. Once
-Playwright can capture `x-trace-id`, run the same browser click against both
-Jaeger and OpenObserve and compare agent query ergonomics with real spans.
+A candidate implementation fails if Jaeger needs another storage service or
+observability UI service, cannot return an exact `/healthz` trace by API, cannot
+persist traces across restart, or cannot fit locally beside Postgres and the API.
 
 ## Source Notes
 
-Checked April 29, 2026:
+Existing notes were based on these sources:
 
 - Jaeger v2 APIs: https://www.jaegertracing.io/docs/2.17/architecture/apis/
 - Jaeger Badger storage: https://www.jaegertracing.io/docs/2.17/storage/badger/
@@ -394,8 +305,6 @@ Checked April 29, 2026:
 - OpenObserve trace API:
   https://openobserve.ai/docs/reference/api/traces/trace-search-api/
 - OpenObserve license: https://github.com/openobserve/openobserve
-- OpenTelemetry session semantic conventions:
-  https://opentelemetry.io/docs/specs/semconv/general/session/
 - Elastic APM with OpenTelemetry:
   https://www.elastic.co/guide/en/apm/guide/current/open-telemetry.html/
 - Elastic APM Server setup:

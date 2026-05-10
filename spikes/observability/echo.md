@@ -22,7 +22,7 @@ This split matches the current state of Echo support:
 
 ```text
 Echo service
-  |- tracing: otelecho + OTLP exporter -> OTel Collector -> tracing backend
+  |- tracing: otelecho + OTLP exporter -> tracing backend
   |- metrics: echoprometheus or OTel metrics -> /metrics or OTLP -> Prometheus or Collector
   |- logs: slog/zap/zerolog + Echo RequestLogger -> stdout/file -> Collector or log agent -> log backend
 ```
@@ -34,7 +34,7 @@ Use OpenTelemetry middleware in the application.
 - add the OpenTelemetry Go SDK
 - add Echo OpenTelemetry middleware such as `otelecho`
 - configure a tracer provider and OTLP exporter
-- export spans to the Collector
+- export spans directly to the selected trace backend for v1
 
 This gives you:
 
@@ -89,9 +89,28 @@ Recommended pattern:
 
 OpenTelemetry does not replace your application logger in an Echo service. It complements logging by correlating logs with traces.
 
+## First Verification Target
+
+Instrument `GET /healthz` first.
+
+Success criteria:
+
+- `/healthz` emits one server span with `service.name=recurring-api`.
+- the response includes `x-trace-id`, `x-span-id`, and `x-request-id`.
+- incoming `traceparent` is accepted.
+- the selected backend can fetch the exact trace by `x-trace-id` through an API.
+- span attributes include safe method, route, status, and duration data.
+- span attributes do not include secrets, cookies, tokens, private IPs, or
+  unsafe SQL text.
+
+Use this route to verify the backend spike before instrumenting signup, Sheets
+calls, database spans, or browser-driven workflows.
+
 ## Collector placement
 
 The OpenTelemetry Collector should usually sit between the service and the observability backends.
+For this repo's first local trace-backend proof, do not require it; export
+directly to the selected backend so the local stack remains one backend service.
 
 Recommended responsibilities:
 
@@ -106,7 +125,7 @@ For Prometheus-style metrics, the usual model is still pull-based scraping. That
 
 For most Echo services, choose this:
 
-- tracing: OpenTelemetry Go SDK + `otelecho` + OTLP exporter + OTel Collector
+- tracing: OpenTelemetry Go SDK + `otelecho` + OTLP exporter directly to the selected backend for v1
 - metrics: Echo Prometheus middleware + Prometheus
 - logs: `slog` or `zap` or `zerolog` + Echo `RequestLogger` + trace/span/request IDs
 
