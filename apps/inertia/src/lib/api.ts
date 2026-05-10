@@ -12,9 +12,7 @@ export const apiOrigin = (bindings?: Env): string =>
   requiredRuntimeEnv("RECURRING_API_ORIGIN", bindings).replace(/\/$/, "")
 
 const api = (bindings?: Env): DefaultApi =>
-  new DefaultApi(
-    new Configuration({ basePath: apiOrigin(bindings) }),
-  )
+  new DefaultApi(new Configuration({ basePath: apiOrigin(bindings) }))
 
 export const healthCheck = async (bindings?: Env): Promise<HealthPayload> => {
   await api(bindings).healthCheck()
