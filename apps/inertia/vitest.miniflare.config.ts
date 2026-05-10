@@ -7,21 +7,21 @@ export default defineConfig(async () => {
     throw new Error("RECURRING_API_ORIGIN is required")
   }
 
-  const plugin = cloudflareTest({
-    main: "./src/worker.ts",
-    wrangler: {
-      configPath: "./wrangler.toml",
-      environment: "test",
-    },
-    miniflare: {
-      bindings: {
-        RECURRING_API_ORIGIN: recurringAPIOrigin,
-      },
-    },
-  })
-
   return {
-    plugins: [plugin],
+    plugins: [
+      cloudflareTest({
+        // main: "./src/worker.ts",
+        wrangler: {
+          configPath: "./wrangler.toml",
+          environment: "test",
+        },
+        miniflare: {
+          bindings: {
+            RECURRING_API_ORIGIN: recurringAPIOrigin,
+          },
+        },
+      }),
+    ],
     test: {
       coverage: {
         provider: "istanbul" as const,

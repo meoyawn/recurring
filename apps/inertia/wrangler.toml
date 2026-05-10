@@ -3,6 +3,12 @@ name = "recurring-inertia"
 compatibility_date = "2026-05-04"
 main = "./src/worker.ts"
 
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.05
+
+
 [vars]
 RECURRING_API_ORIGIN = "http://localhost:8080"
 GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -11,19 +17,6 @@ GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
 DEPLOYMENT_ENVIRONMENT = "local"
 
-[observability.traces]
-enabled = true
-head_sampling_rate = 0.05
-
-[env.developement]
-
-[env.developement.vars]
-RECURRING_API_ORIGIN = "http://localhost:8080"
-GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
-GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
-OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
-DEPLOYMENT_ENVIRONMENT = "local"
 
 [env.test]
 
@@ -37,3 +30,14 @@ GOOGLE_CLIENT_SECRET = "test-google-secret"
 GOOGLE_REDIRECT_URI = ""
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
 DEPLOYMENT_ENVIRONMENT = "test"
+
+
+[env.production]
+
+[env.production.vars]
+RECURRING_API_ORIGIN = "http://localhost:8080"
+GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
+OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
+DEPLOYMENT_ENVIRONMENT = "local"
