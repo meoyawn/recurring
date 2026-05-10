@@ -23,7 +23,7 @@ tasks:
     desc: Generate Cloudflare Worker binding types
     vars:
       WORKER_TYPES: src/worker-configuration.d.ts
-    cmd: bun wrangler types {{.WORKER_TYPES}}
+    cmd: bun wrangler types {{.WORKER_TYPES}} --include-runtime=false
     sources:
       - wrangler.toml
       - ../../bun.lock
