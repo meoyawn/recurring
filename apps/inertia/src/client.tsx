@@ -1,6 +1,8 @@
 import { createInertiaApp } from "inertia-adapter-solid"
 import { render } from "solid-js/web"
 
+import { readInitialPage } from "./initial-page.ts"
+
 type PageModule = {
   default: unknown
 }
@@ -8,6 +10,7 @@ type PageModule = {
 const pages = import.meta.glob<PageModule>("./pages/**/*.tsx")
 
 void createInertiaApp({
+  page: readInitialPage(document, "app"),
   resolve: async name => {
     const loadPage = pages[`./pages/${name}.tsx`]
     if (loadPage === undefined) {
