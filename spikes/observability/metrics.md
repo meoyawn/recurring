@@ -181,13 +181,9 @@ Unresolved until implementation:
 
 ## Source Notes
 
-- OpenObserve docs:
-  https://openobserve.ai/docs
-- OpenObserve metrics ingestion:
-  https://openobserve.ai/docs/ingestion/metrics/
+- OpenObserve docs: https://openobserve.ai/docs
+- OpenObserve metrics ingestion: https://openobserve.ai/docs/ingestion/metrics/
 - OpenObserve Prometheus remote write:
   https://openobserve.ai/docs/ingestion/metrics/prometheus/
-- OpenObserve OTLP ingestion:
-  https://openobserve.ai/docs/ingestion/logs/otlp/
-- OpenObserve repository and license:
-  https://github.com/openobserve/openobserve
+- OpenObserve OTLP ingestion: https://openobserve.ai/docs/ingestion/logs/otlp/
+- OpenObserve repository and license: https://github.com/openobserve/openobserve

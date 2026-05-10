@@ -15,6 +15,7 @@ services:
 
   jaeger:
     image: jaegertracing/jaeger:2.17.0
+    # Jaeger runs as UID 10001 by default, but the Badger volume is root-owned.
     user: root
     command:
       - --config
