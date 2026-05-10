@@ -1,0 +1,25 @@
+version: 3
+
+tasks:
+  typecheck:
+    run: once
+    cmd: bun tsc
+    sources:
+      - ../../bun.lock
+      - package.json
+      - tsconfig.json
+      - src/**/*
+
+  test:
+    run: once
+    cmd: bun test
+    sources:
+      - ../../bun.lock
+      - package.json
+      - src/**/*
+
+  check:
+    run: once
+    deps:
+      - typecheck
+      - test

@@ -20,12 +20,12 @@ app.get(googleAuthCallbackPath, c =>
   finishGoogleAuth(c.req.raw, c.env, googleAuthCallbackPath),
 )
 app.get("/", async c => {
-  const health = await healthCheck(c.env)
+  const health = await healthCheck(c.req.raw, c.env)
 
   return c.render("Home", { health })
 })
 app.get("/status", async c => {
-  const health = await healthCheck(c.env)
+  const health = await healthCheck(c.req.raw, c.env)
 
   return c.render("Status", { health })
 })

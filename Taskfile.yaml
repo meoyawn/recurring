@@ -21,6 +21,10 @@ includes:
     taskfile: apps/sheets/Taskfile.yaml
     dir: apps/sheets/
 
+  shared-ts:
+    taskfile: apps/shared-ts/Taskfile.yaml
+    dir: apps/shared-ts/
+
   openapi:
     taskfile: packages/openapi/Taskfile.yaml
     dir: packages/openapi/
@@ -67,6 +71,7 @@ tasks:
     deps:
       - openapi:check
       - api:check
+      - shared-ts:check
       - inertia:check
       # - web:check
 

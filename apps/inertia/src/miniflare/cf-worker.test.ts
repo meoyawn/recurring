@@ -23,7 +23,14 @@ type InertiaPage = {
   version: string
 }
 
+type CapturedAPIRequest = {
+  headers: Record<string, string>
+  method: string
+  url: string
+}
+
 const sessionIDPattern = /^sess_[0-9a-f]{32}$/
+const apiCaptureOrigin = "http://localhost:8083"
 
 function getFetch(exports: WorkerExports): Worker["fetch"] {
   const worker = exports.default
@@ -66,6 +73,22 @@ const isInertiaPage = (value: unknown): value is InertiaPage =>
   isRecord(value["props"]) &&
   typeof value["url"] === "string" &&
   typeof value["version"] === "string"
+
+const isCapturedAPIRequest = (value: unknown): value is CapturedAPIRequest =>
+  isRecord(value) &&
+  isRecord(value["headers"]) &&
+  typeof value["method"] === "string" &&
+  typeof value["url"] === "string"
+
+const capturedAPIRequests = async (): Promise<CapturedAPIRequest[]> => {
+  const response = await fetch(`${apiCaptureOrigin}/__requests`)
+  const requests = await response.json()
+  if (!Array.isArray(requests) || !requests.every(isCapturedAPIRequest)) {
+    throw new Error("captured API requests response is invalid")
+  }
+
+  return requests
+}
 
 describe("inertia worker", () => {
   const workerFetch = getFetch(cfWorkers.exports as WorkerExports)
@@ -125,6 +148,43 @@ describe("inertia worker", () => {
       url: "/status",
       version: "recurring-inertia-1",
     })
+  })
+
+  test("forwards trace headers to the Recurring API call", async () => {
+    const originalAPIOrigin = cfWorkers.env.RECURRING_API_ORIGIN
+    await fetch(`${apiCaptureOrigin}/__reset`, { method: "POST" })
+    Object.defineProperty(cfWorkers.env, "RECURRING_API_ORIGIN", {
+      configurable: true,
+      value: apiCaptureOrigin,
+    })
+
+    try {
+      const res = await workerFetch(
+        new Request(route("/"), {
+          headers: {
+            traceparent:
+              "00-00000000000000000000000000000001-0000000000000002-01",
+            tracestate: "vendor=value",
+          },
+        }),
+      )
+
+      expect(res.status).toEqual(200)
+      const requests = await capturedAPIRequests()
+      expect(requests.length).toEqual(1)
+      expect({
+        traceparent: requests[0]?.headers["traceparent"],
+        tracestate: requests[0]?.headers["tracestate"],
+      }).toEqual({
+        traceparent: "00-00000000000000000000000000000001-0000000000000002-01",
+        tracestate: "vendor=value",
+      })
+    } finally {
+      Object.defineProperty(cfWorkers.env, "RECURRING_API_ORIGIN", {
+        configurable: true,
+        value: originalAPIOrigin,
+      })
+    }
   })
 
   test("returns Inertia asset mismatch reload response", async () => {

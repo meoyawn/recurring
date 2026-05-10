@@ -238,7 +238,7 @@ export const finishGoogleAuth = async (
       redirectUri: config.redirectURI,
     })
     const profile = await fetchGoogleProfile(token.accessToken, config)
-    const signup = await upsertSignup(profile, bindings)
+    const signup = await upsertSignup(request, profile, bindings)
 
     return redirect(new URL("/", publicOrigin(request)).toString(), 303, [
       clearState,

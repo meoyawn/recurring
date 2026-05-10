@@ -1,3 +1,4 @@
+import { serviceFetch, type ServiceClientContext } from "@recurring/shared-ts"
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { Configuration } from "../../gen/runtime.ts"
@@ -10,15 +11,55 @@ type HealthPayload = {
 export const apiOrigin = (bindings: Env): string =>
   bindings.RECURRING_API_ORIGIN.replace(/\/$/, "")
 
-const api = (bindings: Env): DefaultApi =>
-  new DefaultApi(new Configuration({ basePath: apiOrigin(bindings) }))
+const headerValue = (request: Request, name: string): string | undefined => {
+  const value = request.headers.get(name)
+  return value === null ? undefined : value
+}
 
-export const healthCheck = async (bindings: Env): Promise<HealthPayload> => {
-  await api(bindings).healthCheck()
+const serviceClientContextFromRequest = (
+  request: Request,
+): ServiceClientContext => {
+  const context: ServiceClientContext = {}
+  const traceparent = headerValue(request, "traceparent")
+  if (traceparent !== undefined) {
+    context.traceparent = traceparent
+  }
+  const tracestate = headerValue(request, "tracestate")
+  if (tracestate !== undefined) {
+    context.tracestate = tracestate
+  }
+  const requestID = headerValue(request, "x-request-id")
+  if (requestID !== undefined) {
+    context.requestID = requestID
+  }
+  const idempotencyKey = headerValue(request, "idempotency-key")
+  if (idempotencyKey !== undefined) {
+    context.idempotencyKey = idempotencyKey
+  }
+
+  return context
+}
+
+const api = (bindings: Env, request: Request): DefaultApi =>
+  new DefaultApi(
+    new Configuration({
+      basePath: apiOrigin(bindings),
+      fetchApi: serviceFetch({
+        context: serviceClientContextFromRequest(request),
+      }),
+    }),
+  )
+
+export const healthCheck = async (
+  request: Request,
+  bindings: Env,
+): Promise<HealthPayload> => {
+  await api(bindings, request).healthCheck()
   return { status: "ok" }
 }
 
 export const upsertSignup = async (
+  request: Request,
   profile: GoogleProfile,
   bindings: Env,
 ): Promise<SignupSession> => {
@@ -33,5 +74,5 @@ export const upsertSignup = async (
     signup.picture_url = profile.picture
   }
 
-  return api(bindings).upsertSignup(signup)
+  return api(bindings, request).upsertSignup(signup)
 }
