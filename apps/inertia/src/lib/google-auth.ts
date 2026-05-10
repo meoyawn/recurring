@@ -1,3 +1,4 @@
+import { OAuth2Client } from "@badgateway/oauth2-client"
 import type { EmailAddrStr } from "@recurring/shared-ts"
 import { upsertSignup } from "./api.ts"
 import { requiredRuntimeEnv, runtimeEnv } from "./runtime-env.ts"
@@ -18,10 +19,6 @@ type CookieOptions = {
   path: string
   maxAge: number
   secure: boolean
-}
-
-type GoogleTokenResponse = {
-  access_token: string
 }
 
 type GoogleProfile = {
@@ -153,18 +150,19 @@ const authConfig = (
   }
 }
 
+const oauthClient = (config: GoogleAuthConfig): OAuth2Client =>
+  new OAuth2Client({
+    authorizationEndpoint: config.authorizationEndpoint,
+    authenticationMethod: "client_secret_post",
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    tokenEndpoint: config.tokenEndpoint,
+  })
+
 const randomState = (): string => {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
   return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("")
-}
-
-const parseGoogleTokenResponse = (value: unknown): GoogleTokenResponse => {
-  if (!isRecord(value) || typeof value["access_token"] !== "string") {
-    throw new Error("Google token response is invalid")
-  }
-
-  return { access_token: value["access_token"] }
 }
 
 const parseGoogleProfile = (value: unknown): GoogleProfile => {
@@ -190,30 +188,6 @@ const parseGoogleProfile = (value: unknown): GoogleProfile => {
   return profile
 }
 
-const exchangeCode = async (
-  code: string,
-  config: GoogleAuthConfig,
-): Promise<GoogleTokenResponse> => {
-  const body = new URLSearchParams({
-    client_id: config.clientId,
-    client_secret: config.clientSecret,
-    code,
-    grant_type: "authorization_code",
-    redirect_uri: config.redirectURI,
-  })
-
-  const res = await fetch(config.tokenEndpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  })
-  if (!res.ok) {
-    throw new Error(`Google token exchange failed: ${res.status}`)
-  }
-
-  return parseGoogleTokenResponse(await res.json())
-}
-
 const fetchGoogleProfile = async (
   accessToken: string,
   config: GoogleAuthConfig,
@@ -228,22 +202,23 @@ const fetchGoogleProfile = async (
   return parseGoogleProfile(await res.json())
 }
 
-export const startGoogleAuth = (
+export const startGoogleAuth = async (
   request: Request,
   bindings?: Env,
-): Response => {
+): Promise<Response> => {
   try {
     const config = authConfig(request, bindings)
     const state = randomState()
-    const url = new URL(config.authorizationEndpoint)
-    url.searchParams.set("client_id", config.clientId)
-    url.searchParams.set("redirect_uri", config.redirectURI)
-    url.searchParams.set("response_type", "code")
-    url.searchParams.set("scope", "openid profile email")
-    url.searchParams.set("state", state)
-    url.searchParams.set("prompt", "select_account")
+    const authorizationURL = await oauthClient(
+      config,
+    ).authorizationCode.getAuthorizeUri({
+      extraParams: { prompt: "select_account" },
+      redirectUri: config.redirectURI,
+      scope: ["openid", "profile", "email"],
+      state,
+    })
 
-    return redirect(url.toString(), 302, [
+    return redirect(authorizationURL, 302, [
       cookie(googleStateCookieName, state, {
         path: "/auth/google/callback",
         maxAge: 600,
@@ -284,8 +259,11 @@ export const finishGoogleAuth = async (
     }
 
     const config = authConfig(request, bindings)
-    const token = await exchangeCode(code, config)
-    const profile = await fetchGoogleProfile(token.access_token, config)
+    const token = await oauthClient(config).authorizationCode.getToken({
+      code,
+      redirectUri: config.redirectURI,
+    })
+    const profile = await fetchGoogleProfile(token.accessToken, config)
     const signup = await upsertSignup(profile, bindings)
 
     return redirect(new URL("/", publicOrigin(request)).toString(), 303, [
