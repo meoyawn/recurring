@@ -160,6 +160,7 @@ const api = responsibleAPI({
       id: "sheetsTest",
       description:
         "Unprotected test endpoint that exercises API to sheets service tracing.",
+      deprecated: true,
       res: {
         204: resp({
           description: "Sheets service call completed.",
