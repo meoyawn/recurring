@@ -34,6 +34,8 @@ import (
 var apiBaseURL string
 var sessionIDPattern = regexp.MustCompile(`^sess_[0-9a-f]{32}$`)
 
+const otelpgxTracerName = "github.com/exaring/otelpgx"
+
 type signupPayload struct {
 	GoogleSub  string  `json:"google_sub"`
 	Email      string  `json:"email"`
@@ -294,6 +296,38 @@ func TestSignup(t *testing.T) {
 	second := postSignup(t, client, payload)
 	assertGeneratedSessionID(t, second.SessionID)
 	assert.Assert(t, first.SessionID != second.SessionID, "repeat signup returned same session_id %q", second.SessionID)
+}
+
+func TestSignupPostgresTrace(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	payload := randomSignupPayload(t)
+	encoded, err := json.Marshal(payload)
+	assert.NilError(t, err, "marshal POST /v1/signup request")
+
+	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", bytes.NewReader(encoded))
+	assert.NilError(t, err, "create POST /v1/signup request")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "POST /v1/signup")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusOK, "POST /v1/signup status")
+	assertTraceHeaders(t, resp.Header)
+
+	var body signupSessionResponse
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	assert.NilError(t, err, "decode POST /v1/signup response")
+	assertGeneratedSessionID(t, body.SessionID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = waitForJaegerTrace(ctx, resp.Header.Get("x-trace-id"), otelpgxTracerName)
+	assert.NilError(t, err, "wait for signup PostgreSQL trace")
 }
 
 func TestSignupWithoutOptionalProfile(t *testing.T) {

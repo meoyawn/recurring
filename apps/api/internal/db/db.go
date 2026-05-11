@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
 	configgen "github.com/recurring/api/internal/gen/config"
 )
@@ -16,6 +17,7 @@ func Open(ctx context.Context, cfg configgen.DBConfig) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse pool config: %w", err)
 	}
+	poolConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 	poolConfig.MaxConns = cfg.MaxConns
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)

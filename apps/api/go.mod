@@ -4,6 +4,7 @@ go 1.25.7
 
 require (
 	github.com/coreos/go-systemd/v22 v22.7.0
+	github.com/exaring/otelpgx v0.10.0
 	github.com/getkin/kin-openapi v0.138.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/knadh/koanf/parsers/yaml v1.1.0
