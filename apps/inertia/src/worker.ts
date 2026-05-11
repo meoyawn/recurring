@@ -18,7 +18,6 @@ const createApp = () => {
 
   app.use(
     honoTracing<{ Bindings: Env }>({
-      deploymentEnvironment: c => c.env.DEPLOYMENT_ENVIRONMENT,
       serviceName: "recurring-inertia",
       traceEndpoint: c =>
         otlpTraceEndpointFromEnv({

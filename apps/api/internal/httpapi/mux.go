@@ -16,7 +16,6 @@ import (
 	"github.com/recurring/api/internal/serviceclient"
 	echomiddleware "github.com/responsibleapi/echo-middleware"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -25,7 +24,6 @@ var openAPISpec []byte
 
 type echoConfig struct {
 	tracerProvider trace.TracerProvider
-	propagator     propagation.TextMapPropagator
 	sheets         configgen.ServiceConfig
 }
 
@@ -51,14 +49,13 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 
 	cfg := echoConfig{
 		tracerProvider: otel.GetTracerProvider(),
-		propagator:     textMapPropagator(),
 	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
 	e := echo.New()
-	e.Use(traceMiddleware(cfg.tracerProvider, cfg.propagator))
+	e.Use(traceMiddleware(cfg.tracerProvider))
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogLatency: true,
 		LogMethod:  true,

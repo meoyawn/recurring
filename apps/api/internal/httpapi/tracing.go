@@ -7,9 +7,10 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -17,11 +18,10 @@ const (
 	headerTraceID   = "x-trace-id"
 	headerSpanID    = "x-span-id"
 	headerRequestID = "x-request-id"
-	spanRequestID   = "request_id"
 	tracerName      = "github.com/recurring/api/internal/httpapi"
 )
 
-func traceMiddleware(provider trace.TracerProvider, propagator propagation.TextMapPropagator) echo.MiddlewareFunc {
+func traceMiddleware(provider trace.TracerProvider) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			req := c.Request()
@@ -30,7 +30,7 @@ func traceMiddleware(provider trace.TracerProvider, propagator propagation.TextM
 				requestID = newRequestID()
 			}
 
-			extracted := propagator.Extract(req.Context(), propagation.HeaderCarrier(req.Header))
+			extracted := otel.GetTextMapPropagator().Extract(req.Context(), propagation.HeaderCarrier(req.Header))
 			spanName := req.Method + " " + req.URL.Path
 			ctx, span := provider.Tracer(tracerName).Start(extracted, spanName, trace.WithSpanKind(trace.SpanKindServer))
 			defer span.End()
@@ -49,26 +49,19 @@ func traceMiddleware(provider trace.TracerProvider, propagator propagation.TextM
 			status := responseStatus(c.Response(), err)
 			span.SetName(req.Method + " " + route)
 			span.SetAttributes(
-				attribute.String(spanRequestID, requestID),
-				attribute.String("http.request.method", req.Method),
-				attribute.String("http.route", route),
-				attribute.Int("http.response.status_code", status),
+				semconv.HTTPRequestHeader(headerRequestID, requestID),
+				semconv.HTTPRequestMethodKey.String(req.Method),
+				semconv.HTTPRoute(route),
+				semconv.HTTPResponseStatusCode(status),
 			)
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
-				span.SetAttributes(attribute.String("error.type", errorType(err)))
+				span.SetAttributes(semconv.ErrorType(err))
 			}
 			return err
 		}
 	}
-}
-
-func textMapPropagator() propagation.TextMapPropagator {
-	return propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	)
 }
 
 func responseStatus(resp http.ResponseWriter, err error) int {
@@ -84,14 +77,6 @@ func responseStatus(resp http.ResponseWriter, err error) int {
 		return http.StatusInternalServerError
 	}
 	return http.StatusOK
-}
-
-func errorType(err error) string {
-	var httpErr *echo.HTTPError
-	if errors.As(err, &httpErr) {
-		return http.StatusText(httpErr.Code)
-	}
-	return "internal_error"
 }
 
 func newRequestID() string {

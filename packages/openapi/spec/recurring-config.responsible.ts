@@ -9,7 +9,7 @@
  * composition such as oneOf.
  */
 
-import { int32, object, ref, responsibleAPI, string } from "@responsibleapi/ts"
+import { int32, object, responsibleAPI, string } from "@responsibleapi/ts"
 import { YAML } from "bun"
 
 import { NonEmptyString } from "./shared.responsible.ts"
@@ -63,10 +63,6 @@ const ServiceConfig = () =>
 
 const TelemetryConfig = () =>
   object({
-    deployment_environment: ref(NonEmptyString, {
-      description:
-        "Runtime environment label added to every API trace, for example local, staging, or production. Observability backends use it to filter and compare spans from different deployments.",
-    }),
     "otlp_endpoint?": NonEmptyString,
     "otlp_traces_endpoint?": NonEmptyString,
   })

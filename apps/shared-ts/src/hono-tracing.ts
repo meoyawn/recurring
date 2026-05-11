@@ -14,13 +14,16 @@ type TraceContext = {
 }
 
 type TraceConfig<E extends Env> = {
-  deploymentEnvironment?: string | ((c: Context<E>) => string | undefined)
   fetch?: typeof fetch
   serviceName: string
   traceEndpoint?: string | ((c: Context<E>) => string | undefined)
 }
 
 type OtlpAttribute =
+  | {
+      key: string
+      value: { arrayValue: { values: { stringValue: string }[] } }
+    }
   | {
       key: string
       value: { intValue: string }
@@ -49,6 +52,7 @@ const headerTraceparent = "traceparent"
 const headerTraceID = "x-trace-id"
 const headerSpanID = "x-span-id"
 const headerRequestID = "x-request-id"
+const headerRequestIDAttribute = "http.request.header.x-request-id"
 const traceparentPattern =
   /^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/
 const unsafeErrorMessagePattern =
@@ -153,6 +157,18 @@ const stringAttribute = (
 ): OtlpAttribute[] =>
   value === undefined ? [] : [{ key, value: { stringValue: value } }]
 
+const stringSliceAttribute = (
+  key: string,
+  values: string[],
+): OtlpAttribute => ({
+  key,
+  value: {
+    arrayValue: {
+      values: values.map(value => ({ stringValue: value })),
+    },
+  },
+})
+
 const intAttribute = (key: string, value: number): OtlpAttribute => ({
   key,
   value: { intValue: String(value) },
@@ -188,7 +204,6 @@ const otlpSpan = <E extends Env>(
   requestID: string,
   startTimeUnixNano: bigint,
   endTimeUnixNano: bigint,
-  deploymentEnvironment: string | undefined,
 ): OtlpSpan => {
   const status = statusCode(c)
   const span: OtlpSpan = {
@@ -199,16 +214,15 @@ const otlpSpan = <E extends Env>(
     startTimeUnixNano: String(startTimeUnixNano),
     endTimeUnixNano: String(endTimeUnixNano),
     attributes: [
-      { key: "request_id", value: { stringValue: requestID } },
+      stringSliceAttribute(headerRequestIDAttribute, [requestID]),
       { key: "http.request.method", value: { stringValue: c.req.method } },
       { key: "http.route", value: { stringValue: routePath(c) } },
       intAttribute("http.response.status_code", status),
-      ...stringAttribute("deployment.environment", deploymentEnvironment),
       ...stringAttribute("error.type", c.error?.name),
     ],
     status:
       c.error === undefined
-        ? { code: 1 }
+        ? { code: 0 }
         : { code: 2, message: c.error.message },
   }
   if (context.parentSpanID !== undefined) {
@@ -220,7 +234,6 @@ const otlpSpan = <E extends Env>(
 
 const otlpPayload = (
   serviceName: string,
-  deploymentEnvironment: string | undefined,
   span: OtlpSpan,
 ): unknown => ({
   resourceSpans: [
@@ -228,7 +241,6 @@ const otlpPayload = (
       resource: {
         attributes: [
           { key: "service.name", value: { stringValue: serviceName } },
-          ...stringAttribute("deployment.environment", deploymentEnvironment),
         ],
       },
       scopeSpans: [
@@ -247,11 +259,10 @@ const exportSpan = async (
   fetchApi: typeof fetch,
   endpoint: string,
   serviceName: string,
-  deploymentEnvironment: string | undefined,
   span: OtlpSpan,
 ): Promise<void> => {
   const response = await fetchApi(endpoint, {
-    body: JSON.stringify(otlpPayload(serviceName, deploymentEnvironment, span)),
+    body: JSON.stringify(otlpPayload(serviceName, span)),
     headers: { "content-type": "application/json" },
     method: "POST",
   })
@@ -265,13 +276,11 @@ const traceExportFailureLog = <E extends Env>(
   context: TraceContext,
   requestID: string,
   serviceName: string,
-  deploymentEnvironment: string | undefined,
   error: unknown,
 ): Record<string, string | number> => ({
   level: "warn",
   message: "OTLP trace export failed",
   service_name: serviceName,
-  deployment_environment: deploymentEnvironment ?? "unknown",
   trace_id: context.traceID,
   span_id: context.spanID,
   request_id: requestID,
@@ -327,7 +336,6 @@ export const honoTracing = <E extends Env>(
       return
     }
 
-    const deploymentEnvironment = optionValue(c, config.deploymentEnvironment)
     const endTimeUnixNano = startTimeUnixNano + durationNano(startedAtMs)
     const span = otlpSpan(
       c,
@@ -335,7 +343,6 @@ export const honoTracing = <E extends Env>(
       requestID,
       startTimeUnixNano,
       endTimeUnixNano,
-      deploymentEnvironment,
     )
 
     try {
@@ -343,7 +350,6 @@ export const honoTracing = <E extends Env>(
         config.fetch ?? fetch,
         endpoint,
         config.serviceName,
-        deploymentEnvironment,
         span,
       )
     } catch (error) {
@@ -354,7 +360,6 @@ export const honoTracing = <E extends Env>(
             context,
             requestID,
             config.serviceName,
-            deploymentEnvironment,
             error,
           ),
         ),

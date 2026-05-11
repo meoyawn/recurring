@@ -4,16 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net"
 	"net/http"
 	"time"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -28,11 +25,6 @@ type retryTransport struct {
 	base        http.RoundTripper
 	maxAttempts int
 	backoff     time.Duration
-}
-
-type spanBody struct {
-	io.ReadCloser
-	span trace.Span
 }
 
 func NewHTTPClient(cfg Config) *http.Client {
@@ -73,15 +65,10 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			return nil, err
 		}
 
-		spanCtx, span := startAttemptSpan(attemptReq, attempt)
-		attemptReq = attemptReq.WithContext(spanCtx)
-		injectHeaders(attemptReq)
+		setHeaders(attemptReq)
 
-		resp, err := t.base.RoundTrip(attemptReq)
+		resp, err := t.roundTrip(attemptReq, attempt)
 		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			span.End()
 			lastErr = err
 			if !t.shouldRetry(req, attempt, nil, err) {
 				return nil, err
@@ -92,11 +79,8 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			continue
 		}
 
-		span.SetAttributes(attribute.Int("http.response.status_code", resp.StatusCode))
 		if t.shouldRetry(req, attempt, resp, nil) {
-			span.SetStatus(codes.Error, resp.Status)
 			closeErr := resp.Body.Close()
-			span.End()
 			if closeErr != nil {
 				return nil, fmt.Errorf("close retry response body: %w", closeErr)
 			}
@@ -106,11 +90,6 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			continue
 		}
 
-		if resp.Body == nil {
-			span.End()
-			return resp, nil
-		}
-		resp.Body = spanBody{ReadCloser: resp.Body, span: span}
 		return resp, nil
 	}
 
@@ -118,6 +97,12 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, lastErr
 	}
 	return nil, errors.New("request failed without response")
+}
+
+func (t retryTransport) roundTrip(req *http.Request, attempt int) (*http.Response, error) {
+	return otelhttp.NewTransport(t.base, otelhttp.WithSpanOptions(
+		trace.WithAttributes(semconv.HTTPRequestResendCount(attempt)),
+	)).RoundTrip(req)
 }
 
 func baseTransport(cfg Config) http.RoundTripper {
@@ -143,22 +128,10 @@ func cloneRequest(req *http.Request, attempt int) (*http.Request, error) {
 	return clone, nil
 }
 
-func startAttemptSpan(req *http.Request, attempt int) (context.Context, trace.Span) {
-	tracer := otel.Tracer("github.com/recurring/api/internal/serviceclient")
-	ctx, span := tracer.Start(req.Context(), req.Method+" "+req.URL.Host, trace.WithSpanKind(trace.SpanKindClient))
-	span.SetAttributes(
-		attribute.String("http.request.method", req.Method),
-		attribute.String("url.full", req.URL.String()),
-		attribute.Int("http.request.resend_count", attempt),
-	)
-	return ctx, span
-}
-
-func injectHeaders(req *http.Request) {
+func setHeaders(req *http.Request) {
 	if key := IdempotencyKey(req.Context()); key != "" {
 		req.Header.Set("Idempotency-Key", key)
 	}
-	otel.GetTextMapPropagator().Inject(req.Context(), propagation.HeaderCarrier(req.Header))
 }
 
 func (t retryTransport) shouldRetry(req *http.Request, attempt int, resp *http.Response, err error) bool {
@@ -209,14 +182,4 @@ func (t retryTransport) wait(ctx context.Context, attempt int) error {
 	case <-timer.C:
 		return nil
 	}
-}
-
-func (b spanBody) Close() error {
-	err := b.ReadCloser.Close()
-	if err != nil {
-		b.span.RecordError(err)
-		b.span.SetStatus(codes.Error, err.Error())
-	}
-	b.span.End()
-	return err
 }

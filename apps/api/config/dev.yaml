@@ -21,5 +21,4 @@ sheets:
   max_attempts: 3
 
 telemetry:
-  deployment_environment: local
   otlp_endpoint: http://localhost:4318

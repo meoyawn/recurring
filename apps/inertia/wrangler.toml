@@ -15,7 +15,6 @@ GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
-DEPLOYMENT_ENVIRONMENT = "local"
 [env.development.secrets]
 required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
 
@@ -26,7 +25,6 @@ GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
-DEPLOYMENT_ENVIRONMENT = "local"
 [env.production.secrets]
 required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
 
@@ -41,4 +39,3 @@ GOOGLE_CLIENT_ID = "test-google-client"
 GOOGLE_CLIENT_SECRET = "test-google-secret"
 GOOGLE_REDIRECT_URI = ""
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
-DEPLOYMENT_ENVIRONMENT = "test"

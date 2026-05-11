@@ -50,8 +50,6 @@ export function start(config: Config = loadConfig()): Bun.Server<undefined> {
 
   app.use(
     honoTracing({
-      deploymentEnvironment: () =>
-        process.env["DEPLOYMENT_ENVIRONMENT"] ?? "local",
       serviceName: "recurring-sheets",
       traceEndpoint: () => otlpTraceEndpointFromEnv(process.env),
     }),

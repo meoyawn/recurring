@@ -20,5 +20,4 @@ sheets:
   timeout_ms: 30000
   max_attempts: 3
 
-telemetry:
-  deployment_environment: test
+telemetry: {}

@@ -50,6 +50,5 @@ func defaults() map[string]any {
 		"db.max_conns":        int32(4),
 		"sheets.timeout_ms":   30000,
 		"sheets.max_attempts": 3,
-		"telemetry.deployment_environment": "local",
 	}
 }

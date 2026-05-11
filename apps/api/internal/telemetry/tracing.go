@@ -17,7 +17,6 @@ import (
 
 const (
 	serviceName = "recurring-api"
-	localEnv    = "local"
 )
 
 func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Context) error, error) {
@@ -28,7 +27,6 @@ func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Con
 		resource.WithTelemetrySDK(),
 		resource.WithAttributes(
 			attribute.String("service.name", serviceName),
-			attribute.String("deployment.environment", deploymentEnvironment(cfg)),
 		),
 	)
 	if err != nil {
@@ -83,11 +81,4 @@ func traceEndpointURL(endpoint string) string {
 	}
 	u.Path = strings.TrimRight(u.Path, "/") + "/v1/traces"
 	return u.String()
-}
-
-func deploymentEnvironment(cfg configgen.TelemetryConfig) string {
-	if cfg.DeploymentEnvironment != "" {
-		return cfg.DeploymentEnvironment
-	}
-	return localEnv
 }

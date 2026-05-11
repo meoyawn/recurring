@@ -86,7 +86,6 @@ describe("honoTracing", () => {
     const app = new Hono()
     app.use(
       honoTracing({
-        deploymentEnvironment: "test",
         fetch: capture.fetch,
         serviceName: "recurring-test",
         traceEndpoint: "https://collector.test/v1/traces",
@@ -137,13 +136,12 @@ describe("honoTracing", () => {
       spanId: responseSpanID,
       traceId: "00000000000000000000000000000001",
     })
-    expect(attributes["request_id"]).toEqual({ stringValue: "req-1" })
+    expect(attributes["http.request.header.x-request-id"]).toEqual({
+      arrayValue: { values: [{ stringValue: "req-1" }] },
+    })
     expect(attributes["http.request.method"]).toEqual({ stringValue: "GET" })
     expect(attributes["http.route"]).toEqual({ stringValue: "/healthz" })
     expect(attributes["http.response.status_code"]).toEqual({ intValue: "200" })
-    expect(attributes["deployment.environment"]).toEqual({
-      stringValue: "test",
-    })
     expect(resourceAttributes["service.name"]).toEqual({
       stringValue: "recurring-test",
     })
@@ -166,7 +164,6 @@ describe("honoTracing", () => {
       const app = new Hono()
       app.use(
         honoTracing({
-          deploymentEnvironment: "local",
           fetch: fetchMock,
           serviceName: "recurring-inertia",
           traceEndpoint: "https://collector.test/v1/traces",
@@ -193,7 +190,6 @@ describe("honoTracing", () => {
         level: "warn",
         message: "OTLP trace export failed",
         service_name: "recurring-inertia",
-        deployment_environment: "local",
         trace_id: "00000000000000000000000000000001",
         span_id: responseSpanID,
         request_id: "req-1",

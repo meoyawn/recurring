@@ -197,7 +197,6 @@ func TestHealthzTraceSpan(t *testing.T) {
 	exporter := tracetest.NewInMemoryExporter()
 	res := resource.NewSchemaless(
 		attribute.String("service.name", "recurring-api"),
-		attribute.String("deployment.environment", "local"),
 	)
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter), sdktrace.WithResource(res))
 	t.Cleanup(func() {
@@ -228,8 +227,7 @@ func TestHealthzTraceSpan(t *testing.T) {
 	assert.Equal(t, span.SpanContext.SpanID().String(), resp.Header.Get("x-span-id"), "span header")
 	assert.Equal(t, span.Parent.TraceID().String(), "4bf92f3577b34da6a3ce929d0e0e4736", "parent trace id")
 	assertResourceAttribute(t, span, "service.name", "recurring-api")
-	assertResourceAttribute(t, span, "deployment.environment", "local")
-	assertSpanAttribute(t, span, "request_id", "request-from-client")
+	assertSpanAttribute(t, span, "http.request.header.x-request-id", []string{"request-from-client"})
 	assertSpanAttribute(t, span, "http.request.method", http.MethodGet)
 	assertSpanAttribute(t, span, "http.route", "/healthz")
 	assertSpanAttribute(t, span, "http.response.status_code", int64(http.StatusNoContent))
@@ -259,7 +257,7 @@ func TestHealthzGeneratedRequestID(t *testing.T) {
 
 	spans := exporter.GetSpans()
 	assert.Equal(t, len(spans), 1, "span count")
-	assertSpanAttribute(t, spans[0], "request_id", resp.Header.Get("x-request-id"))
+	assertSpanAttribute(t, spans[0], "http.request.header.x-request-id", []string{resp.Header.Get("x-request-id")})
 }
 
 func TestOpenAPIValidation(t *testing.T) {
