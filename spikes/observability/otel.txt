@@ -1,0 +1,695 @@
+Today we have Hib Majid with us and he will tell us uh about observability and how to make it
+painless. Painless. So yeah, please welcome Hib. Hello everyone. Welcome to my talk observability
+made painless with go ut and the looks good to me stack. Don't worry if you don't know what most of
+those words mean. We will cover it and hopefully by the end of the talk a lot of this will make a
+lot more sense. So a little bit about myself. Uh as you heard my name is Steve Marget. I'm a backend
+engineer at a uh fintech startup called Nala. Uh there's a link to my blog which also has these
+slides. I'll have a QR code at the end. So don't worry about uh uh uh going through the slides. You
+can go through them in your own time at the end. A few fun facts about myself. I really like cats.
+Uh I'm an avid uh village crytor. Uh my brother told me to put emphasis on the word village when I
+was uh demoing this talk with him. So make that what you will. So who's this talk aimed at? Well, of
+course it's aimed at those people who have perhaps he heard about observability but want to know a
+bit more. We will cover that. Uh maybe you have a application and you want you want to improve the
+observability or see how you can make it more observable. Hopefully you'll be able to pick up a few
+things. Uh it's also aimed at those people who know observability or have some sort of observability
+stack setup but you want to know more about open telemetry or ut and how does that fit into things?
+What is that? Right? And that was this was definitely me like 18 months ago. I vaguely knew what
+open telemetry was and hopefully by the end of this talk you will be more familiar with it. Uh we
+are not going to be covering much uh promql or prometheus query language uh or prometheus style
+metrics. We're going to go over a little bit but that could be a talk on its own. Uh don't worry if
+you don't know what Promql is. Uh we will go over that a little bit. Um if you're already an expert
+in OTL, you might not get a lot out of this talk. Uh but of course feel free to stay. So let's go
+over a few definitions. What's observability? It's sort of in the name. It's basically in terms of
+uh we're going to be talking a lot in terms of HP services. I feel like a lot of people have written
+HP services, but it's basically what's going on with our application and particularly what's going
+wrong with our application. If customers, for example, can't log in, is it customer support that's
+getting in touch with us and letting us know or are we a bit more proactive and we get an alert uh
+that there's been an increase in certain types of errors on Slack and we can try and fix it
+hopefully before customers notice or with minimal customers noticing. And that's where observability
+is really important. is basically what's going on with our app and more importantly has something
+gone wrong. In terms of this talk, we're going to be covering three main what we call observability
+signals in the auto world. You may have seen these referred to as pillars. Uh essentially the same
+thing, but uh in the auto world, I believe they refer to them as signals. So really quickly, logs.
+I'm sure most of us are quite familiar with these. It's like point in time something's happened,
+right? 805 this happened. Here's a stack trace, right? I think most developers are relatively
+familiar with logs. They give us a decent amount of context why something happened. Uh and you know
+we we we uh we we uh add them to our code and we we collect and look at them and you know data dog
+or coral logix or wherever it may be. We have traces. I find that traces developers don't know as
+well me included uh go back circuit 18 months ago. But traces essentially what they allow us to do
+is view the life cycle of a user action. Sometimes you may hear people say it's the life cycle of a
+request. I think that can be a bit misleading because when people say request people will think HTTP
+request which is not it's not like a onetoone mapping but for example if the user presses an order
+button on your website what's happening and we will talk about that they kind of give us this
+holistic view of the system right and because they contain a lot of context a lot of data typically
+we'll be sampling our traces uh because otherwise our storage costs can skyrocket and then finally
+we have metrics uh which are there for aggregating numerical data generally don't have a lot of
+context and if for For those of you who are wondering what I mean by context, I will cover that. But
+essentially, we just mean like extra information. Metrics on their own don't give you loads of
+information. They're great for like kind of analyzing trends. And we'll kind of cover all three of
+these in some level of detail, particularly focusing on tracing in this talk. Hopefully, we'll be
+able to build something a bit more useful than this, but I suppose some observability is better than
+no observability. So, um they do say London has the most CCTV cameras of uh I think per whatever
+that uh per square meter. So again, make it that what you will. For those of you who might be still
+confused, let's pivot. Uh imagine we own a pizza shop, right? A log message from a pizza shop or our
+pizza shop service, ordering service might be order 123, large veggie pizza burn at 85 due to oven
+failure. So we've got a time stamp there. We've got some extra information about the order ID. We've
+got what kind of order it was and why it failed. Right? So we've got a decent amount of context. A
+trace might look like order 1 2 3 took 30 minutes in total. 5 minutes to prepare, 20 minutes to
+cook, 5 minutes to deliver. And we could attach some extra context there. We could attach who
+ordered it, and we could attach what kind of pizza we were cooking as well. But generally speaking,
+that's what trace is. Uh, and then for metrics, it's going to be something like we sold 50 pizzas an
+hour, the average time was 8 minutes. And again, we could potentially split this by uh the type of
+pizza we were cooking. And we could drill down a little bit more, but there's not loads of context
+there. And of course, keeping our pizza shop service is really important because I'm sure we can all
+appreciate pizza makes the world go round. It's uh the reason some people turn up to some of those
+meetups. Uh might be guilty of that. Don't know if Ferguson's in the room, but anyways. So, some of
+you might be wondering, great, why does observability matter? Raise your hand if you've woken been
+woken up at 2 am because of a production incident and you have had no idea what's going on. Yeah,
+about maybe half the room, maybe quarter of the room. So, we've all been there and we've all
+experienced when we just don't have enough tools or we don't have enough information to debug what's
+going on and especially being sleepd deprived that makes things worse, right? So, it's kind of that
+first bullet point there. Provide context to issues. So, if users can't log in, why can't they log
+in? Is it because our block list service has like gone crazy, right? Like it's blocking everything.
+Maybe we're locking users out. Or is it because people are just getting their password wrong? Maybe
+it's someone spamming our system to try and log in, right? It can also be useful for finding
+bottlenecks in the system. So Google, I think this is quite an old statistic, but over 50% of users
+will abandon a website if it takes more than 3 seconds to load or app, right? So, we want to make
+sure our systems are as snappy as possible and bottlenecks in the system. Finding them, if you're
+not observing things or if you're not collecting data, how do you know what's going to be a
+bottleneck? Maybe you can guess that this service is a bit slow. Um, and particularly in this world
+of microservices, I think a decent amount of us are probably using microservices. And your
+particular microser might just be one in five in the flow, right? And if yours is taking a second
+and all the rest are taking a second, uh, all of a sudden that does add up quite quickly. Now, I
+know ops teams don't really exist per se, but imagine replace that with on call. We want to avoid
+making the person on call uh a pain in the ass for them. So, we want to make sure it's working
+everywhere and if it breaks, we want to make it clear why it's broken. So, what's or open telemetry?
+Uh just really quickly, uh for those of you who know about utel, I don't know which way around.
+Okay. So, I I'm in the majority. I I think I'll alternate between the two. I don't think I have a
+consistent way, but I'll probably generally say Otto. Sorry, guys. Uh but yeah, it's it's open
+telemetry, which is basically this open standard where it came about because data your data should
+be your own, right? So, let me kind of take you back. Uh what generally happened is we wanted
+traces. And don't worry if you don't know what traces are. I will show you what a trace looks like
+in just a second. But we wanted traces. So what what what would we do? We would have like a data dog
+agent and that data dog agent would then collect some information, send it to data dog and we could
+view our trace there. Fantastic. Perhaps if you're with uh if you're using Kubernetes, maybe you're
+using like a sidecar or something like that, right? And that's fantastic. Except what happens now if
+you want to move to Jagger or Zipkin or another trace provider and you're using microservices 150
+100 services you have to go update that agent of. So that that's where open telemetry came around.
+There was a few others I think before that tried to solve this problem, but open telemetry kind of
+is the industry standard. And essentially what it is is your application is now going to generate
+tracing information and it's just going to export it somewhere and it's going to export it to this
+thing called the auto collector which you can think of as kind of this proxy service and it kind of
+decouples our service from worrying about traces or any observability signal. All of our stuff is
+going to go to this auto collector. This auto collector can then do transform, convert, whatever it
+needs to do. If we want to send it to data dog, it can convert it to the data dog format. If we want
+to send it to Jerger, it can send convert to the Jerger format and then send it. It's just a couple
+of lines of config. If we want to send it to both, we can also do that. Uh, you know, if we're doing
+a bake off or something and we want to see what is the best provider for us. So, we've just uh we're
+just managing that all via config now and it makes things a lot easier. And recently, well, quite a
+while now, but recently you can do metrics and quite recently uh I think logs are now out of beta.
+So you can actually manage all three traces, metrics and logs via auto and it it it you know it can
+make kind of that instrumentation a lot simpler because we just export everything to the auto
+collector and that handles sending it wherever we need to go and we can do that via config. Uh this
+is a joke before people start telling me I don't know how probability works. I just found this on
+the internet. Found it quite funny. But I think we've all been there where it just feels like most
+of our time is not spent writing code. It's debugging something and it's even worse in production
+because you can't do break points. You can't necessarily use a debugger uh at least not uh in a in a
+very straightforward way. So I think you know making our lives easier is is really really important.
+So hopefully I'm going to be able to play this uh video here. So this is kind of what we're going to
+try and achieve. This is part of that looks good to me stack. We have Grafana here and we have Loki
+which is our logging database right and what we can see is we're getting logs as structured data and
+we have something called trace ID and span ID in that uh in that kind of block. So this is all
+structured and we can kind of search and filter and do various things and we can also correlate
+between our different signals. So now we have gone by trace ID and found the trace in tempo which is
+our tracing database. Not a particularly interesting trace. Uh it's just showing us the 401 error.
+There's some useful information there. Unauthorized, failed, etc., etc., right? So, okay. And we
+have a rough time of how long it took. That's pretty cool. Uh, and then we can go back and look at
+the logs and we can look at all the logs for this trace. And that could be across multiple
+microservices and that can be really useful. I found this feature particularly useful outside of
+Graphana, wherever it may be. But that is really cool. We can then also just search from tempo
+itself. Uh, you can just see mess around a little bit. I keep forgetting how to use it. There we go.
+I find a trace. This trace is a bit more interesting because it has more what we call spans and we
+will cover spans in just a second. And we have something called attributes. Uh and we can see us
+even interacting with the database in just a second. Uh over here uh we can see that we we've ran a
+query against the database and we have an attribute which actually shows us the query you ran. Super
+useful for debugging when something's gone wrong. We can hopefully see the query we ran as well uh
+and check that that's correct. We can also now go and look at Prometheus or Prometheus like we're
+going to be using MIMA touch on that in a second but we can look at some requests uh some metrics
+and some uh we have these special metrics called exemplars which we'll touch on towards the end of
+this talk and that allows us to correlate a metric with a trace. So we can go we see a 401 error we
+can go and look at the trace and see why do we see that 401. Uh these are just these are not my
+recommended this was just the default goo uh YouTube ones. Uh, oops. Uh, let's come back here. Oops.
+Sorry. There we go. Cool. So, let's take a look at what an ordering service might look like for our
+pizza shop. So, we've got the website there. The user presses the order button. The order button
+then goes to our order service which goes to our user service which then goes to Postgress and
+Reddus and collects some information. Goes back to the order service which then saves stuff in
+Postgress. It then goes to the payment gateway which then goes to stripe which then finally we
+publish a event to CFKA which is consumed by the email service and goes to our SMTP server to send
+an email. You can see I'm out of breath just kind of explaining that flow. Uh and in some uh places
+this is probably quite simple. We haven't handled retries. We haven't really spoken about other
+things that could make this more complicated. So, keeping this in your brain and trying to
+understand what's going on can be really tricky. So, that's where tracing is really useful because
+if we could visualize this in a trace, that probably makes our life easier. And especially if you're
+new to a flow, this becomes way easier to visualize. So, this is kind of what I want you to think
+about when you're like, why is tracing or distribute tracing as as it's referred to useful? So let's
+take a look at this example service. This is not production grade code. Uh so if you see something
+slightly wrong, don't worry about it so much. This is just more the concept. We're just going to
+have a single HTTP endpoint here on our server. And it's just allowing us to search for a user based
+on an ID, right? And we're just going to search uh sorry, we're just going to start a server on port
+8080 and we're just going to have a single handler which is just going to go to the database, fetch
+a user, return it. Right? Cool. Not much observability, not much of what's going on. It's hard to
+tell, right? So, we're going to instrument this as they say this application. We're going to add
+traces, logs, and metrics to this. Again, don't worry about this so much. This is more if you want
+to go through on your own time and follow this. We're going to uh download a bunch of Go modules
+here, mostly from open telemetry uh and uh get started. We're also going to set this environment
+variable. This is to do with that auto collect I told you about. This basically tells our
+application where to export our metric uh our observability signals. So our traces and this is where
+our auto collector is going to be running. Because this is a local setup, the auto collector is just
+going to be running in a Docker container. We've set up some port forwarding. But the application
+doesn't worry too much. It just knows it needs to export it there. If it can't exploit it, it will
+let us know that it failed. So that's always useful. But that's just what this environment variable
+is. We're going to be exporting all of our observability signals to this auto collector. And then
+that can handle doing whatever it needs to do. So then we create a new function. We're going to call
+it new trace provider. Again, don't worry about following this line by line. I just want you to kind
+of understand this at a high level. We're going to set up an exporter which is basically going to
+just export to that environment variable we just spoke about, right? It's going to use that
+environment variable and export our traces over there. Then we're going to set up a trace provider
+uh and it's going to do some batching. So occasionally, you know, every x seconds, it's just going
+to export all of our traces. We set that as our global trace provider. So whenever we reference
+tracing now using auto it's going to use this one unless we override it which is when we're getting
+started definitely what we want. And then finally we have this concept of propagators and this is
+quite important because propagation is the mechanism that moves uh context between services right so
+what's really important here is that we need some way of moving this trace ID between uh most of our
+services and how we do that is one of the ways is propagation we use this trace context and this is
+particularly concerned in the HTTP world and this is going to happen via HTTP headers So if the
+order service calls a user service, then we're going to pass that via HTTP headers, right? So we're
+going to set some tracing information in those headers and it's going to send that over. And it's
+really important that we set this on all of our services. So when it receives a request, it knows,
+oh, this trace ID already exists. I'm going to carry on this trace and I'm going to create what they
+call a new span. And that's really useful. So uh we're going to return that trace provider. For
+those of you who are wondering what the trace context looks like, it looks something like this. And
+we will cover we'll break that down in just a second. Uh and then in our main function, we're going
+to set up this new trace provider. Uh we're going to check if there's an error and we're just going
+to defer shutting it down so that if there's any traces, we can uh push them before the server shuts
+down. Essentially, what we're also going to do is we're going to use some middleware available to us
+from OTL. And essentially what we're doing here is instrumenting all of our um endpoints so that
+they will automatically trace uh uh set up tracing. So either they'll carry on a trace if we if we
+get one or if there was no trace information in the HP request, it will carry on it will start a new
+trace uh and uh we don't have to write any code to do that. It auto instruments that for us and then
+we just have a few things about how we're going to name the span. We're just going to do it via
+method and URL path just to make it easier to search. Uh, and then if you see that, just to have
+that round all of our end points, we're just going to have that M, which is the middleware wrap wrap
+that marks. So, just sorry, just bear with me for a second because I realized we skipped some slides
+when I was uh, faffing around with that YouTube video. So, I apologize because we were supposed to
+cover this before and I was wondering why we didn't. So, spans are units of work for traces. They're
+the building blocks of traces. Basically, in our code, we're never actually creating a trace. What
+we're doing is we're creating a span and if there's a trace ID already available, so if there's some
+trace context, it's going to carry on that trace. And that is really important because if we don't
+pass that trace context along, what we're going to end up is 20 traces with one span each rather
+than one trace with 20 spans, which is quite useful. So essentially what we're doing is we're
+linking spans with trace IDs, right? That's essentially all you need to think about. So we're just
+going to go over spans really quickly. Again, there's not going to be a pop quiz at the end, so
+don't worry too much. But spans have a name, start and finish time stamp, which is how we can see
+how long they took. They have a context, which we'll look at just a second. And they have an
+attribute, which are key value pairs. One example we already saw was we had a a key of DB query
+text, and then an attribute of uh the SQL query we actually ran against that. So we can kind of just
+put arbitrary data that we find useful for providing more context in our span attributes. Then we
+have a bunch of optional fields, a set of events, optional parent span ID. For those of you who are
+familiar with the concept of DAGs or directed as cyclic graphs, you can kind of hopefully start to
+understand how you could generate like a this kind of directed asyclic graph. You have parents and
+children and it's kind of easy to see the relationship of what calls what. So that really helps as
+well. We can also have optional links to other spans and a span status and we will see some of that
+in just a second. So we have the span context here and I visualized this as HTTP headers because
+that's how I kind of visualize it in my head and that's where it really made sense for me. So
+hopefully that makes some sense to you. So we've got trace state there which is a list of key value
+pairs for vendor specific information. Remember is vend agnostic. So sometimes vendors need special
+information. So we have that but we we don't really care about that too much. The trace parent is
+the kind of interesting one. So it's split by hyphens but if we kind of break that down. The first
+bit is version. Currently it's always version 00. Then we have the trace ID D4 D. Then we have the
+span ID 6E etc. So those are that's part of that span context. Then we have some extra information
+about trace flags. A 01 just means sample this trace. 0 means ignore this trace. So again, as I
+said, tracing has a lot of information. So hopefully that kind of explains this trace context. And
+making sure that trace ID is consistent and passed along propagated is really, really important. I'm
+going to quickly cover some other concepts that kind of confuse me uh and hopefully won't catch you
+out when you get into this world. I was like, what's a link? What's a span link? Well, it's
+basically a way to connect two spans who are related but don't have a direct parent child
+relationship and uh some of us will be using event- driven systems and it can be particularly useful
+there because you know you can't predict when something's going to start consuming because it's
+going to happen in its own time. It's a a asynchronous. So hopefully that makes some sense about
+links. Not used very often but useful to know. We also have span events which basically denote a
+single point in time. For example, when a page becomes interactable, maybe that's a span event. And
+there's a bit of confusion when to use attributes versus when to use events. You want to use an
+event when the time stamp is relevant. If the time stamp is uh is important to that piece of
+information, use an event. Otherwise, just defer and use attributes. Again, just providing a bit
+more context to your span if you if you need that. And kind of the final thing I want to cover,
+spans can have types. You can uh either uh give them a type of client, server, internal, producer,
+or consumer. The default is always internal. And then there's a few other rules we follow where the
+child of a producer is always a consumer and the child of a client is always a server. And for those
+of you who are kind of familiar with these concepts, that roughly makes sense, right? So if we go
+back and look at a trace, the red blocks are basically our spans here. And hopefully you can start
+to see some of that child uh parent relationship that we were talking about. We can see like how
+some of these attributes are useful. Again, this was all running locally, hence it looks pretty
+quick. In production, it will probably be a bit slower. Uh but yeah, so we've got some information.
+We got some names. We got some time stamps. We got some kinds there which which we already saw. We
+we can see this case it errored. And we can see the relationship doesn't exist. And hopefully that
+gives us enough information to solve our problem. And if we take a look at span a bit closer, we can
+again see the attributes. You know, we've got the query text. Uh and then the actual SQL query we
+ran. Ignore that SQL query. It's just fetching some subscription info. It could probably be a little
+bit nicer, but hey ho. Uh then we've got some events there, which I haven't really shown. And we got
+some other useful pieces of information. So hopefully that makes sense. And now I can actually go
+back to where we should have been. So apologies again if if if for any confusion. So what is that
+middleware? So we we spoke about this middleware that was uh that would auto instrument our
+application and uh generate traces for us. What's that middleware actually doing? Well, in this case
+the go context or the request context here. What it's doing is this R.context will contain our
+tracing context. So we can actually pull tracing out of it. So it's going to inject that. And what's
+really important with all of our observability signals is we pass this context around correctly. So
+we want to pass the CTX object that actually has the trace context in it because if it doesn't have
+it, we're just going to start new traces and that's not really useful. So that middleware is
+automatically going to start a trace or carry on a trace and inject the relevant tracing context
+into that CTX. And when we log, when we use metrics, we want to make sure it's that same context. So
+we want to make sure that middleware is kind of the one that runs first. So we can pull some
+information like some span information. There's this thing called baggage which allows you to pass
+key value pairs as well as a form of propagation. That can be kind of useful when you don't want to
+pollute your HTTP request with some observability info, right? You want to keep that clean. So you
+send that as as baggage. Don't worry again about the code examples. I will have a service an example
+service you can take a look at and use and go through in your own time that's actually in
+production. Um so that probably will be a bit more useful. We can also start custom spans if we want
+like if there's a critical part of our code and we want to make sure that is tracked we can just
+start it. We just give it a name. So I've just named it after the function here. Uh again make
+making sure that that context variable that ctx context variable is is quite important that's passed
+around. So we start a span like so. We can uh end it when the function ends. Uh we can set
+attributes as we said those are key value pairs if we want. Uh we can even record errors. We can
+record why error and we can set the state status as an error just a database error. We can uh set
+optional attributes. So if the users a premium so you can do all this stuff uh you can do your own
+spans. Uh and hopefully if the tracing context is passed properly you'll be able to see that uh in
+graphana wherever you visualize your traces. And just to kind of summarize this, if we were to kind
+of take a look at this in a JSON format, this is perhaps what it might look like. We've got the
+context trace ID, span ID. In this case, the span doesn't have a parent. We have the start and end
+time stamp. We have some attributes like some HP root stuff which might be interesting. And then we
+have an event, right? So, and event can have attributes as well. So, you can also uh instrument kind
+of some of your infrastructure. So, it doesn't just have to be your service. We can also do it with
+Postgress and other such things. So this will be available. I'm sure you'll be able to do this with
+any database. Uh and you don't have to use PGX. If you're using PGX with a Postgress, you can just
+use this library like I have. And it's just one line of code. Uh so one line of code uh where we set
+up the pool uh and it will auto instrument our code. So whenever we make queries against the
+database, it will include those spans. Uh and if we take a look uh we've already kind of seen the
+span a bit, but I didn't write any of this code myself to do this. It's all just coming from the
+library and you can even see that at the top right. Similarly, we can do this with Reddis or Valky.
+We create our Reddis client. We instrument that instrument tracing again just one line auto
+instrumented and out of the box we can start to see traces like so you can see the DB statement and
+you can see some server address and other such useful information. You kind of get that free out of
+the box. Don't really have to do much. So yeah, that's pretty powerful. One other thing to consider
+is the HTTP client you're using. So if the order service calls the user service, we need to make
+sure their headers actually get passed. So the tracing headers that we saw actually get passed. Now
+every time we make a request, we could pull that information out of the context and inject it
+ourselves. Or we could just set up a client uh using the HTTP library to do that for us. And so now
+when we use this client, it's automatically just going to take what's in that context uh and set
+that as headers. And when the order service calls a user service, it's going to pass that
+information along. And we can do that just like so. Uh here we can just set what again what we want
+to call the span. Uh you can sanitize it. So if you don't want uh each unique one for each user
+maybe you could replace that with ID etc etc because of path parameters and such. And then we can
+just call that client as we as we would. And again that ctx variable quite important that we pass
+that around and that has that tracing context in because when we create this new client and we make
+that request it's automatically going to be injected into those HTTP headers. Hopefully that makes
+sense. Uh and then equally if we were to log that on like the user service side we would be able to
+see the HTTP headers coming through and we would be able to log that. Uh just one thing to note if
+you are using this client for everything note when you call third parties you'll be sending those
+tracing headers. So just make sure there's nothing sensitive in there especially if you're using
+something like baggage where you can set arbitrary key value pairs. Don't put any sensitive
+information there. And the final thing we're really going to talk about tracing uh in terms of
+infrastructure is you can do it with CFKA or event buses. So if you've got France go and this will
+work I'm sure for any uh library is all we're going to do is we're just going to set the tracing
+context or add it as headers to CFKA very similar. Um I actually wrote code to do this myself before
+I realized it was a chaot plugin. So we're just going to use that and we set it up like so. We just
+set it up as a hook and then we can produce and consume as we normally would. And if we logged just
+before we produced, we would be able to see those that tracing information available. And then
+equally on the consuming side, if we were to process that record or that event, we would be able to
+see that on the tracing side as well. On the on the consuming side, we would be able to see the
+trace information. Hopefully that makes sense. Uh and then that basically allows us to visualize the
+producing and consuming via our spans as well. And that can be particularly powerful because I think
+one of the biggest downsides to event- driven architectures is you do lose some of that
+observability that you might otherwise have. And the final thing I want to uh talk about with
+regards to tracing is sampling. As we've said, there's a lot of information that you collect from
+traces. As we've already seen, sending all of that for every request 100 uh if you have a 100
+services that might not be particularly useful. So you might want to sample some of your traces. And
+there's a few to two main methods. There's head-based, which is basically you you say, uh, I want to
+sample only 5% of my traces. So 95% of the time, we're just going to throw that trace away. Uh, and
+that's called head-based sampling. So it's just probabilistic. When you generate a trace, it's just
+going to say, okay, there's a 5% chance. And we saw that with the headers. Uh, you remember the 01
+that tells us it wants to be sampled, otherwise it doesn't want to be sampled. Tailbased is a bit
+more interesting, but a bit more complicated. With tailbase, you can uh for example, when it's going
+to the auto collector, you can set it up that for if if there's any error, we want to sample that,
+right? Uh maybe for successful requests, we don't really care so much about sampling. We just want
+to sample a few. But for errors, we want to sample all of them or specific kind of errors, we want
+to sample all of them. And that's where tailbased is particularly useful. But then with tailbased,
+there's a few considerations. It needs to be stateful because it needs to keep things in memory. So
+if your service crashes like the auto collector and restarts, you can lose information. So, it's
+just like everything. It's trade-offs, right? So, uh yeah, that's sampling in a nutshell. Feel free
+to go look that up in more detail, but I just wanted to make you aware it's possibly something you
+you want to look at. All right, onto our next observability signal. As I said, we spent a lot of
+time on tracing just because I know it's quite a new concept to lots of developers. I thought it'd
+be particularly useful, but we're going to cover metrics uh kind of briefly. So, metrics are there
+for storing numerical data which don't have a lot of context. And we will touch on what we mean by
+not a lot of context. Uh but that makes them really fast to query and quite cheap to store. And
+we're going to store it as time series data. And by time series you just mean we're keeping track of
+time and we're going to kind of graph it along time and view the value. Most of you using metrics
+are probably using Prometheus style metrics uh visualizing them in graphana and querying them using
+this language called promql. I'm sure that's most of what uh people are doing these days and that's
+absolutely fine. In this case, what we're going to do is our application is going to generate OTLP
+or OTL style metrics. It's going to export them to the auto collector and that's going to handle
+converting them to Prometheus. So, we're still going to be playing around with PromQL, but we're
+actually going to be generating a slightly different type of metric. So, really quickly, we have
+four main types of metrics for those of you who might not be aware. We have counters for tracking
+everinccreasing values. So, for example, the total number of requests that's always going to be
+going up. We have gauges for measuring flucturing values. So like CPU usage, memory usage, etc.,
+etc. We have histograms for kind of observing the distribution of values, right? Uh this is this can
+be particularly useful for like looking at latency of certain end points, etc., etc. Then we have
+the up-own counter for values that go up and down, things like Q size. But with upown counter, we're
+more measuring the change, how much did it change? Whereas with a gauge, we don't really care about
+the previous value. Whereas an updown counter, we do. So that's kind of the the slight difference.
+We have async versions of these. You can go uh look them up. Again, there's no pop uh pop quiz at
+the end. So, don't worry about if you don't remember all of this. It's just to give you a rough idea
+of the different kind of metrics we do have. And then really quickly, how does a metric look like?
+Well, it has a name. It has these things called attributes. And attributes are the things that add
+context to our metric. And for example, if we're doing like the total number of requests, some
+attributes that we might want to have might be the root. So, the HTP root or the endpoint we're
+calling, right? because maybe we want to filter at that later on. Maybe we want to keep track of the
+response code because maybe we want to look at all all of our requests that failed. When you're kind
+of creating attributes or as you might know them in Grafana as labels, you kind of already thinking
+about what you want to query. That's why with metrics, we don't have provide a lot of context. We
+don't provide attributes with loads of values because we kind of have a rough idea what we want to
+query. Whereas with traces and logs, generally speaking, we don't really know what we want to query.
+So we give a load of information and then we can query that later on as we need. But yeah, so that's
+where attributes are. They provide a little bit of context, but we don't want attributes that
+provide too much and we'll see why in just a second. Then obviously this is time series data. So we
+also want to store the time stamp and then of course the value that we actually want to keep track
+of i.e. the total number of requests. It's a thousand now in 5 seconds it could be a thousand1 you
+know etc etc. So set metrics again we fetch some packages. Don't worry about uh exactly what we're
+doing there. But yeah, then we create a meter provider. We're going to set up an exporter just like
+we did before. This is going to export our metrics to the auto collector. And again, the auto
+collector is going to handle transforming them. We set up a meter provider like we did before and
+it's going to periodically export our metrics. All good. We can auto instrument our application to
+get some metrics. So we can collect some runtime metrics automatically. Go routines, that kind of
+stuff. heap all that all that stuff that you might be familiar with. We can also sorry instrument it
+to collect host metrics. So that can be stuff about CPU usage, memory usage. Perhaps you already
+have a mechanism for doing this. So you don't need to do this. In my case, this service was only
+running in a as a single container. So that was uh I decided to collect some host metrics and then
+again we set that as the global meter provider and that's absolutely fine just for most use cases.
+And then we return that. And much as we did with the tracer provider in our main function, we call
+it check if there's any errors, defer the shutdown. Now, most of you who are uh exporting metrics
+from your service will probably be doing it with client Prometheus style metrics. Uh in the auto
+world, there's not a lot of I couldn't find a middleware. In the client Prometheus world, there's a
+bunch of middlewares you can just use that will allow uh automatically generate some HTTP useful
+metrics. Uh so for those of you who aren't aware, basically the middleware is just going to be every
+time we receive a request, we're just going to set some metric information. So if we take a look at
+an example again, there'll be a service at the end. You can go and look at here. We're just setting
+up a simple counter. So we're just going to increment this every time we receive a request. So we
+set this up once. Uh then we give it some attributes or some labels to give it some context. So the
+method key is going to be like what was it a get, a post, a delete? The response status code is it
+was it a 200? Was it 500? Was it 400? And we can then filter on that later on. And then obviously
+the root because maybe we want to look at how many requests each of our roots are receiving or uh
+HTTP endpoints, right? And then finally, every time we receive a request, we're just going to
+increment it by one. And then as a functional option, we just pass those attributes so that they can
+be added in. One caveat with attributes though uh those of you experienced with uh Prometheus will
+already be aware avoid high cardality attributes or labels. What do we mean by high cardality?
+Basically I'm talking about that user ID there. And this is also what we meant by context. This is
+not the kind of stuff generally speaking we want to add. Again there there will probably be reasons
+you might want to do so. But if we take a look what's happening here we could have a million users.
+We might have a 100 endpoints and we might have five methods with 20 status codes. I've exaggerated
+this a little bit. It's probably not that bad, but each unique combination of that generates what we
+call a time series graph, right? Uh and each of those might take one kilobyte of uh metadata. And if
+we uh multiply that all out and we have all of those combinations, we are going to generate 10
+billion time series which already is going to be 10 terabytes of data just in metadata alone. If we
+remove the user ID, all of a sudden that becomes much more manageable. Right? Obviously, Prometheus
+in reality will start to throw away metrics and do other stuff, but you probably don't want to lose
+uh all of your metrics just because you've added a user ID. So, that's kind of what we meant by
+context and avoiding high cardality metrics. Hopefully, that makes sense. The final bit on metrics,
+I just want to kind of show you some metrics, visualizing them in Graphana. So, here here's what we
+were talking about with label filters, right? Uh we added some for context, the HP status code. So
+now what we're doing is we're just looking at the successful requests and we're splitting them by
+endpoint. So we can see the homepage has received the most number of requests and remember counters
+are always going up. Uh then we got the fave icon and we got other pages. So it's kind of useful. I
+have made a slight mistake in this query. So the you can see the promql at the bottom there with the
+sum by most of the time I think people are building these with the graphana query builder but uh you
+can also write promql by hand if if you wanted to. The mistake I made uh and I'm sure some of you
+have already caught it is that counters should never decrease. However, metrics are just stored in
+memory for your service. So guess what happens when your service crashes? The metric will go back to
+zero and you need to account for the fact in your query that counters can go back to zero. So if it
+went back to zero with this current function, everything would go down rather than uh the next time
+it received like one maybe uh rather than showing 19 or 18 as we would expect for the the green uh
+the green graph, it would show one. And what you can do to counteract that is used rate and I rate
+and other functions that Prometheus uh gives you to account for the fact that counters uh can go
+back to zero. Uh this one catches people out. It caught me out. A senior developer told me off for
+it. Uh so keep that in mind right that uh counters can reset back to zero in in your application and
+uh Prometheus is not going to do anything for you to account for that. You have to do it yourself.
+Finally, I want to touch on histograms because I think histograms are one of those things people
+don't know as well and and I was in that uh um camp as well. So we can tell this is a histogram
+because we're looking at buckets. Uh and what we're essentially plotting here is if you can see I
+don't know how well you can see at the back but we're looking at the 95th quantile. And essentially
+what we're saying is at any point in this graph, so if you look at the green uh green graph for the
+homepage, what we're saying at any point 5% of requests were slower than this. If we just looked
+down latency of our endpoint, it might say 100 milliseconds. We're like fantastic, that's great. But
+we want to start looking at outliers because even 1% of our customers could be 10,000 customers,
+100,000 customers. And maybe when you look at like the slowest 5% of requests are going to be slower
+than 8 and a half maybe imagine that wasn't milliseconds maybe that's 8 850 milliseconds and maybe
+that's really slow because again there's other microservices and we're saying 5% of requests are
+even slower than that right so that's where histograms are really powerful and for those of you who
+might not be as familiar with the maths essentially what we're doing is we're storing these in these
+kind of buckets and if we're looking at the 95th percentile it's going to be somewhere between the
+8.0 zero bucket. So LE is less than. So we're saying less than 8.0 seconds and it's going to be
+somewhere between 0.8 and 1. Uh Prometheus will do some extrapolation and that's going to be roughly
+0.94 seconds, right? And all of a sudden when we start looking at these outliers, uh histograms can
+be great for showing that and see maybe 1 second is too slow for our customers for those customers
+at the top. Hopefully that makes sense. That's kind of some of the power of histograms. On to
+logging. Sorry. Uh, wrong kind of logging. So, logs, I think developers are generally speaking quite
+familiar with them. So, we won't spend loads of time on it. But what is essentially what's happened
+in our application and it's the common way I suspect most of us are debugging our application.
+Right? We're going to data dog, we're going to coral logics, we're looking at logs, we're trying to
+roughly look at the time when we know an error happened or an alert has gone off, etc., etc., right?
+So, some of you will be asking me, but see, why auto and logging? And and to be to be fair, it also
+kind of applies to metrics. There's a few reasons. Context propagation. We can automatically attach
+our trace context to our logs. So we can inject a trace ID and a span ID automatically into our
+logs. We don't have to do that ourselves. Uh Otle will handle that for us. Correlation linking logs
+to traces and traces to logs. Really useful. If you take nothing else from this talk, if you're in
+microservices, if you're using microservices, uh, and you don't have like a trace ID or a
+correlation ID, uh, between all of your logs, you know, showing you, uh, all of the logs related to
+like kind of a request, really, really useful. Like you might not always bubble up the information
+like, you know, service A calls B, which calls C, you might have to go to service C to actually see
+the the actual error and understand it. And that's been super useful for me in the past. a unified
+schema. We can kind of define these attributes and share them across all of our signals, right? So
+we can just do it in one place and we don't have to worry about keeping them in sync. And of course
+a reduced overhead. We don't have like three mechanisms for pulling observability signals.
+Everything is just going to be exported to the auto collector and that's all going to be done by
+config. We're going to be looking at structured logging. For those of you who aren't familiar with
+structured logging, just pretend it's like a JSON object. So rather than doing like a free text reg
+x we can just like search for specific attributes. We can say find all the logs with this trace ID
+with this key and this value. And that means for low key and other such logging databases it's a lot
+quicker to query. Again we're going to fetch a bunch of packages. Don't worry about that. Sorry
+modules don't worry about that so much. We're going to set up a logger provider as we have done
+before. We'll notice this min thing which we'll talk about in just a second. But yeah we're going to
+export our logs as we did before. We're going to batch our logs and then we have this minb thing and
+that's basically to do with log level. Locally, you might want a log level of debug, but when you go
+to production, maybe you don't want debug level logs cuz they're too noisy. So, you might want to
+set info or warning or error, right? You maybe only want to see error level logs. So, that's where
+we're using the min there just to say throwaway logs lower than this severity because we don't
+really care about them, right? So, using severity and logs can be super useful uh for that. Then we
+just set up a log provider as we have before. Uh global here is part of the auto library, the auto
+logging library. It's not something I've done myself, but it basically just does the same thing as
+the rest of our code, which is just when we reference a logging provider, we're just going to be
+referencing this one by default. And that's absolutely fine. And then f in our main function, we
+call it like we normally would, right? Like we've done the rest of our providers. We check if
+there's an error, etc., etc. Then uh we have to go a little bit further with logs actually
+unfortunately uh well not unfortunately it's just that team decided to take a different approach
+because logging is quite mature as compared with traces and metrics and what they did is they came
+up with these bridges and the bridge basically transforms your slog we're going to use slog from the
+standard library your slog record into something Otto can understand so for my setup for logging for
+locally I have a standard out logger so that's just going to log to my terminal because that's quite
+easy to makes it easier to debug then I also have this auto uh uh handler which is going to use the
+slog library and it's just going to send uh make sure that the records are converted and sent over
+to the auto collector as we've seen and then I just use this slog multi so whenever I log it logs to
+both if that makes sense logs to standard out and the auto handler in production I don't care as
+much I'm not really going to look at the standard out of like flyio or whatever my provider is so we
+just uh we we I'm going to view that in graphana and then we uh return the logger as you normally
+would and we call the logger as we normally would. You can pass it via strruct or you can pass it
+via context. And then again that ctx variable as long as it has the trace context if we did
+something like so we would get output like that. And then uh the tint output looks something like
+this. It's nice just to view on the terminal and the graphana one we've kind of already seen. Then
+just really quickly to summarize where might you use what? How many errors occurred? Probably a
+metric. Why did a specific request fail? You might start off with tracing, but you're probably going
+to solve that using a log. You know, you're going to require detailed error context. Is latency
+increasing? We've kind of already seen what we were looking at. We were looking at the P95 latency.
+Uh, but that's going to be a metric. Again, we're going to be looking at latency by metrics. Things
+like bottlenecks, probably traces. Why did a request time out? Again, probably a trace. See what
+took so long. Why is uh the user not able to log in? Probably going to be a log. But yeah, going
+over really quickly just a few other auto concepts that were I was wondering what they are. So we
+have these things called resources which basically just describe the source of the telemetry data.
+So for example, if you're in a container in Kubernetes, maybe you want to attach some kind of
+metadata to our observability signals. Uh you can do it via an environment variable or you can do it
+via code. And so for example, the deployment environment key is really useful because I uh for lots
+of my setups I just have one set of like say graphfana and then I can just filter on using the
+deployment key dev or production and you can attach lots of other useful information and then you
+could potentially filter by oh this container is misbehaving why is it misbehaving and you can look
+at just specific data just to that and then we can pass this as a functional option. You might have
+also seen the sem library semantic convention that's basically just to give us kind of these
+consistent names or strings so we don't have to worry about naming and that will be common across
+languages and tools. So we saw it with our attributes here and we see Sm uh and basically we get
+strings like so and if you did it in Java it would be a string etc etc right finishing off the
+observability part some antiatterns to avoid emitting a log for every HTTP request use a metric
+instead in production might be fine locally trying to capture a user ID and a metric we've already
+seen don't do that generally speaking use logs and traces and logging without trace ids Please try
+and use trace ids. It just makes your life a lot easier, especially in the microservices world. The
+final part of our talk, we're just really quickly going to go over the looks good to me stack. I
+think it's just a really cool acronym. Uh so what it stands for is Loki for our logging database,
+graphfana for kind of visualizing everything, tempo as our tracing database, and MIMA as our metrics
+database. Quick note on MIMA. In production, you will probably using Prometheus and MIMA as a
+backend instead of Thanos. Don't worry if you don't know what that means, but essentially just to
+simplify our local setup, I just use MIMA and then it fits quite nicely into the it looks good to me
+stack. And essentially this is what uh this is what we're achieving here, right? We're collecting
+OTLP data that's going to the auto collector. It's then via config going to send it to Prometheus,
+Tempo, and Loki. We're then going to connect those as data sources to Graphana and view that on the
+Graphana UI. That's essentially what we're doing. I think this is a great diagram from the team.
+We're running a bit behind so I'm not really going to go over the docker compose setup much but
+there'll be an example at the end but it's essentially just spinning up all those things we just
+spoke about. Um so a little bit about the auto collector. I've spoken about it a lot and I think
+this diagram explains things really well. The auto collector can receive data in a number of
+formats. So OTLP, Jerger, Prometheus. It can then batch transform filter. Your security team might
+love it because you can start filtering logs. If you see like 16 digits split by hyphens, ooh, could
+be a credit card number. Let's make sure we don't actually send that to our logging provider, right?
+And then we can transform data and we can send it in the Jerger format, Zipkin format, whatever it
+may be. We could even send it uh keep it in the OTLP format if we wanted to because lots of our
+providers now actually support OTLP metrics traces uh and and hopefully soon to be logs. Um
+obviously in our case, we're converting stuff into Prometheus for for metrics and that's how we
+visualized it. So in terms of the auto collector, the one I actually went with is Alloy, which is
+made by the Grafana team and has this nice UI, but basically does the exact same thing as the autoc
+collector just uh in a slightly different config language. They say it's a bit easier to integrate
+with Kubernetes and a few other things, but um for all intents and purposes, you can use the auto
+collector, you can use alloy. I quite like the UI just to be able to see uh everything is set
+properly. We can see Loki there, we can see Prometheus, and we can see the default OTP exporter. One
+other thing uh part of Grafana that I like setting up was setting up data sources but rather than
+doing it via the UI you can do it via code and it makes it easier for new people to get set up and
+if you lose your docker volumes it can make it a bit nicer and this is how essentially we were
+correlating our data when we saw in the YouTube video. So if we have Prometheus here we have this
+thing called exemplars which is how we went from a metric to a trace. So it's just like if you see a
+trace ID use the data source tempo Loki for our logs we have this thing called the derived field and
+that's basically just doing a redex check and if it sees a trace ID it's it can search that trace ID
+for our data source tempo for our traces and that's how we linked logs to traces and then finally we
+have tempo which is for tracing uh and that will use trace to logs and trace to metrics so we can
+link our traces to logs and metrics as well and really quickly in the graphana UI if it's set up
+properly oh I appreciate is really terrible. You can't see that at the back. But if it's set up, you
+can do something like so. And for metrics, you need to enable these things called exemplars.
+Exemplars really confused me when I was looking up for this talk. Uh they basically are just a
+special metric that gets produced every now and then. So it's not like every metric has it, but they
+just have a trace context attached. So it has basically the same data as a normal metric, but it
+just has a trace ID. So we can search for that later. Uh and it looks something like this. If you
+were looking at the JSON, it's very similar except with some tracing information. And then finally,
+uh, with, uh, uh, traces, if it's set properly, we'll be able to see we're referencing Loki and
+Graphfana. And if we wanted to just before we finish up, if I was to taking a look at viewing an
+error, imagine I've gone out for lunch and I've come back and everything's on fire. I quite like
+community. I appreciate it's probably not the best meme to use, but here we are. And we see an
+increase in 401 errors. Maybe I go to our graphana dashboard. Uh we've got exemplars which we just
+spoke about. Again, notice how it's not every metric. It's kind of a special metric. I see a
+specific exemplar. I click that exemplar and it goes and takes me to tempo for tracing. So, we kind
+of see our trace. We get a bit more information. We see what's happened. We see how long it took. We
+see the user 401 still don't quite have enough context. So, we go take a look at logs. Oh, okay.
+Failed to get state cookie. The user didn't have a cookie that we expected them to. Makes a lot of
+sense. And that might be like a flow that you use to kind of debug and see what's going on. And
+hopefully you can see the correlation uh in that kind of looks good to me stack can be quite useful.
+Of course, you can use whatever whatever you want to do. And now our pizza shop is up and running.
+Uh and it's fully observable. Thank you very much. There's a link to these slides uh and the example
+service at the bottom. Uh thank you for listening. I appreciate that was a ton of information. So
+don't worry if you haven't if some of it went over your head. Uh, and yeah, thanks to everyone who
+helped review this talk and provide feedback. >> We're doing questions. >> Yeah. Yeah, I see. I've
+seen. >> Okay. Does anyone have questions? >> Yep. Thank you very much. That was amazing. um how
+much of your code ends up being non-code but just hotel in the end >> so in uh like at work what I
+generally would do or what we've done is uh we've abstracted a lot of it out to libraries so you
+kind of have one library that every microser imports right uh so a lot of that just gets moved out
+uh and then if you need specific stuff then then you would add it so not a lot if you're like me and
+like banter bus for example is just a single service then yeah a decent amount of that percentage is
+like maybe like 10% of the code uh does end up being kind of observability related but it's kind of
+like if you're using that if you have a library it's like most things right uh you you kind of get
+those economies of scale and uh you kind of just have to write it once and it does it for you um if
+it's just for a one-off service then yeah it can start to it can start to add up but uh you you know
+with metrics you'd have to do that anyways whether you're using OTLP metrics the logging is just a
+little bit more you'd have to add those logs anyways so it's probably only the tracing bit really
+that that adds a bit more. Uh but you you would again need to start those traces yourself. So even
+if you weren't using Otle and the uh looks good to me stack, you would still probably need some I
+don't know if that was exactly your question, but hopefully that answered it. >> So uh can you uh
+use Jerger or Prometheus one of those for Otel because I have seen that sometimes Joerger is being
+used for traces and Prometheus for monitoring. Yeah. So sorry if I wasn't clear. Yeah. Prometheus is
+a metrics basically uh uh back end right. So what you can do for example when I was talking about
+the auto collector it was some of those specific observability signals can be converted. So metrics
+can be converted into Prometheus format. Traces can be converted to Jerger Zipkin data dog whatever
+uh other format you may need. Um though again a lot of providers now support the OTLP format for all
+of these. Uh so you can just keep them in the OTLP format. Yeah. No, absolutely. Like Jerger is is a
+tracing provider as far as I'm aware for visualizing your traces. You wouldn't uh I don't think
+you'd be sending metrics there. As far as I'm aware anyways, um someone can correct me if I'm wrong.
+>> Thank you. Any more? Yeah. >> Uh thank you for the talk. It was really great. Um do you ever
+think you can have too many metrics logs and how do you advise preventing too much noise? >> Yeah, I
+think that's a really good question. I did actually delete some slides uh uh just last night where I
+was talking about lessons learned. Over logging, I would always push for over logging than under
+logging. Uh but it basically will just come down to when you're in an incident probably looking at
+that log and being like that's useless. I think unfortunately at least in my experience that's
+that's what it bottles down to or when you're trying to debug an issue and you're like you know what
+that log is useless. In terms of metrics, yeah, metrics can be one of those things. is it can be it
+can be really hard to kind of work out. Uh and I think unfortunately some of my learnings have just
+been from you're an incident you're in an incident you're like oh that that information would be
+really useful or looking back and saying we should have a metric tracking that um yeah trying to be
+looking forwards is I think a lot of it is just learning from experience. Uh at least for me I don't
+know if there's a there's there's other methods people use but yeah >> thank you. Okay, question in
+the book. >> Uh there's also some uh links at the end you can go and have a look. Um Better Stack do
+some really good videos and some really good blogs. So uh have a >> Hi, thank you. That was a great
+talk. Really really appreciated it. Um got a question on trace IDs. I've seen the term correlation
+ID used and it's not very clear to me whether they mean exactly the same thing or if there is a
+difference. How do you see it? >> So I think apologies again if that wasn't clear. Correlation ID is
+basically kind of existed before traces. So it was a way to like correlate like kind of the life
+cycle of something together. Basically I wouldn't use a correlation ID. I would just use a trace ID
+now to to do that to do that all for you. Uh like you just have a trace ID which is now tracking the
+life cycle of an action or a request. uh and just a filter and trace ID to view everything related
+to that kind of event or whatever whatever you may you may uh call it. But yeah, a correlation ids I
+think just existed generally speaking before tracing became popular. It was just a way before you
+could even look at traces as a way to kind of correlate logs that are related together. >> Right. >>
+That makes sense. >> Yeah. Okay. Thank you. >> Thank you. Any more questions? >> Yeah. uh thanks for
+the talk. I have a question about the trace ID. So uh what if you don't have a micro service
+architecture but so the way I understood it is you create a a trace ID when the user logs in and
+that same trace ID goes around in the HTTP headers, right? And then you track the entire thing end
+to end, right? >> So not quite. So you could do it uh that's probably more you have like a user ID
+and you'd attach it to your traces. >> A trace ID is basically almost a trace is more of a user
+action. So when they press the order button, you could do it from the front end, you could do it
+from the back end. It depends like if you're using Sentry, you could also like that's another
+popular tool. Uh if there's a trace ID by the time the request uh reaches the back end, it'll carry
+on that trace. And obviously if all of the spans are going to the same place like Sentry for
+example, you could visualize it there. But essentially every user action they're doing will generate
+a new trace. And if you want to correlate it back to the user, you would attach the user ID where
+where you can. Does that answer your question? >> So like we pass the trace ID around when the
+microservices are talking, right? It's not like when the user logs in and they add something to
+cart, it's reusing the same trace ID. That's not how >> generally speaking, no. Because then what
+would happen is when you visualize that trace, you would just get everything. So it's kind of just
+like and again there's good reasons to break these rules but generally speaking about an action a
+user does user adds an item to a cart that's an all that touched what are the pieces of
+infrastructure what happens for that one single action then they add a second uh item to the cart
+then they go to the order those will be like three separate traces with three separate trace IDs
+generally speaking >> right makes sense thank you >> sorry was that potentially. Yeah, potentially.
+Uh, >> hi. >> Sorry. >> Sorry. If you could just repeat that. >> I just said I just said in the case
+of a of a sequence of actions from my perspective like uh add invoke. I don't remember what the
+other ones were out of the three, but what I was saying maybe you can use span links which I think
+is something that you mentioned that is to uh actually I'm not sure how it would work. Maybe the the
+the root span in each of the three traces, they could be linked to one another. >> Uh or maybe uh
+that's just an idea off the top of my head if it if it's useful in some way. That's that's just it.
+>> I I think generally speaking, I'm not an expert in in in in this, but generally speaking, you
+would link them probably via user ID. And if you want to send that round, that's where that baggage
+propagator, you can go and kind of look that up, becomes quite useful. I think generally speaking,
+my understanding is you want to keep traces kind of short as in they shouldn't be running for hours
+kind of sort of thing. Uh but yeah, span links potentially uh I'm sure uh there might again might be
+good reasons. I haven't >> actually I think your direction might be better as I understand maybe
+some ID not sure user ID because it can be um maybe like sort of a a card ID or a transaction. Yeah.
+Okay. >> Yeah. again you can set that past that round. It's all business logic. I think uh someone
+here had a question. >> Yes. >> Uh I suppose on that note um is there anything good for capturing
+say a journey like you know a user having conversation with an LLM and you're essentially trying to
+trace you know how long it takes between responses. Um, so sort of like doing that sort of trace
+level like a trace except it's a it's a conversation between a user and a and something. >> Yeah,
+it's a good it's a it's a good question. Uh, it's not something I've really thought about to be
+honest. Um, because basically you would again just be searching the only thing I can think is you'd
+be searching on user ID and kind of viewing all those traces and it's not uh you maybe you want to
+attach some form of metadata you could then search from. But yeah, catch me at the end if you have
+any more questions. I'll be outside. >> Yes, thank you folks. We are out of time. So, uh 15 minute
+break now, but say thanks to Hib again.
