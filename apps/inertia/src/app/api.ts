@@ -9,8 +9,18 @@ type HealthPayload = {
   status: string
 }
 
+const requiredBinding = (value: string | undefined, name: string): string => {
+  if (value === undefined) {
+    throw new Error(`${name} is required`)
+  }
+  return value
+}
+
 export const apiOrigin = (bindings: Env): string =>
-  bindings.RECURRING_API_ORIGIN.replace(/\/$/, "")
+  requiredBinding(bindings.RECURRING_API_ORIGIN, "RECURRING_API_ORIGIN").replace(
+    /\/$/,
+    "",
+  )
 
 const headerValue = (request: Request, name: string): string | undefined => {
   const value = request.headers.get(name)

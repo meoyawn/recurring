@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	configgen "github.com/recurring/api/internal/gen/config"
 	"github.com/recurring/api/internal/serviceclient"
 )
 
@@ -23,7 +24,7 @@ type childProcess struct {
 	done chan error
 }
 
-func startSheets(ctx context.Context, socketPath string) (*childProcess, error) {
+func startSheets(ctx context.Context, socketPath string, telemetry configgen.TelemetryConfig) (*childProcess, error) {
 	cmd := exec.CommandContext(ctx, "bun", "src/cmd.ts")
 	cmd.Dir = filepath.Join("..", "..", "..", "sheets")
 	cmd.Env = append(os.Environ(),
@@ -31,6 +32,11 @@ func startSheets(ctx context.Context, socketPath string) (*childProcess, error) 
 		"RECURRING_SHEETS_LISTENER_KIND=unix",
 		"RECURRING_SHEETS_SOCKET_PATH="+socketPath,
 	)
+	if telemetry.HasOtlpTracesEndpoint() {
+		cmd.Env = append(cmd.Env, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="+telemetry.GetOtlpTracesEndpoint())
+	} else if telemetry.HasOtlpEndpoint() {
+		cmd.Env = append(cmd.Env, "OTEL_EXPORTER_OTLP_ENDPOINT="+telemetry.GetOtlpEndpoint())
+	}
 	if err := pipeCommand(cmd, "sheets"); err != nil {
 		return nil, err
 	}

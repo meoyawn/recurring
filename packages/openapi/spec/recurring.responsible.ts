@@ -156,6 +156,16 @@ const api = responsibleAPI({
         }),
       },
     }),
+    "/sheets-test": GET({
+      id: "sheetsTest",
+      description:
+        "Unprotected test endpoint that exercises API to sheets service tracing.",
+      res: {
+        204: resp({
+          description: "Sheets service call completed.",
+        }),
+      },
+    }),
     "/v1": scope({
       forEachOp: {
         req: {

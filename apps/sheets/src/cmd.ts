@@ -57,6 +57,16 @@ export function start(config: Config = loadConfig()): Bun.Server<undefined> {
     }),
   )
   app.get("/healthz", c => c.body(null, 200))
+  app.post("/exports/workbook", c =>
+    c.body("dummy workbook\n", 201, {
+      "Cache-Control": "no-store",
+      "Content-Disposition": 'attachment; filename="recurring-export.xlsx"',
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "X-Recurring-Export-Warning":
+        "Currency conversion formulas use GOOGLEFINANCE and may not work in Excel. Open in Google Sheets or use manual FX rates.",
+    }),
+  )
 
   if (config.listener === "unix") {
     rmSync(config.path, { force: true })

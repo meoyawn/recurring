@@ -101,7 +101,7 @@ func startTestEnv(ctx context.Context, devConfig configgen.Config) (*testEnv, er
 		_ = container.Close(context.Background())
 		return nil, err
 	}
-	sheets, err := startSheets(ctx, sheetsSocketPath)
+	sheets, err := startSheets(ctx, sheetsSocketPath, devConfig.Telemetry)
 	if err != nil {
 		_ = os.RemoveAll(tempDir)
 		_ = container.Close(context.Background())
@@ -328,6 +328,28 @@ func TestSignupPostgresTrace(t *testing.T) {
 	defer cancel()
 	err = waitForJaegerTrace(ctx, resp.Header.Get("x-trace-id"), otelpgxTracerName)
 	assert.NilError(t, err, "wait for signup PostgreSQL trace")
+}
+
+func TestSheetsTracePropagation(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, apiBaseURL+"/sheets-test", http.NoBody)
+	assert.NilError(t, err, "create GET /sheets-test request")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "GET /sheets-test")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusNoContent, "GET /sheets-test status")
+	assertTraceHeaders(t, resp.Header)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = waitForJaegerTrace(ctx, resp.Header.Get("x-trace-id"), "recurring-sheets")
+	assert.NilError(t, err, "wait for sheets service trace")
 }
 
 func TestSignupWithoutOptionalProfile(t *testing.T) {

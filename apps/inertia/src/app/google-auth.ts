@@ -95,15 +95,31 @@ const authConfig = (
   }
 
   return {
-    authorizationEndpoint: bindings.GOOGLE_AUTHORIZATION_ENDPOINT,
-    tokenEndpoint: bindings.GOOGLE_TOKEN_ENDPOINT,
-    userinfoEndpoint: bindings.GOOGLE_USERINFO_ENDPOINT,
+    authorizationEndpoint: requiredBinding(
+      bindings.GOOGLE_AUTHORIZATION_ENDPOINT,
+      "GOOGLE_AUTHORIZATION_ENDPOINT",
+    ),
+    tokenEndpoint: requiredBinding(
+      bindings.GOOGLE_TOKEN_ENDPOINT,
+      "GOOGLE_TOKEN_ENDPOINT",
+    ),
+    userinfoEndpoint: requiredBinding(
+      bindings.GOOGLE_USERINFO_ENDPOINT,
+      "GOOGLE_USERINFO_ENDPOINT",
+    ),
     clientId: bindings.GOOGLE_CLIENT_ID,
     clientSecret: bindings.GOOGLE_CLIENT_SECRET,
     redirectURI:
       bindings.GOOGLE_REDIRECT_URI ||
       new URL(callbackPath, publicOrigin(request)).toString(),
   }
+}
+
+const requiredBinding = (value: string | undefined, name: string): string => {
+  if (value === undefined) {
+    throw new Error(`${name} is required`)
+  }
+  return value
 }
 
 const randomState = (): string => {

@@ -21,10 +21,7 @@ const (
 )
 
 func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Context) error, error) {
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	))
+	otel.SetTextMapPropagator(textMapPropagator())
 
 	res, err := resource.New(ctx,
 		resource.WithFromEnv(),
@@ -52,6 +49,13 @@ func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Con
 	provider := sdktrace.NewTracerProvider(opts...)
 	otel.SetTracerProvider(provider)
 	return provider.Shutdown, nil
+}
+
+func textMapPropagator() propagation.TextMapPropagator {
+	return propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
 }
 
 func traceExporterConfigured(cfg configgen.TelemetryConfig) bool {

@@ -53,7 +53,7 @@ func StartWithConfig(ctx context.Context, cfg configgen.Config) (*Server, error)
 		return nil, err
 	}
 
-	handler, err := httpapi.NewEcho(pool)
+	handler, err := httpapi.NewEcho(pool, httpapi.WithSheets(cfg.Sheets))
 	if err != nil {
 		pool.Close()
 		_ = traceStop(context.Background())

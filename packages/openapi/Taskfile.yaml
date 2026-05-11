@@ -55,11 +55,6 @@ tasks:
       - compile:sheets
       - compile:config
 
-  generate:client:
-    run: once
-    deps:
-      - generate:inertia-client
-
   generate:inertia-client:
     run: once
     vars:

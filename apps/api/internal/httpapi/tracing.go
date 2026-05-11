@@ -64,6 +64,13 @@ func traceMiddleware(provider trace.TracerProvider, propagator propagation.TextM
 	}
 }
 
+func textMapPropagator() propagation.TextMapPropagator {
+	return propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+}
+
 func responseStatus(resp http.ResponseWriter, err error) int {
 	_, status := echo.ResolveResponseStatus(resp, err)
 	if status != 0 {

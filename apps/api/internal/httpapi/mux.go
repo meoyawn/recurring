@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
+	configgen "github.com/recurring/api/internal/gen/config"
+	"github.com/recurring/api/internal/serviceclient"
 	echomiddleware "github.com/responsibleapi/echo-middleware"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -24,6 +26,7 @@ var openAPISpec []byte
 type echoConfig struct {
 	tracerProvider trace.TracerProvider
 	propagator     propagation.TextMapPropagator
+	sheets         configgen.ServiceConfig
 }
 
 type EchoOption func(*echoConfig)
@@ -31,6 +34,12 @@ type EchoOption func(*echoConfig)
 func WithTracerProvider(provider trace.TracerProvider) EchoOption {
 	return func(cfg *echoConfig) {
 		cfg.tracerProvider = provider
+	}
+}
+
+func WithSheets(cfg configgen.ServiceConfig) EchoOption {
+	return func(echoCfg *echoConfig) {
+		echoCfg.sheets = cfg
 	}
 }
 
@@ -42,7 +51,7 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 
 	cfg := echoConfig{
 		tracerProvider: otel.GetTracerProvider(),
-		propagator:     otel.GetTextMapPropagator(),
+		propagator:     textMapPropagator(),
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -66,6 +75,7 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 		},
 	}))
 	e.GET("/healthz", health)
+	e.GET("/sheets-test", sheetsTest(serviceclient.NewSheetsClient(cfg.sheets)))
 	e.POST("/v1/signup", signup(pool))
 
 	return e, nil

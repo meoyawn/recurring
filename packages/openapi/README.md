@@ -16,14 +16,14 @@ bun install
 Run generation from this directory (so paths in the YAML and `openapitools.json` resolve correctly):
 
 ```bash
-task generate:client
+task generate:inertia-client
 task generate:go-structs
 ```
 
 From repo root via [Task](https://taskfile.dev):
 
 ```bash
-task openapi:generate:client
+task openapi:generate:inertia-client
 task openapi:generate:go-structs
 ```
 
