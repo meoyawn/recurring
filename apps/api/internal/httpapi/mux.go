@@ -67,7 +67,7 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 		},
 	}))
 
-	routerBuilder, err := openapirouter.NewRouterBuilder(
+	rb, err := openapirouter.NewRouterBuilder(
 		spec,
 		echomiddleware.Options{
 			DoNotValidateServers: true,
@@ -80,21 +80,21 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 		return nil, err
 	}
 
-	err = routerBuilder.Security("SessionSecurity").HTTPHandler("bearer", func(_ *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
+	err = rb.Security("SessionSecurity").HTTPHandler("bearer", func(_ *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	routerBuilder.AddRoute("healthCheck", health)
-	routerBuilder.AddRoute("sheetsTest", sheetsTest(serviceclient.NewSheetsClient(cfg.sheets)))
-	routerBuilder.AddRoute("upsertSignup", signup(pool))
+	rb.AddRoute("healthCheck", health)
+	rb.AddRoute("sheetsTest", sheetsTest(serviceclient.NewSheetsClient(cfg.sheets)))
+	rb.AddRoute("upsertSignup", signup(pool))
 
-	err = routerBuilder.Mount(e)
-	if err != nil {
+	if err := rb.Mount(e); err != nil {
 		return nil, err
 	}
+
 	return e, nil
 }
 
