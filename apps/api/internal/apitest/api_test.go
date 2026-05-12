@@ -336,6 +336,57 @@ func TestSignup(t *testing.T) {
 	assert.Assert(t, first.SessionID != second.SessionID, "repeat signup returned same session_id %q", second.SessionID)
 }
 
+func TestSessionSecurityRejectsMissingBearer(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/expenses", http.NoBody)
+	assert.NilError(t, err, "create GET /v1/session/expenses request")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "GET /v1/session/expenses")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusUnauthorized, "GET /v1/session/expenses status")
+}
+
+func TestSessionSecurityRejectsUnknownSession(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/expenses", http.NoBody)
+	assert.NilError(t, err, "create GET /v1/session/expenses request")
+	req.Header.Set("Authorization", "Bearer sess_00000000000000000000000000000000")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "GET /v1/session/expenses")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusUnauthorized, "GET /v1/session/expenses status")
+}
+
+func TestSessionSecurityAcceptsSignupSession(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	session := postSignup(t, client, randomSignupPayload(t))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/expenses", http.NoBody)
+	assert.NilError(t, err, "create GET /v1/session/expenses request")
+	req.Header.Set("Authorization", "Bearer "+session.SessionID)
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "GET /v1/session/expenses")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusNotImplemented, "GET /v1/session/expenses status")
+}
+
 func TestSignupPostgresTrace(t *testing.T) {
 	t.Parallel()
 

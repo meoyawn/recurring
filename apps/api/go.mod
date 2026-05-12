@@ -26,6 +26,12 @@ require (
 	gotest.tools/v3 v3.5.2
 )
 
+tool (
+	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	github.com/meoyawn/pggen/cmd/pggen
+	github.com/pressly/goose/v3/cmd/goose
+)
+
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
@@ -328,10 +334,4 @@ require (
 	modernc.org/sqlite v1.49.1 // indirect
 	mvdan.cc/gofumpt v0.9.2 // indirect
 	mvdan.cc/unparam v0.0.0-20251027182757-5beb8c8f8f15 // indirect
-)
-
-tool (
-	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
-	github.com/meoyawn/pggen/cmd/pggen
-	github.com/pressly/goose/v3/cmd/goose
 )
