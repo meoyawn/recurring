@@ -73,7 +73,7 @@ func run(m *testing.M) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	devConfig, err := config.Load(filepath.Join("..", "..", "config", "dev.yaml"))
+	devConfig, err := config.Load(filepath.Join("..", "..", "config", "test.yaml"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "load dev config: %v\n", err)
 		return 1

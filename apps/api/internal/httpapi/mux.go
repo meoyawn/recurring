@@ -83,7 +83,8 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 
 	err = rb.Security("SessionSecurity").HTTPHandler(
 		"bearer",
-		func(_ *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
+		func(catx *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
+
 			return nil
 		},
 	)

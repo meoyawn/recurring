@@ -20,4 +20,5 @@ sheets:
   timeout_ms: 30000
   max_attempts: 3
 
-telemetry: {}
+telemetry:
+  otlp_endpoint: http://localhost:4318

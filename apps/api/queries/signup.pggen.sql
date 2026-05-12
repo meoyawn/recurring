@@ -19,3 +19,9 @@ WITH upserted AS (
 INSERT INTO sessions (user_id)
 SELECT id FROM upserted
 RETURNING id;
+
+-- SelectUserIDBySessionID returns the user linked to a session.
+-- name: SelectUserIDBySessionID :one
+SELECT user_id
+FROM sessions
+WHERE id = pggen.arg('SessionID');

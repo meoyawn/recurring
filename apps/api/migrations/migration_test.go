@@ -75,7 +75,7 @@ func TestMigrations(t *testing.T) {
 func mustLoadDevConfig(t *testing.T) configgen.Config {
 	t.Helper()
 
-	cfg, err := config.Load(filepath.Join("..", "config", "dev.yaml"))
+	cfg, err := config.Load(filepath.Join("..", "config", "test.yaml"))
 	assert.NilError(t, err, "load dev config")
 	return cfg
 }
