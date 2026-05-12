@@ -18,6 +18,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
 [env.development.secrets]
 required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
 
+
 [env.production]
 [env.production.vars]
 RECURRING_API_ORIGIN = "http://localhost:8080"
