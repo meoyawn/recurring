@@ -8,5 +8,6 @@
 
 - Server tests must live only in
   [internal/apitest/](internal/apitest/AGENTS.md).
-- never run `task test` without escalating permissions (has docker calls inside)
 - never skip running `task check` after editing `./**/*.go`
+- never run `task check` without escalating permissions (has docker calls
+  inside)
