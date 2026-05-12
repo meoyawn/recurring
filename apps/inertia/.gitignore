@@ -1,4 +1,5 @@
 .cache/
+.dev.vars.development
 .task/
 .wrangler/
 coverage/
