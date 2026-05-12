@@ -109,9 +109,7 @@ const authConfig = (
     ),
     clientId: bindings.GOOGLE_CLIENT_ID,
     clientSecret: bindings.GOOGLE_CLIENT_SECRET,
-    redirectURI:
-      bindings.GOOGLE_REDIRECT_URI ||
-      new URL(callbackPath, publicOrigin(request)).toString(),
+    redirectURI: new URL(callbackPath, publicOrigin(request)).toString(),
   }
 }
 
