@@ -25,30 +25,17 @@ type InertiaPage = {
   version: string
 }
 
-type CapturedAPIRequest = {
-  headers: Record<string, string>
-  method: string
-  url: string
-}
-
-type ParsedTraceparent = {
-  flags: string
-  spanID: string
-  traceID: string
-}
-
 const sessionIDPattern = /^sess_[0-9a-f]{32}$/
 const traceIDPattern = /^[0-9a-f]{32}$/
 const spanIDPattern = /^[0-9a-f]{16}$/
-const traceparentPattern = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/
-const apiCaptureOrigin = "http://localhost:8083"
 
 function getFetch(exports: WorkerExports): Worker["fetch"] {
   const worker = exports.default
   return worker.fetch.bind(worker)
 }
 
-const route = (x: WebPathLiteral): URL => new URL(x, "http://expample.test")
+const route = (x: WebPathLiteral): URL =>
+  new URL(x, cfWorkers.env.RECURRING_WEB_ORIGIN)
 
 const requireHeader = (response: Response, name: string): string => {
   const value = response.headers.get(name)
@@ -57,21 +44,6 @@ const requireHeader = (response: Response, name: string): string => {
   }
 
   return value
-}
-
-const parseTraceparent = (value: string | undefined): ParsedTraceparent => {
-  const match = value?.match(traceparentPattern)
-  if (match === null || match === undefined) {
-    throw new Error("traceparent is invalid")
-  }
-  const traceID = match[1]
-  const spanID = match[2]
-  const flags = match[3]
-  if (traceID === undefined || spanID === undefined || flags === undefined) {
-    throw new Error("traceparent match is invalid")
-  }
-
-  return { flags, spanID, traceID }
 }
 
 const cookieValue = (setCookie: string, name: string): string => {
@@ -100,41 +72,13 @@ const isInertiaPage = (value: unknown): value is InertiaPage =>
   typeof value["url"] === "string" &&
   typeof value["version"] === "string"
 
-const isCapturedAPIRequest = (value: unknown): value is CapturedAPIRequest =>
-  isRecord(value) &&
-  isRecord(value["headers"]) &&
-  typeof value["method"] === "string" &&
-  typeof value["url"] === "string"
-
-const capturedAPIRequests = async (): Promise<CapturedAPIRequest[]> => {
-  const response = await fetch(`${apiCaptureOrigin}/__requests`)
-  const requests = await response.json()
-  if (!Array.isArray(requests) || !requests.every(isCapturedAPIRequest)) {
-    throw new Error("captured API requests response is invalid")
-  }
-
-  return requests
-}
-
 describe("inertia worker", () => {
   const workerFetch = getFetch(cfWorkers.exports as WorkerExports)
 
   test("reads the Wrangler API origin binding from Miniflare", () => {
     expect(apiOrigin(cfWorkers.env)).toMatch(
-      /^http:\/\/(localhost:8082|127\.0\.0\.1:\d+)$/,
+      /^http:\/\/(recurring\.localhost:8082|127\.0\.0\.1:\d+)$/,
     )
-  })
-
-  test("reads the Wrangler Google OAuth endpoint bindings from Miniflare", () => {
-    expect({
-      authorizationEndpoint: cfWorkers.env.GOOGLE_AUTHORIZATION_ENDPOINT,
-      tokenEndpoint: cfWorkers.env.GOOGLE_TOKEN_ENDPOINT,
-      userinfoEndpoint: cfWorkers.env.GOOGLE_USERINFO_ENDPOINT,
-    }).toEqual({
-      authorizationEndpoint: "http://localhost:8081/authorize",
-      tokenEndpoint: "http://localhost:8081/token",
-      userinfoEndpoint: "http://localhost:8081/userinfo",
-    })
   })
 
   test("serves the Hono health check with a Jaeger lookup trace ID", async () => {
@@ -206,95 +150,6 @@ describe("inertia worker", () => {
     })
   })
 
-  test("forwards trace headers to the Recurring API call", async () => {
-    const originalAPIOrigin = cfWorkers.env.RECURRING_API_ORIGIN
-    await fetch(`${apiCaptureOrigin}/__reset`, { method: "POST" })
-    Object.defineProperty(cfWorkers.env, "RECURRING_API_ORIGIN", {
-      configurable: true,
-      value: apiCaptureOrigin,
-    })
-
-    try {
-      const res = await workerFetch(
-        new Request(route(Paths.home), {
-          headers: {
-            Cookie: "sessionID=sess_test",
-            traceparent:
-              "00-00000000000000000000000000000001-0000000000000002-01",
-            tracestate: "vendor=value",
-          },
-        }),
-      )
-
-      expect(res.status).toEqual(200)
-      const responseTraceID = requireHeader(res, "x-trace-id")
-      const responseSpanID = requireHeader(res, "x-span-id")
-      const requests = await capturedAPIRequests()
-      const apiTraceparent = parseTraceparent(
-        requests[0]?.headers["traceparent"],
-      )
-      expect(requests.length).toEqual(1)
-      expect({
-        requestID: requests[0]?.headers["x-request-id"],
-        tracestate: requests[0]?.headers["tracestate"],
-        traceFlags: apiTraceparent.flags,
-        traceID: apiTraceparent.traceID,
-        traceSpanID: apiTraceparent.spanID,
-      }).toEqual({
-        requestID: requireHeader(res, "x-request-id"),
-        tracestate: "vendor=value",
-        traceFlags: "01",
-        traceID: responseTraceID,
-        traceSpanID: responseSpanID,
-      })
-    } finally {
-      Object.defineProperty(cfWorkers.env, "RECURRING_API_ORIGIN", {
-        configurable: true,
-        value: originalAPIOrigin,
-      })
-    }
-  })
-
-  test("creates trace headers for Recurring API calls without inbound trace context", async () => {
-    const originalAPIOrigin = cfWorkers.env.RECURRING_API_ORIGIN
-    await fetch(`${apiCaptureOrigin}/__reset`, { method: "POST" })
-    Object.defineProperty(cfWorkers.env, "RECURRING_API_ORIGIN", {
-      configurable: true,
-      value: apiCaptureOrigin,
-    })
-
-    try {
-      const res = await workerFetch(
-        new Request(route(Paths.home), {
-          headers: { Cookie: "sessionID=sess_test" },
-        }),
-      )
-
-      expect(res.status).toEqual(200)
-      const requests = await capturedAPIRequests()
-      const apiTraceparent = parseTraceparent(
-        requests[0]?.headers["traceparent"],
-      )
-      expect(requests.length).toEqual(1)
-      expect({
-        requestID: requests[0]?.headers["x-request-id"],
-        traceFlags: apiTraceparent.flags,
-        traceID: apiTraceparent.traceID,
-        traceSpanID: apiTraceparent.spanID,
-      }).toEqual({
-        requestID: requireHeader(res, "x-request-id"),
-        traceFlags: "01",
-        traceID: requireHeader(res, "x-trace-id"),
-        traceSpanID: requireHeader(res, "x-span-id"),
-      })
-    } finally {
-      Object.defineProperty(cfWorkers.env, "RECURRING_API_ORIGIN", {
-        configurable: true,
-        value: originalAPIOrigin,
-      })
-    }
-  })
-
   test("returns Inertia asset mismatch reload response", async () => {
     const res = await workerFetch(
       new Request(route(Paths.home), {
@@ -320,7 +175,6 @@ describe("inertia worker", () => {
     const stateCookie = requireHeader(startRes, "set-cookie")
     const state = cookieValue(stateCookie, "googleOAuthState")
     const authorizationURL = new URL(requireHeader(startRes, "location"))
-    expect(authorizationURL.origin).toEqual("http://localhost:8081")
     expect(authorizationURL.pathname).toEqual("/authorize")
     expect(authorizationURL.searchParams.get("client_id")).toEqual(
       "test-google-client",

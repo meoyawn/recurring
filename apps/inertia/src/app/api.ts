@@ -2,7 +2,7 @@ import { serviceFetch, type ServiceClientContext } from "@recurring/shared-ts"
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { Configuration } from "../../gen/runtime.ts"
-import type { EnvVars } from "../env.schema.ts"
+import type { EnvVars } from "../config/env.schema.ts"
 import type { GoogleProfile } from "./google-auth.ts"
 import { readSessionID } from "./session-cookie.ts"
 

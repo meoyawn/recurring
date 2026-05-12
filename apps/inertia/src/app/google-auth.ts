@@ -1,5 +1,5 @@
 import { isRecord, type EmailAddrStr } from "@recurring/shared-ts"
-import type { EnvVars } from "../env.schema.ts"
+import type { EnvVars } from "../config/env.schema.ts"
 import { Paths } from "../paths.ts"
 import { upsertSignup } from "./api.ts"
 import { readCookie, sessionCookieName } from "./session-cookie.ts"

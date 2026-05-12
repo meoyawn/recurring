@@ -21,6 +21,7 @@
     "valibot": "^1.4.0",
     "vite": "^8.0.12",
     "vite-plugin-solid": "^2.11.12",
+    "vite-plugin-toml": "^0.8.7",
     "vitest": "^4.1.5",
     "wrangler": "^4.90.0"
   }

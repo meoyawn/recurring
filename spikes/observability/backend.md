@@ -153,7 +153,7 @@ Relevant properties:
 - OTLP gRPC ingest available if needed
 - query gRPC API on `:16685`
 - query HTTP JSON API under `/api/v3/*`
-- built-in UI on `:16686`
+- built-in UI on `http://jaeger.localhost:16686`
 - trace-only backend
 - no SQL for traces
 - no log storage
@@ -302,7 +302,7 @@ Answered:
 - Compose-network OTLP endpoint for future Compose services: `http://jaeger:4318`
 - tracer-provider package location: `apps/api/internal/telemetry`
 - exact Jaeger API call for trace lookup by `x-trace-id`:
-  `GET http://localhost:16686/api/v3/traces/{x-trace-id}`
+  `GET http://jaeger.localhost:16686/api/v3/traces/{x-trace-id}`
 - exact lookup proof: `GET /healthz` returned
   `x-trace-id=582e5293924223f2683aa59631b6aa33`, and
   `GET /api/v3/traces/582e5293924223f2683aa59631b6aa33` returned HTTP 200 with
@@ -313,7 +313,8 @@ Answered:
   response included `parentSpanId=00f067aa0ba902b7`
 - restart persistence proof: after `docker compose restart jaeger`, the same
   exact trace lookup returned HTTP 200
-- resource measurements: Jaeger exposed query port `16686`, OTLP HTTP port
+- resource measurements: Jaeger exposed query UI at
+  `http://jaeger.localhost:16686`, OTLP HTTP port
   `4318`, and OTLP gRPC port `4317`; idle memory was 12.44 MiB before restart
   and 10.83 MiB after restart; Badger disk use was 48.0 KiB before restart and
   40.0 KiB after restart; exact trace lookup latency was 0.001338 seconds before

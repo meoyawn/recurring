@@ -3,4 +3,4 @@ version: "3"
 tasks:
   up-d:
     run: once
-    cmd: docker compose up -d postgres jaeger
+    cmd: docker compose up -d

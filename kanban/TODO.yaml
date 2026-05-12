@@ -37,3 +37,12 @@ t_27:
     add test in apps/web/src asserting environment keys stay synced across .env,
     wrangler.toml, and wrangler.test.toml
   created: 2026-05-09T21:39:11+0300
+
+t_28:
+  title: >-
+    in apps/inertia add quick script that signs up user directly in Postgres,
+    serves temp bun.serve on recurring.localhost, and sets http cookie
+  success_criteria: >-
+    script creates a local user directly in Postgres, serves a temporary
+    bun.serve endpoint on recurring.localhost, and sets the expected auth cookie
+  created: 2026-05-12T12:53:37+0300

@@ -30,8 +30,8 @@ tasks:
     run: once
     desc: Verify Cloudflare Worker secret bindings exist
     cmds:
-      - bun wrangler secret list --env development
       - bun wrangler secret list --env production
+      - bun wrangler secret list --env development
     sources:
       - wrangler.toml
       - ../../bun.lock

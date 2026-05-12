@@ -1,6 +1,6 @@
 import { safeParse } from "valibot"
 import { describe, expect, test } from "vitest"
-import wranglerConfig from "../wrangler.toml"
+import wranglerConfig from "../../wrangler.toml"
 import { envVarsSchema } from "./env.schema.ts"
 
 describe("envVarsSchema", () => {

@@ -10,34 +10,40 @@ head_sampling_rate = 0.05
 
 [env.development]
 [env.development.vars]
-RECURRING_API_ORIGIN = "http://localhost:8080"
+RECURRING_API_ORIGIN = "http://api.recurring.localhost:8080"
+RECURRING_WEB_ORIGIN = "http://recurring.localhost"
 GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
-OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
+OTEL_EXPORTER_OTLP_ENDPOINT = "http://otlp.localhost:4318"
 [env.development.secrets]
-# https://console.cloud.google.com/auth/clients/1041817871633-bn8b63cn2qligeomjvd79gvukguhc58r.apps.googleusercontent.com?project=api-project-1041817871633
-required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
-
-
-[env.production]
-[env.production.vars]
-RECURRING_API_ORIGIN = "http://localhost:8080"
-GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
-GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
-OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
-[env.production.secrets]
 # https://console.cloud.google.com/auth/clients/1041817871633-bn8b63cn2qligeomjvd79gvukguhc58r.apps.googleusercontent.com?project=api-project-1041817871633
 required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
 
 
 [env.test]
 [env.test.vars]
-RECURRING_API_ORIGIN = "http://localhost:8082"
-GOOGLE_AUTHORIZATION_ENDPOINT = "http://localhost:8081/authorize"
-GOOGLE_TOKEN_ENDPOINT = "http://localhost:8081/token"
-GOOGLE_USERINFO_ENDPOINT = "http://localhost:8081/userinfo"
+RECURRING_API_ORIGIN = "http://api.recurring.localhost:8082"
+RECURRING_WEB_ORIGIN = "http://recurring.localhost"
+GOOGLE_AUTHORIZATION_ENDPOINT = "http://oauth.localhost:8081/authorize"
+GOOGLE_TOKEN_ENDPOINT = "http://oauth.localhost:8081/token"
+GOOGLE_USERINFO_ENDPOINT = "http://oauth.localhost:8081/userinfo"
 GOOGLE_CLIENT_ID = "test-google-client"
 GOOGLE_CLIENT_SECRET = "test-google-secret"
-OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
+OTEL_EXPORTER_OTLP_ENDPOINT = "http://otlp.localhost:4318"
+
+
+[env.production]
+[env.production.vars]
+
+# TODO move this to env.production.secrets
+RECURRING_API_ORIGIN = "https://api.recurring.localhost:8080"
+RECURRING_WEB_ORIGIN = "https://recurring.localhost"
+
+GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
+OTEL_EXPORTER_OTLP_ENDPOINT = "http://recurring.localhost:4318"
+[env.production.secrets]
+# https://console.cloud.google.com/auth/clients/1041817871633-bn8b63cn2qligeomjvd79gvukguhc58r.apps.googleusercontent.com?project=api-project-1041817871633
+required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]

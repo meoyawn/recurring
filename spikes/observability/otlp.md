@@ -251,7 +251,7 @@ apps/inertia/src/miniflare/trace-query.ts
 
 Possible local adapters:
 
-- Jaeger: `GET http://localhost:16686/api/v3/traces/{traceID}`
+- Jaeger: `GET http://jaeger.localhost:16686/api/v3/traces/{traceID}`
 - Tempo: `GET http://localhost:3200/api/v2/traces/{traceID}`
 - Grafana proxy to Tempo:
   `GET http://localhost:3000/api/datasources/proxy/uid/tempo/api/v2/traces/{traceID}`

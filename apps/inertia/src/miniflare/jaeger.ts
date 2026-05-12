@@ -1,6 +1,6 @@
 import { delay, isRecord } from "@recurring/shared-ts"
 
-const jaegerQueryOrigin = "http://localhost:16686"
+const jaegerQueryOrigin = "http://jaeger.localhost:16686"
 
 const containsTraceID = (value: unknown, traceID: string): boolean => {
   if (typeof value === "string") {

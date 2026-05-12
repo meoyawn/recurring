@@ -8,7 +8,7 @@ import { Hono } from "hono"
 import { healthCheck } from "./app/api.ts"
 import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
 import { readSessionID } from "./app/session-cookie.ts"
-import type { EnvVars } from "./env.schema.ts"
+import type { EnvVars } from "./config/env.schema.ts"
 import { Paths } from "./paths.ts"
 import { rootView } from "./root-view.tsx"
 

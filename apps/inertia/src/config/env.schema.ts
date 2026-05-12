@@ -8,6 +8,7 @@ const httpURL = v.pipe(
 
 export const envVarsSchema = v.strictObject({
   RECURRING_API_ORIGIN: httpURL,
+  RECURRING_WEB_ORIGIN: httpURL,
   GOOGLE_AUTHORIZATION_ENDPOINT: httpURL,
   GOOGLE_TOKEN_ENDPOINT: httpURL,
   GOOGLE_USERINFO_ENDPOINT: httpURL,

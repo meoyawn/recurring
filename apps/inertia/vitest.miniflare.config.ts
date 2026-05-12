@@ -1,4 +1,5 @@
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers"
+import { ViteToml } from "vite-plugin-toml"
 import { defineConfig } from "vitest/config"
 
 export default defineConfig(async () => {
@@ -9,6 +10,7 @@ export default defineConfig(async () => {
 
   return {
     plugins: [
+      ViteToml(),
       cloudflareTest({
         // main: "./src/worker.ts",
         wrangler: {

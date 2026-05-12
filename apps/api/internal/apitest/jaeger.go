@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const jaegerQueryOrigin = "http://localhost:16686"
+const jaegerQueryOrigin = "http://jaeger.localhost:16686"
 
 func containsTraceValue(value any, needle string) bool {
 	switch x := value.(type) {
