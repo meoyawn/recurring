@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,10 +32,20 @@ import (
 	"gotest.tools/v3/assert"
 )
 
-var apiBaseURL string
-var sessionIDPattern = regexp.MustCompile(`^sess_[0-9a-f]{32}$`)
+var (
+	apiBaseURL       string
+	sessionIDPattern = regexp.MustCompile(`^sess_[0-9a-f]{32}$`)
+)
 
-const otelpgxTracerName = "github.com/exaring/otelpgx"
+const (
+	headerTraceID       = "X-Trace-Id"
+	headerSpanID        = "X-Span-Id"
+	headerRequestID     = "X-Request-Id"
+	headerTraceparent   = "Traceparent"
+	otelpgxTracerName   = "github.com/exaring/otelpgx"
+	maxPostgresPort     = math.MaxInt32
+	providerStopTimeout = 5 * time.Second
+)
 
 type signupPayload struct {
 	GoogleSub  string  `json:"google_sub"`
@@ -91,46 +102,55 @@ func startTestEnv(ctx context.Context, devConfig configgen.Config) (*testEnv, er
 
 	tempDir, err := os.MkdirTemp("/tmp", "recurring-apitest-*")
 	if err != nil {
-		_ = container.Close(context.Background())
+		_ = container.Close(context.WithoutCancel(ctx))
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
 
 	sheetsSocketPath, err := randomSocketPath(tempDir)
 	if err != nil {
 		_ = os.RemoveAll(tempDir)
-		_ = container.Close(context.Background())
+		_ = container.Close(context.WithoutCancel(ctx))
 		return nil, err
 	}
 	sheets, err := startSheets(ctx, sheetsSocketPath, devConfig.Telemetry)
 	if err != nil {
 		_ = os.RemoveAll(tempDir)
-		_ = container.Close(context.Background())
+		_ = container.Close(context.WithoutCancel(ctx))
 		return nil, err
 	}
 	if err := waitForSheets(ctx, sheetsSocketPath, sheets); err != nil {
-		_ = stopChild(context.Background(), sheets)
+		_ = stopChild(context.WithoutCancel(ctx), sheets)
 		_ = os.RemoveAll(tempDir)
-		_ = container.Close(context.Background())
+		_ = container.Close(context.WithoutCancel(ctx))
 		return nil, err
 	}
 
 	server, err := startAPI(ctx, devConfig, container, sheetsSocketPath)
 	if err != nil {
-		_ = stopChild(context.Background(), sheets)
+		_ = stopChild(context.WithoutCancel(ctx), sheets)
 		_ = os.RemoveAll(tempDir)
-		_ = container.Close(context.Background())
+		_ = container.Close(context.WithoutCancel(ctx))
 		return nil, fmt.Errorf("start api: %w", err)
 	}
 	return &testEnv{postgres: container, server: server, sheets: sheets, tempDir: tempDir}, nil
 }
 
-func startAPI(ctx context.Context, devConfig configgen.Config, container *pgdocker.Container, sheetsSocketPath string) (*app.Server, error) {
+func startAPI(
+	ctx context.Context,
+	devConfig configgen.Config,
+	container *pgdocker.Container,
+	sheetsSocketPath string,
+) (*app.Server, error) {
 	cfg := devConfig
-	cfg.Api.Listener = configgen.ListenerConfig{Kind: "tcp"}
+	cfg.Api.Listener = configgen.ListenerConfig{Kind: configgen.TCP}
 	cfg.Api.Listener.SetAddr("localhost:0")
 	cfg.Db.Host = container.Host()
-	cfg.Db.Port = int32(container.Port())
-	cfg.Sheets.Transport = configgen.TransportConfig{Kind: "unix"}
+	port, err := postgresPort(container.Port())
+	if err != nil {
+		return nil, err
+	}
+	cfg.Db.Port = port
+	cfg.Sheets.Transport = configgen.TransportConfig{Kind: configgen.UNIX}
 	cfg.Sheets.Transport.SetPath(sheetsSocketPath)
 
 	server, err := app.StartWithConfig(ctx, cfg)
@@ -139,6 +159,13 @@ func startAPI(ctx context.Context, devConfig configgen.Config, container *pgdock
 	}
 	apiBaseURL = "http://" + server.Addr()
 	return server, nil
+}
+
+func postgresPort(port int) (int32, error) {
+	if port < 0 || port > maxPostgresPort {
+		return 0, fmt.Errorf("postgres port %d cannot fit in int32", port)
+	}
+	return int32(port), nil
 }
 
 func (env *testEnv) Close() error {
@@ -178,7 +205,9 @@ func TestHealthz(t *testing.T) {
 	t.Parallel()
 
 	client := http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(apiBaseURL + "/healthz")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/healthz", http.NoBody)
+	assert.NilError(t, err, "create GET /healthz request")
+	resp, err := client.Do(req)
 	assert.NilError(t, err, "GET /healthz")
 	defer func() {
 		_ = resp.Body.Close()
@@ -200,7 +229,7 @@ func TestHealthzTraceSpan(t *testing.T) {
 	)
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter), sdktrace.WithResource(res))
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), providerStopTimeout)
 		defer cancel()
 		assert.NilError(t, provider.Shutdown(ctx))
 	})
@@ -208,14 +237,17 @@ func TestHealthzTraceSpan(t *testing.T) {
 	handler, err := httpapi.NewEcho(nil, httpapi.WithTracerProvider(provider))
 	assert.NilError(t, err, "create echo")
 
-	req, err := http.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", http.NoBody)
 	assert.NilError(t, err, "create GET /healthz request")
-	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
-	req.Header.Set("x-request-id", "request-from-client")
+	req.Header.Set(headerTraceparent, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	req.Header.Set(headerRequestID, "request-from-client")
 	resp := httptestResponse(t, handler, req)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	assert.Equal(t, resp.StatusCode, http.StatusNoContent, "GET /healthz status")
-	assert.Equal(t, resp.Header.Get("x-request-id"), "request-from-client", "response x-request-id")
+	assert.Equal(t, resp.Header.Get(headerRequestID), "request-from-client", "response x-request-id")
 	assertTraceHeaders(t, resp.Header)
 
 	spans := exporter.GetSpans()
@@ -223,8 +255,8 @@ func TestHealthzTraceSpan(t *testing.T) {
 	span := spans[0]
 	assert.Equal(t, span.Name, "GET /healthz", "span name")
 	assert.Equal(t, span.SpanKind, trace.SpanKindServer, "span kind")
-	assert.Equal(t, span.SpanContext.TraceID().String(), resp.Header.Get("x-trace-id"), "trace header")
-	assert.Equal(t, span.SpanContext.SpanID().String(), resp.Header.Get("x-span-id"), "span header")
+	assert.Equal(t, span.SpanContext.TraceID().String(), resp.Header.Get(headerTraceID), "trace header")
+	assert.Equal(t, span.SpanContext.SpanID().String(), resp.Header.Get(headerSpanID), "span header")
 	assert.Equal(t, span.Parent.TraceID().String(), "4bf92f3577b34da6a3ce929d0e0e4736", "parent trace id")
 	assertResourceAttribute(t, span, "service.name", "recurring-api")
 	assertSpanAttribute(t, span, "http.request.header.x-request-id", []string{"request-from-client"})
@@ -240,7 +272,7 @@ func TestHealthzGeneratedRequestID(t *testing.T) {
 	exporter := tracetest.NewInMemoryExporter()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), providerStopTimeout)
 		defer cancel()
 		assert.NilError(t, provider.Shutdown(ctx))
 	})
@@ -248,23 +280,31 @@ func TestHealthzGeneratedRequestID(t *testing.T) {
 	handler, err := httpapi.NewEcho(nil, httpapi.WithTracerProvider(provider))
 	assert.NilError(t, err, "create echo")
 
-	req, err := http.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", http.NoBody)
 	assert.NilError(t, err, "create GET /healthz request")
 	resp := httptestResponse(t, handler, req)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	assert.Equal(t, resp.StatusCode, http.StatusNoContent, "GET /healthz status")
 	assertTraceHeaders(t, resp.Header)
 
 	spans := exporter.GetSpans()
 	assert.Equal(t, len(spans), 1, "span count")
-	assertSpanAttribute(t, spans[0], "http.request.header.x-request-id", []string{resp.Header.Get("x-request-id")})
+	assertSpanAttribute(t, spans[0], "http.request.header.x-request-id", []string{resp.Header.Get(headerRequestID)})
 }
 
 func TestOpenAPIValidation(t *testing.T) {
 	t.Parallel()
 
 	client := http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", strings.NewReader(`{}`))
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		apiBaseURL+"/v1/signup",
+		strings.NewReader(`{}`),
+	)
 	assert.NilError(t, err, "create POST /v1/signup request")
 	req.Header.Set("Content-Type", "application/json")
 
@@ -288,8 +328,8 @@ func TestSignup(t *testing.T) {
 
 	updateID := randomHex(t, 8)
 	payload.Email = fmt.Sprintf("updated-%s@example.com", updateID)
-	payload.Name = stringPtr("Updated User " + updateID)
-	payload.PictureURL = stringPtr("https://example.com/updated-avatar-" + updateID + ".png")
+	payload.Name = new("Updated User " + updateID)
+	payload.PictureURL = new("https://example.com/updated-avatar-" + updateID + ".png")
 
 	second := postSignup(t, client, payload)
 	assertGeneratedSessionID(t, second.SessionID)
@@ -304,7 +344,12 @@ func TestSignupPostgresTrace(t *testing.T) {
 	encoded, err := json.Marshal(payload)
 	assert.NilError(t, err, "marshal POST /v1/signup request")
 
-	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", bytes.NewReader(encoded))
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		apiBaseURL+"/v1/signup",
+		bytes.NewReader(encoded),
+	)
 	assert.NilError(t, err, "create POST /v1/signup request")
 	req.Header.Set("Content-Type", "application/json")
 
@@ -324,7 +369,7 @@ func TestSignupPostgresTrace(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = waitForJaegerTrace(ctx, resp.Header.Get("x-trace-id"), otelpgxTracerName)
+	err = waitForJaegerTrace(ctx, resp.Header.Get(headerTraceID), otelpgxTracerName)
 	assert.NilError(t, err, "wait for signup PostgreSQL trace")
 }
 
@@ -332,7 +377,7 @@ func TestSheetsTracePropagation(t *testing.T) {
 	t.Parallel()
 
 	client := http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, apiBaseURL+"/sheets-test", http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/sheets-test", http.NoBody)
 	assert.NilError(t, err, "create GET /sheets-test request")
 
 	resp, err := client.Do(req)
@@ -346,7 +391,7 @@ func TestSheetsTracePropagation(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = waitForJaegerTrace(ctx, resp.Header.Get("x-trace-id"), "recurring-sheets")
+	err = waitForJaegerTrace(ctx, resp.Header.Get(headerTraceID), "recurring-sheets")
 	assert.NilError(t, err, "wait for sheets service trace")
 }
 
@@ -368,7 +413,12 @@ func postSignup(t *testing.T, client http.Client, payload signupPayload) signupS
 	encoded, err := json.Marshal(payload)
 	assert.NilError(t, err, "marshal POST /v1/signup request")
 
-	req, err := http.NewRequest(http.MethodPost, apiBaseURL+"/v1/signup", bytes.NewReader(encoded))
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		apiBaseURL+"/v1/signup",
+		bytes.NewReader(encoded),
+	)
 	assert.NilError(t, err, "create POST /v1/signup request")
 	req.Header.Set("Content-Type", "application/json")
 
@@ -393,8 +443,8 @@ func randomSignupPayload(t *testing.T) signupPayload {
 	return signupPayload{
 		GoogleSub:  "google-sub-" + id,
 		Email:      "user-" + id + "@example.com",
-		Name:       stringPtr("Example User " + id),
-		PictureURL: stringPtr("https://example.com/avatar-" + id + ".png"),
+		Name:       new("Example User " + id),
+		PictureURL: new("https://example.com/avatar-" + id + ".png"),
 	}
 }
 
@@ -405,10 +455,6 @@ func randomHex(t *testing.T, n int) string {
 	_, err := rand.Read(bytes)
 	assert.NilError(t, err, "read random bytes")
 	return hex.EncodeToString(bytes)
-}
-
-func stringPtr(value string) *string {
-	return &value
 }
 
 func assertGeneratedSessionID(t *testing.T, sessionID string) {
@@ -428,9 +474,9 @@ func httptestResponse(t *testing.T, handler http.Handler, req *http.Request) *ht
 func assertTraceHeaders(t *testing.T, header http.Header) {
 	t.Helper()
 
-	traceID := header.Get("x-trace-id")
-	spanID := header.Get("x-span-id")
-	requestID := header.Get("x-request-id")
+	traceID := header.Get(headerTraceID)
+	spanID := header.Get(headerSpanID)
+	requestID := header.Get(headerRequestID)
 	assert.Assert(t, traceID != "", "x-trace-id is empty")
 	assert.Assert(t, spanID != "", "x-span-id is empty")
 	assert.Assert(t, requestID != "", "x-request-id is empty")

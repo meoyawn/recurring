@@ -19,6 +19,11 @@ import (
 	"github.com/recurring/api/internal/telemetry"
 )
 
+const (
+	httpReadHeaderTimeout = 10 * time.Second
+	shutdownTimeout       = 10 * time.Second
+)
+
 type Server struct {
 	httpServer *http.Server
 	listener   net.Listener
@@ -43,31 +48,34 @@ func StartWithConfig(ctx context.Context, cfg configgen.Config) (*Server, error)
 
 	pool, err := database.Open(ctx, cfg.Db)
 	if err != nil {
-		_ = traceStop(context.Background())
+		_ = traceStop(context.WithoutCancel(ctx))
 		return nil, err
 	}
 
 	if err := migrator.Up(ctx, pool); err != nil {
 		pool.Close()
-		_ = traceStop(context.Background())
+		_ = traceStop(context.WithoutCancel(ctx))
 		return nil, err
 	}
 
 	handler, err := httpapi.NewEcho(pool, httpapi.WithSheets(cfg.Sheets))
 	if err != nil {
 		pool.Close()
-		_ = traceStop(context.Background())
+		_ = traceStop(context.WithoutCancel(ctx))
 		return nil, err
 	}
 
-	listener, err := listen(cfg.Api.Listener)
+	listener, err := listen(ctx, cfg.Api.Listener)
 	if err != nil {
 		pool.Close()
-		_ = traceStop(context.Background())
+		_ = traceStop(context.WithoutCancel(ctx))
 		return nil, err
 	}
 
-	httpServer := &http.Server{Handler: handler}
+	httpServer := &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+	}
 	server := &Server{
 		httpServer: httpServer,
 		listener:   listener,
@@ -85,14 +93,14 @@ func Run(ctx context.Context) error {
 		return err
 	}
 	defer func() {
-		_ = server.Close()
+		_ = server.Close(context.WithoutCancel(ctx))
 	}()
 
 	select {
 	case err := <-server.errc:
 		return err
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 		defer cancel()
 		return server.Shutdown(shutdownCtx)
 	}
@@ -119,7 +127,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) Close() error {
+func (s *Server) Close(ctx context.Context) error {
 	if s.pool != nil {
 		s.pool.Close()
 	}
@@ -129,7 +137,7 @@ func (s *Server) Close() error {
 		}
 	}
 	if s.traceStop != nil {
-		return s.traceStop(context.Background())
+		return s.traceStop(ctx)
 	}
 	return nil
 }
@@ -143,28 +151,29 @@ func (s *Server) serve() {
 	close(s.errc)
 }
 
-func listen(cfg configgen.ListenerConfig) (net.Listener, error) {
+func listen(ctx context.Context, cfg configgen.ListenerConfig) (net.Listener, error) {
+	listenConfig := net.ListenConfig{}
 	switch cfg.Kind {
-	case "tcp":
+	case configgen.TCP:
 		addr := cfg.GetAddr()
-		listener, err := net.Listen("tcp", addr)
+		listener, err := listenConfig.Listen(ctx, "tcp", addr)
 		if err != nil {
 			return nil, fmt.Errorf("listen tcp %q: %w", addr, err)
 		}
 		return listener, nil
 
-	case "unix":
+	case configgen.UNIX:
 		path := cfg.GetPath()
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("remove stale unix socket %q: %w", path, err)
 		}
-		listener, err := net.Listen("unix", path)
+		listener, err := listenConfig.Listen(ctx, "unix", path)
 		if err != nil {
 			return nil, fmt.Errorf("listen unix %q: %w", path, err)
 		}
 		return listener, nil
 
-	case "systemd":
+	case configgen.SYSTEMD:
 		listeners, err := activation.Listeners()
 		if err != nil {
 			return nil, fmt.Errorf("load systemd listeners: %w", err)
@@ -175,6 +184,6 @@ func listen(cfg configgen.ListenerConfig) (net.Listener, error) {
 		return listeners[0], nil
 
 	default:
-		return nil, fmt.Errorf("unsupported listener kind %q", cfg.Kind)
+		return nil, fmt.Errorf("unsupported listener kind %q", string(cfg.Kind))
 	}
 }

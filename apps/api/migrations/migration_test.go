@@ -3,6 +3,7 @@ package migrations_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"io/fs"
 	"path"
 	"path/filepath"
@@ -18,6 +19,13 @@ import (
 	"github.com/recurring/api/migrations"
 	"github.com/recurring/api/pkg/pgdocker"
 	"gotest.tools/v3/assert"
+)
+
+const (
+	constraintCheck  = "CHECK"
+	sqlDefaultRandom = "gen_random_bytes"
+	sqlDefaultEncode = "encode"
+	sqlDefaultNow    = "now()"
 )
 
 func TestMigrations(t *testing.T) {
@@ -54,14 +62,14 @@ func TestMigrations(t *testing.T) {
 	assert.NilError(t, err, "get goose version")
 	assert.Equal(t, version, int64(2), "goose version")
 
-	assertGooseAppliedVersion(t, ctx, db, 1)
-	assertGooseAppliedVersion(t, ctx, db, 2)
-	assertPgcrypto(t, ctx, db)
-	assertExpenseColumns(t, ctx, db)
-	assertExpenseConstraints(t, ctx, db)
-	assertExpenseInsertBehavior(t, ctx, db)
-	assertSignupColumns(t, ctx, db)
-	assertSignupInsertBehavior(t, ctx, db)
+	assertGooseAppliedVersion(ctx, t, db, 1)
+	assertGooseAppliedVersion(ctx, t, db, 2)
+	assertPgcrypto(ctx, t, db)
+	assertExpenseColumns(ctx, t, db)
+	assertExpenseConstraints(ctx, t, db)
+	assertExpenseInsertBehavior(ctx, t, db)
+	assertSignupColumns(ctx, t, db)
+	assertSignupInsertBehavior(ctx, t, db)
 }
 
 func mustLoadDevConfig(t *testing.T) configgen.Config {
@@ -101,7 +109,7 @@ func assertNoDownMigrations(t *testing.T) {
 	assert.NilError(t, err, "walk migrations")
 }
 
-func assertGooseAppliedVersion(t *testing.T, ctx context.Context, db *sql.DB, version int64) {
+func assertGooseAppliedVersion(ctx context.Context, t *testing.T, db *sql.DB, version int64) {
 	t.Helper()
 
 	var applied bool
@@ -116,7 +124,7 @@ func assertGooseAppliedVersion(t *testing.T, ctx context.Context, db *sql.DB, ve
 	assert.Assert(t, applied, "goose version %d is not recorded as applied", version)
 }
 
-func assertPgcrypto(t *testing.T, ctx context.Context, db *sql.DB) {
+func assertPgcrypto(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	var installed bool
@@ -139,7 +147,7 @@ type columnInfo struct {
 	defaultValue sql.NullString
 }
 
-func assertExpenseColumns(t *testing.T, ctx context.Context, db *sql.DB) {
+func assertExpenseColumns(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	rows, err := db.QueryContext(ctx, `
@@ -158,7 +166,15 @@ func assertExpenseColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 	for rows.Next() {
 		var name string
 		var col columnInfo
-		assert.NilError(t, rows.Scan(&name, &col.dataType, &col.udtName, &col.nullable, &col.maxLength, &col.defaultValue), "scan expense column")
+		err = rows.Scan(
+			&name,
+			&col.dataType,
+			&col.udtName,
+			&col.nullable,
+			&col.maxLength,
+			&col.defaultValue,
+		)
+		assert.NilError(t, err, "scan expense column")
 		got[name] = col
 		order = append(order, name)
 	}
@@ -180,7 +196,7 @@ func assertExpenseColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 	}
 	assert.DeepEqual(t, order, wantOrder)
 
-	assertColumn(t, got, "id", "text", "text", "NO", 0, []string{"exp_", "gen_random_bytes", "encode"})
+	assertColumn(t, got, "id", "text", "text", "NO", 0, []string{"exp_", sqlDefaultRandom, sqlDefaultEncode})
 	assertColumn(t, got, "name", "text", "text", "NO", 0, nil)
 	assertColumn(t, got, "amount_minor", "bigint", "int8", "NO", 0, nil)
 	assertColumn(t, got, "currency", "character", "bpchar", "NO", 3, nil)
@@ -190,11 +206,20 @@ func assertExpenseColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 	assertColumn(t, got, "comment", "text", "text", "YES", 0, nil)
 	assertColumn(t, got, "cancel_url", "text", "text", "YES", 0, nil)
 	assertColumn(t, got, "canceled_at", "timestamp with time zone", "timestamptz", "YES", 0, nil)
-	assertColumn(t, got, "created_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()"})
-	assertColumn(t, got, "updated_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()"})
+	assertColumn(t, got, "created_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{sqlDefaultNow})
+	assertColumn(t, got, "updated_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{sqlDefaultNow})
 }
 
-func assertColumn(t *testing.T, got map[string]columnInfo, name string, dataType string, udtName string, nullable string, maxLength int64, defaultParts []string) {
+func assertColumn(
+	t *testing.T,
+	got map[string]columnInfo,
+	name string,
+	dataType string,
+	udtName string,
+	nullable string,
+	maxLength int64,
+	defaultParts []string,
+) {
 	t.Helper()
 
 	col, ok := got[name]
@@ -206,18 +231,32 @@ func assertColumn(t *testing.T, got map[string]columnInfo, name string, dataType
 		assert.Assert(t, !col.maxLength.Valid, "column %s max length = %d, want null", name, col.maxLength.Int64)
 	}
 	if maxLength > 0 && (!col.maxLength.Valid || col.maxLength.Int64 != maxLength) {
-		assert.Assert(t, col.maxLength.Valid && col.maxLength.Int64 == maxLength, "column %s max length = %v, want %d", name, col.maxLength, maxLength)
+		assert.Assert(
+			t,
+			col.maxLength.Valid && col.maxLength.Int64 == maxLength,
+			"column %s max length = %v, want %d",
+			name,
+			col.maxLength,
+			maxLength,
+		)
 	}
 	if len(defaultParts) == 0 && col.defaultValue.Valid {
 		assert.Assert(t, !col.defaultValue.Valid, "column %s default = %q, want null", name, col.defaultValue.String)
 	}
 	for _, part := range defaultParts {
 		assert.Assert(t, col.defaultValue.Valid, "column %s default = null, want substring %q", name, part)
-		assert.Assert(t, strings.Contains(col.defaultValue.String, part), "column %s default = %q, want substring %q", name, col.defaultValue.String, part)
+		assert.Assert(
+			t,
+			strings.Contains(col.defaultValue.String, part),
+			"column %s default = %q, want substring %q",
+			name,
+			col.defaultValue.String,
+			part,
+		)
 	}
 }
 
-func assertExpenseConstraints(t *testing.T, ctx context.Context, db *sql.DB) {
+func assertExpenseConstraints(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	rows, err := db.QueryContext(ctx, `
@@ -240,13 +279,13 @@ func assertExpenseConstraints(t *testing.T, ctx context.Context, db *sql.DB) {
 
 	want := [][]string{
 		{"PRIMARY KEY", "id"},
-		{"CHECK", "exp_[0-9a-f]{32}"},
-		{"CHECK", "length(name) > 0"},
-		{"CHECK", "amount_minor >= 0"},
-		{"CHECK", "^[A-Z]{3}$"},
-		{"CHECK", "recurring > '00:00:00'::interval"},
-		{"CHECK", "length(category) > 0"},
-		{"CHECK", "length(comment) > 0"},
+		{constraintCheck, "exp_[0-9a-f]{32}"},
+		{constraintCheck, "length(name) > 0"},
+		{constraintCheck, "amount_minor >= 0"},
+		{constraintCheck, "^[A-Z]{3}$"},
+		{constraintCheck, "recurring > '00:00:00'::interval"},
+		{constraintCheck, "length(category) > 0"},
+		{constraintCheck, "length(comment) > 0"},
 	}
 	for _, parts := range want {
 		assertConstraintDefinition(t, got, parts)
@@ -268,7 +307,7 @@ func assertConstraintDefinition(t *testing.T, got []string, parts []string) {
 	assert.Assert(t, false, "missing constraint containing %v; got %v", parts, got)
 }
 
-func assertExpenseInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) {
+func assertExpenseInsertBehavior(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	var id string
@@ -278,39 +317,59 @@ func assertExpenseInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) 
 		RETURNING id
 	`).Scan(&id)
 	assert.NilError(t, err, "insert valid expense")
-	assert.Assert(t, regexp.MustCompile(`^exp_[0-9a-f]{32}$`).MatchString(id), "generated id = %q, want exp_ plus 32 lowercase hex chars", id)
+	assertGeneratedID(t, id, "exp", "generated id")
 
-	assertInsertRejected(t, ctx, db, "negative amount_minor", `
+	assertInsertRejected(ctx, t, db, "negative amount_minor", `
 		INSERT INTO public.expenses (name, amount_minor, currency, started_at)
 		VALUES ('Rent', -1, 'USD', now())
 	`)
-	assertInsertRejected(t, ctx, db, "lowercase currency", `
+	assertInsertRejected(ctx, t, db, "lowercase currency", `
 		INSERT INTO public.expenses (name, amount_minor, currency, started_at)
 		VALUES ('Rent', 1, 'usd', now())
 	`)
-	assertInsertRejected(t, ctx, db, "empty name", `
+	assertInsertRejected(ctx, t, db, "empty name", `
 		INSERT INTO public.expenses (name, amount_minor, currency, started_at)
 		VALUES ('', 1, 'USD', now())
 	`)
-	assertInsertRejected(t, ctx, db, "empty category", `
+	assertInsertRejected(ctx, t, db, "empty category", `
 		INSERT INTO public.expenses (name, amount_minor, currency, started_at, category)
 		VALUES ('Rent', 1, 'USD', now(), '')
 	`)
-	assertInsertRejected(t, ctx, db, "empty comment", `
+	assertInsertRejected(ctx, t, db, "empty comment", `
 		INSERT INTO public.expenses (name, amount_minor, currency, started_at, comment)
 		VALUES ('Rent', 1, 'USD', now(), '')
 	`)
 }
 
-func assertInsertRejected(t *testing.T, ctx context.Context, db *sql.DB, name string, query string) {
+func assertInsertRejected(ctx context.Context, t *testing.T, db *sql.DB, name string, query string) {
 	t.Helper()
 
 	_, err := db.ExecContext(ctx, query)
 	assert.Assert(t, err != nil, "%s insert succeeded, want constraint error", name)
-	assert.Assert(t, strings.Contains(err.Error(), "SQLSTATE 23514"), "%s insert error = %v, want check violation", name, err)
+	assert.Assert(
+		t,
+		strings.Contains(err.Error(), "SQLSTATE 23514"),
+		"%s insert error = %v, want check violation",
+		name,
+		err,
+	)
 }
 
-func assertSignupColumns(t *testing.T, ctx context.Context, db *sql.DB) {
+func assertGeneratedID(t *testing.T, id string, prefix string, label string) {
+	t.Helper()
+
+	pattern := fmt.Sprintf(`^%s_[0-9a-f]{32}$`, prefix)
+	assert.Assert(
+		t,
+		regexp.MustCompile(pattern).MatchString(id),
+		"%s = %q, want %s plus 32 lowercase hex chars",
+		label,
+		id,
+		prefix,
+	)
+}
+
+func assertSignupColumns(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	rows, err := db.QueryContext(ctx, `
@@ -330,7 +389,16 @@ func assertSignupColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 		var table string
 		var column string
 		var col columnInfo
-		assert.NilError(t, rows.Scan(&table, &column, &col.dataType, &col.udtName, &col.nullable, &col.maxLength, &col.defaultValue), "scan signup column")
+		err = rows.Scan(
+			&table,
+			&column,
+			&col.dataType,
+			&col.udtName,
+			&col.nullable,
+			&col.maxLength,
+			&col.defaultValue,
+		)
+		assert.NilError(t, err, "scan signup column")
 		name := table + "." + column
 		got[name] = col
 		order = append(order, name)
@@ -352,20 +420,50 @@ func assertSignupColumns(t *testing.T, ctx context.Context, db *sql.DB) {
 	}
 	assert.DeepEqual(t, order, want)
 
-	assertColumn(t, got, "sessions.id", "text", "text", "NO", 0, []string{"sess_", "gen_random_bytes", "encode"})
+	assertSessionColumns(t, got)
+	assertUserColumns(t, got)
+}
+
+func assertSessionColumns(t *testing.T, got map[string]columnInfo) {
+	t.Helper()
+
+	assertColumn(t, got, "sessions.id", "text", "text", "NO", 0, []string{"sess_", sqlDefaultRandom, sqlDefaultEncode})
 	assertColumn(t, got, "sessions.user_id", "text", "text", "NO", 0, nil)
-	assertColumn(t, got, "sessions.created_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()"})
-	assertColumn(t, got, "sessions.expires_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()", "interval"})
-	assertColumn(t, got, "users.id", "text", "text", "NO", 0, []string{"usr_", "gen_random_bytes", "encode"})
+	assertColumn(
+		t,
+		got,
+		"sessions.created_at",
+		"timestamp with time zone",
+		"timestamptz",
+		"NO",
+		0,
+		[]string{sqlDefaultNow},
+	)
+	assertColumn(
+		t,
+		got,
+		"sessions.expires_at",
+		"timestamp with time zone",
+		"timestamptz",
+		"NO",
+		0,
+		[]string{sqlDefaultNow, "interval"},
+	)
+}
+
+func assertUserColumns(t *testing.T, got map[string]columnInfo) {
+	t.Helper()
+
+	assertColumn(t, got, "users.id", "text", "text", "NO", 0, []string{"usr_", sqlDefaultRandom, sqlDefaultEncode})
 	assertColumn(t, got, "users.google_sub", "text", "text", "YES", 0, nil)
 	assertColumn(t, got, "users.email", "text", "text", "NO", 0, nil)
 	assertColumn(t, got, "users.name", "text", "text", "YES", 0, nil)
 	assertColumn(t, got, "users.picture_url", "text", "text", "YES", 0, nil)
-	assertColumn(t, got, "users.created_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()"})
-	assertColumn(t, got, "users.updated_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{"now()"})
+	assertColumn(t, got, "users.created_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{sqlDefaultNow})
+	assertColumn(t, got, "users.updated_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{sqlDefaultNow})
 }
 
-func assertSignupInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) {
+func assertSignupInsertBehavior(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 
 	var userID string
@@ -375,7 +473,7 @@ func assertSignupInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) {
 		RETURNING id
 	`).Scan(&userID)
 	assert.NilError(t, err, "insert valid user")
-	assert.Assert(t, regexp.MustCompile(`^usr_[0-9a-f]{32}$`).MatchString(userID), "generated user id = %q, want usr_ plus 32 lowercase hex chars", userID)
+	assertGeneratedID(t, userID, "usr", "generated user id")
 
 	var userWithoutGoogleSubID string
 	err = db.QueryRowContext(ctx, `
@@ -384,7 +482,7 @@ func assertSignupInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) {
 		RETURNING id
 	`).Scan(&userWithoutGoogleSubID)
 	assert.NilError(t, err, "insert user without google_sub")
-	assert.Assert(t, regexp.MustCompile(`^usr_[0-9a-f]{32}$`).MatchString(userWithoutGoogleSubID), "generated user id = %q, want usr_ plus 32 lowercase hex chars", userWithoutGoogleSubID)
+	assertGeneratedID(t, userWithoutGoogleSubID, "usr", "generated user id")
 
 	var sessionID string
 	err = db.QueryRowContext(ctx, `
@@ -393,13 +491,13 @@ func assertSignupInsertBehavior(t *testing.T, ctx context.Context, db *sql.DB) {
 		RETURNING id
 	`, userID).Scan(&sessionID)
 	assert.NilError(t, err, "insert valid session")
-	assert.Assert(t, regexp.MustCompile(`^sess_[0-9a-f]{32}$`).MatchString(sessionID), "generated session id = %q, want sess_ plus 32 lowercase hex chars", sessionID)
+	assertGeneratedID(t, sessionID, "sess", "generated session id")
 
-	assertInsertRejected(t, ctx, db, "empty google_sub", `
+	assertInsertRejected(ctx, t, db, "empty google_sub", `
 		INSERT INTO public.users (google_sub, email)
 		VALUES ('', 'user@example.com')
 	`)
-	assertInsertRejected(t, ctx, db, "empty email", `
+	assertInsertRejected(ctx, t, db, "empty email", `
 		INSERT INTO public.users (google_sub, email)
 		VALUES ('google-sub-2', '')
 	`)

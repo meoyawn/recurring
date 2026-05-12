@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	headerTraceID   = "x-trace-id"
-	headerSpanID    = "x-span-id"
-	headerRequestID = "x-request-id"
+	headerTraceID   = "X-Trace-Id"
+	headerSpanID    = "X-Span-Id"
+	headerRequestID = "X-Request-Id"
+	attrRequestID   = "x-request-id"
 	tracerName      = "github.com/recurring/api/internal/httpapi"
 )
 
@@ -49,7 +50,7 @@ func traceMiddleware(provider trace.TracerProvider) echo.MiddlewareFunc {
 			status := responseStatus(c.Response(), err)
 			span.SetName(req.Method + " " + route)
 			span.SetAttributes(
-				semconv.HTTPRequestHeader(headerRequestID, requestID),
+				semconv.HTTPRequestHeader(attrRequestID, requestID),
 				semconv.HTTPRequestMethodKey.String(req.Method),
 				semconv.HTTPRoute(route),
 				semconv.HTTPResponseStatusCode(status),

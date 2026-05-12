@@ -1,11 +1,10 @@
 package httpapi
 
 import (
+	_ "embed"
 	"fmt"
 	"net/http"
 	"os"
-
-	_ "embed"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -22,6 +21,8 @@ import (
 
 //go:embed recurring.openapi.yaml
 var openAPISpec []byte
+
+const latencyMilliseconds = 1000
 
 type echoConfig struct {
 	tracerProvider trace.TracerProvider
@@ -61,8 +62,8 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 		LogLatency: true,
 		LogMethod:  true,
 		LogURI:     true,
-		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
-			_, err := fmt.Fprintf(os.Stdout, "%s %s %.3fms\n", v.Method, v.URI, v.Latency.Seconds()*1000)
+		LogValuesFunc: func(_ *echo.Context, v middleware.RequestLoggerValues) error {
+			_, err := fmt.Fprintf(os.Stdout, "%s %s %.3fms\n", v.Method, v.URI, v.Latency.Seconds()*latencyMilliseconds)
 			return err
 		},
 	}))
@@ -80,9 +81,12 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 		return nil, err
 	}
 
-	err = rb.Security("SessionSecurity").HTTPHandler("bearer", func(_ *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
-		return nil
-	})
+	err = rb.Security("SessionSecurity").HTTPHandler(
+		"bearer",
+		func(_ *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
+			return nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

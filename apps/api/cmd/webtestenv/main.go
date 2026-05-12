@@ -21,6 +21,19 @@ import (
 	configgen "github.com/recurring/api/internal/gen/config"
 )
 
+const (
+	exitConfigError        = 2
+	exitFailure            = 1
+	apiStartTimeout        = 20 * time.Second
+	apiStartRetryInterval  = 250 * time.Millisecond
+	envShutdownTimeout     = 10 * time.Second
+	freePortListenTimeout  = time.Second
+	healthCheckTimeout     = time.Second
+	healthCheckWaitTimeout = 20 * time.Second
+	healthCheckInterval    = 100 * time.Millisecond
+	childShutdownTimeout   = 5 * time.Second
+)
+
 type childProcess struct {
 	cmd  *exec.Cmd
 	done chan error
@@ -38,7 +51,7 @@ func run() int {
 	command := flag.Args()
 	if len(command) == 0 {
 		fmt.Fprintln(os.Stderr, "wrapped command is required")
-		return 2
+		return exitConfigError
 	}
 
 	ctx, stopSignals := signalContext()
@@ -47,13 +60,13 @@ func run() int {
 	env, err := startEnvironment(ctx, *configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "start web test environment: %v\n", err)
-		return 1
+		return exitFailure
 	}
 
 	code := runCommand(ctx, command, *cwd, env.apiOrigin)
 	if err := env.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "stop web test environment: %v\n", err)
-		return 1
+		return exitFailure
 	}
 	return code
 }
@@ -74,7 +87,7 @@ func startEnvironment(ctx context.Context, configPath string) (*testEnvironment,
 		return nil, err
 	}
 
-	sheetsPort, err := freePort()
+	sheetsPort, err := freePort(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -84,19 +97,19 @@ func startEnvironment(ctx context.Context, configPath string) (*testEnvironment,
 		return nil, err
 	}
 	if err := waitForHealthz(ctx, sheetsOrigin+"/healthz", sheets); err != nil {
-		_ = stopChild(context.Background(), sheets)
+		_ = stopChild(context.WithoutCancel(ctx), sheets)
 		return nil, err
 	}
 
 	api, err := startAPI(ctx, cfg, sheetsOrigin)
 	if err != nil {
-		_ = stopChild(context.Background(), sheets)
+		_ = stopChild(context.WithoutCancel(ctx), sheets)
 		return nil, fmt.Errorf("start api: %w", err)
 	}
 	apiOrigin := "http://" + api.Addr()
 	if err := waitForHealthz(ctx, apiOrigin+"/healthz", nil); err != nil {
-		_ = api.Close()
-		_ = stopChild(context.Background(), sheets)
+		_ = api.Close(context.WithoutCancel(ctx))
+		_ = stopChild(context.WithoutCancel(ctx), sheets)
 		return nil, err
 	}
 
@@ -127,14 +140,14 @@ func startSheets(ctx context.Context, port int) (*childProcess, error) {
 
 func startAPI(ctx context.Context, devConfig configgen.Config, sheetsOrigin string) (*app.Server, error) {
 	cfg := devConfig
-	cfg.Api.Listener = configgen.ListenerConfig{Kind: "tcp"}
+	cfg.Api.Listener = configgen.ListenerConfig{Kind: configgen.TCP}
 	cfg.Api.Listener.SetAddr("127.0.0.1:0")
 	cfg.Sheets.Origin = sheetsOrigin
-	cfg.Sheets.Transport = configgen.TransportConfig{Kind: "tcp"}
+	cfg.Sheets.Transport = configgen.TransportConfig{Kind: configgen.TCP}
 
-	deadline := time.NewTimer(20 * time.Second)
+	deadline := time.NewTimer(apiStartTimeout)
 	defer deadline.Stop()
-	ticker := time.NewTicker(250 * time.Millisecond)
+	ticker := time.NewTicker(apiStartRetryInterval)
 	defer ticker.Stop()
 
 	var lastErr error
@@ -156,6 +169,7 @@ func startAPI(ctx context.Context, devConfig configgen.Config, sheetsOrigin stri
 }
 
 func runCommand(ctx context.Context, command []string, cwd string, apiOrigin string) int {
+	//nolint:gosec // This helper intentionally runs the caller-provided wrapped command.
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	cmd.Dir = cwd
 	cmd.Env = append(os.Environ(), "RECURRING_API_ORIGIN="+apiOrigin)
@@ -169,7 +183,7 @@ func runCommand(ctx context.Context, command []string, cwd string, apiOrigin str
 			return exitErr.ExitCode()
 		}
 		fmt.Fprintf(os.Stderr, "run wrapped command: %v\n", err)
-		return 1
+		return exitFailure
 	}
 	return 0
 }
@@ -177,7 +191,7 @@ func runCommand(ctx context.Context, command []string, cwd string, apiOrigin str
 func (env *testEnvironment) Close() error {
 	var errs []error
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), envShutdownTimeout)
 	if err := env.api.Shutdown(shutdownCtx); err != nil {
 		errs = append(errs, fmt.Errorf("shutdown api: %w", err))
 	}
@@ -193,8 +207,12 @@ func (env *testEnvironment) Close() error {
 	return errors.Join(errs...)
 }
 
-func freePort() (int, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+func freePort(ctx context.Context) (int, error) {
+	listenCtx, cancel := context.WithTimeout(ctx, freePortListenTimeout)
+	defer cancel()
+
+	listenConfig := net.ListenConfig{}
+	listener, err := listenConfig.Listen(listenCtx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, fmt.Errorf("reserve tcp port: %w", err)
 	}
@@ -209,10 +227,10 @@ func freePort() (int, error) {
 }
 
 func waitForHealthz(ctx context.Context, url string, child *childProcess) error {
-	client := http.Client{Timeout: time.Second}
-	deadline := time.NewTimer(20 * time.Second)
+	client := http.Client{Timeout: healthCheckTimeout}
+	deadline := time.NewTimer(healthCheckWaitTimeout)
 	defer deadline.Stop()
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(healthCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -266,19 +284,27 @@ func stopChild(ctx context.Context, child *childProcess) error {
 	if err := child.cmd.Process.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		return err
 	}
+	return waitForChild(ctx, child)
+}
+
+func waitForChild(ctx context.Context, child *childProcess) error {
 	select {
 	case <-child.done:
 		return nil
-	case <-time.After(5 * time.Second):
-		if err := child.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			return err
-		}
-		select {
-		case <-child.done:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	case <-time.After(childShutdownTimeout):
+		return killChild(ctx, child)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func killChild(ctx context.Context, child *childProcess) error {
+	if err := child.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	select {
+	case <-child.done:
+		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}

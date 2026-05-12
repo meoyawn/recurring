@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/labstack/echo/v5"
-
 	sheetsgen "github.com/recurring/api/internal/gen/sheets"
 	"github.com/recurring/api/internal/serviceclient"
 )
@@ -20,6 +19,11 @@ func sheetsTest(client *sheetsgen.APIClient) echo.HandlerFunc {
 		file, resp, err := client.DefaultAPI.CreateWorkbookExport(ctx).
 			WorkbookExportRequest(*sheetsgen.NewWorkbookExportRequest("sheets-test", "USD", []sheetsgen.ExportRow{})).
 			Execute()
+		if resp != nil && resp.Body != nil {
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+		}
 		if err != nil {
 			return sheetsExportError(err)
 		}

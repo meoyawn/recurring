@@ -19,6 +19,13 @@ import (
 	"github.com/recurring/api/internal/serviceclient"
 )
 
+const (
+	sheetsReadyTimeout   = 20 * time.Second
+	sheetsReadyInterval  = 100 * time.Millisecond
+	childShutdownTimeout = 5 * time.Second
+	socketEntropyBytes   = 8
+)
+
 type childProcess struct {
 	cmd  *exec.Cmd
 	done chan error
@@ -56,9 +63,9 @@ func waitForSheets(ctx context.Context, socketPath string, sheets *childProcess)
 		Timeout:        time.Second,
 		MaxAttempts:    1,
 	})
-	deadline := time.NewTimer(20 * time.Second)
+	deadline := time.NewTimer(sheetsReadyTimeout)
 	defer deadline.Stop()
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(sheetsReadyInterval)
 	defer ticker.Stop()
 
 	for {
@@ -107,21 +114,29 @@ func stopChild(ctx context.Context, child *childProcess) error {
 	if err := child.cmd.Process.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		return err
 	}
+	return waitForChild(ctx, child)
+}
+
+func waitForChild(ctx context.Context, child *childProcess) error {
 	select {
-	case <-child.done:
-		return nil
-	case <-time.After(5 * time.Second):
-		if err := child.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			return err
-		}
-		select {
-		case <-child.done:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-child.done:
+		return nil
+	case <-time.After(childShutdownTimeout):
+		return killChild(ctx, child)
+	}
+}
+
+func killChild(ctx context.Context, child *childProcess) error {
+	if err := child.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-child.done:
+		return nil
 	}
 }
 
@@ -147,7 +162,7 @@ func pipeLines(out io.Writer, prefix string, input io.Reader) {
 }
 
 func randomSocketPath(dir string) (string, error) {
-	var bytes [8]byte
+	var bytes [socketEntropyBytes]byte
 	if _, err := rand.Read(bytes[:]); err != nil {
 		return "", fmt.Errorf("read socket path entropy: %w", err)
 	}

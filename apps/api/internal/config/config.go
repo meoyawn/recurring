@@ -14,6 +14,12 @@ import (
 
 const EnvPath = "RECURRING_CONFIG"
 
+const (
+	defaultDBMaxConns      = int32(4)
+	defaultSheetsTimeoutMS = 30000
+	defaultSheetsAttempts  = 3
+)
+
 func LoadFromEnv() (configgen.Config, error) {
 	path := os.Getenv(EnvPath)
 	if path == "" {
@@ -47,8 +53,8 @@ func defaults() map[string]any {
 		"api.listener.kind":   "tcp",
 		"api.listener.addr":   ":8080",
 		"db.sslmode":          "disable",
-		"db.max_conns":        int32(4),
-		"sheets.timeout_ms":   30000,
-		"sheets.max_attempts": 3,
+		"db.max_conns":        defaultDBMaxConns,
+		"sheets.timeout_ms":   defaultSheetsTimeoutMS,
+		"sheets.max_attempts": defaultSheetsAttempts,
 	}
 }

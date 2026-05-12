@@ -10,11 +10,16 @@ import (
 	"strconv"
 	"time"
 
+	// Register pgx as a database/sql driver for tests using this package.
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/ory/dockertest/v4"
 )
 
-const portID = "5432/tcp"
+const (
+	postgresName  = "postgres"
+	portID        = "5432/tcp"
+	dockerMaxWait = 2 * time.Minute
+)
 
 type Config struct {
 	Database string
@@ -34,13 +39,13 @@ type Container struct {
 func Start(ctx context.Context, cfg Config) (*Container, error) {
 	cfg = cfg.withDefaults()
 
-	pool, err := dockertest.NewPool(ctx, "", dockertest.WithMaxWait(2*time.Minute))
+	pool, err := dockertest.NewPool(ctx, "", dockertest.WithMaxWait(dockerMaxWait))
 	if err != nil {
 		return nil, fmt.Errorf("create docker pool: %w", err)
 	}
 
 	resource, err := pool.Run(ctx,
-		"postgres",
+		postgresName,
 		dockertest.WithTag("18-alpine"),
 		dockertest.WithEnv([]string{
 			"POSTGRES_DB=" + cfg.Database,
@@ -78,13 +83,13 @@ func Start(ctx context.Context, cfg Config) (*Container, error) {
 
 func (c Config) withDefaults() Config {
 	if c.Database == "" {
-		c.Database = "postgres"
+		c.Database = postgresName
 	}
 	if c.User == "" {
-		c.User = "postgres"
+		c.User = postgresName
 	}
 	if c.Password == "" {
-		c.Password = "postgres"
+		c.Password = postgresName
 	}
 	if c.SSLMode == "" {
 		c.SSLMode = "disable"
@@ -108,7 +113,7 @@ func (c *Container) ConnectionString(applicationName string) string {
 	}
 
 	u := url.URL{
-		Scheme:   "postgres",
+		Scheme:   postgresName,
 		User:     url.UserPassword(c.config.User, c.config.Password),
 		Host:     net.JoinHostPort(c.host, strconv.Itoa(c.port)),
 		Path:     "/" + c.config.Database,
@@ -133,7 +138,7 @@ func (c *Container) Close(ctx context.Context) error {
 }
 
 func (c *Container) wait(ctx context.Context) error {
-	return c.pool.Retry(ctx, 2*time.Minute, func() error {
+	return c.pool.Retry(ctx, dockerMaxWait, func() error {
 		db, err := sql.Open("pgx", c.ConnectionString("recurring_postgres_test"))
 		if err != nil {
 			return err

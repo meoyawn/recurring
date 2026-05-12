@@ -10,11 +10,18 @@ import (
 	"github.com/recurring/api/internal/app"
 )
 
+const exitFailure = 1
+
 func main() {
+	if err := run(); err != nil {
+		log.Print(err)
+		os.Exit(exitFailure)
+	}
+}
+
+func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := app.Run(ctx); err != nil {
-		log.Fatal(err)
-	}
+	return app.Run(ctx)
 }
