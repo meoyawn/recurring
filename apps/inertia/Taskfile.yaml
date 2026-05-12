@@ -93,7 +93,7 @@ tasks:
 
   check:
     deps:
-      - cf:secrets
+      # - cf:secrets
       - lint
       - typecheck
       - test
