@@ -96,10 +96,7 @@ func NewEcho(dbPool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 	}
 
 	h := newHandler(dbPool, cfg)
-	if err := h.registerRoutes(rb); err != nil {
-		return nil, err
-	}
-
+	h.registerRoutes(rb)
 	if err := rb.Mount(e); err != nil {
 		return nil, err
 	}
@@ -114,23 +111,15 @@ func newHandler(dbPool *pgxpool.Pool, cfg echoConfig) *handler {
 	}
 }
 
-func (h *handler) registerRoutes(rb *openapirouter.RouterBuilder) error {
-	err := rb.Security("SessionSecurity").HTTPHandler(
-		"bearer",
-		func(ctx *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
-			return h.authenticateSession(ctx)
-		},
-	)
-	if err != nil {
-		return err
-	}
+func (h *handler) registerRoutes(rb *openapirouter.RouterBuilder) {
+	rb.Security("SessionSecurity", func(ctx *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
+		return h.authenticateSession(ctx)
+	})
 
 	rb.AddRoute("healthCheck", getHealth)
 	rb.AddRoute("sheetsTest", h.sheetsTest)
 	rb.AddRoute("upsertSignup", h.signup)
 	rb.AddRoute("createProject", h.createProject)
-
-	return nil
 }
 
 func loadOpenAPISpec() (*openapi3.T, error) {

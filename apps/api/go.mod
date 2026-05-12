@@ -16,7 +16,7 @@ require (
 	github.com/ory/dockertest/v4 v4.0.0
 	github.com/pressly/goose/v3 v3.27.1
 	github.com/responsibleapi/echo-middleware v1.0.3-responsibleapi.3
-	github.com/responsibleapi/echo-openapi-router v0.1.3
+	github.com/responsibleapi/echo-openapi-router v0.2.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	go.opentelemetry.io/otel v1.43.0

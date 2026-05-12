@@ -710,8 +710,8 @@ github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/responsibleapi/echo-middleware v1.0.3-responsibleapi.3 h1:PbZQv+Z6Vj2afQUQhOOQgZmT3oSdg9Q2SYy833sANFg=
 github.com/responsibleapi/echo-middleware v1.0.3-responsibleapi.3/go.mod h1:8A9mHCV++zJCRzGXuURhN4htru0SP0AUra/p99TXkTA=
-github.com/responsibleapi/echo-openapi-router v0.1.3 h1:h51Cd0dPz4rnzhnF3gWtI5uQVcn7VqLCtyBax800ask=
-github.com/responsibleapi/echo-openapi-router v0.1.3/go.mod h1:E2KnIVgcr54mUxWDupwaMbFm5uvvs1h2/FajFwe2EJI=
+github.com/responsibleapi/echo-openapi-router v0.2.0 h1:lF4c/jUyneZ0LkAqfxJgOJ46H19OLeCv0Lpxw5yvebA=
+github.com/responsibleapi/echo-openapi-router v0.2.0/go.mod h1:E2KnIVgcr54mUxWDupwaMbFm5uvvs1h2/FajFwe2EJI=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
