@@ -15,6 +15,7 @@ import (
 	configgen "github.com/recurring/api/internal/gen/config"
 	"github.com/recurring/api/internal/serviceclient"
 	echomiddleware "github.com/responsibleapi/echo-middleware"
+	openapirouter "github.com/responsibleapi/echo-openapi-router"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -65,16 +66,35 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 			return err
 		},
 	}))
-	e.Use(echomiddleware.OapiRequestValidatorWithOptions(spec, &echomiddleware.Options{
-		DoNotValidateServers: true,
-		Options: openapi3filter.Options{
-			AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
-		},
-	}))
-	e.GET("/healthz", health)
-	e.GET("/sheets-test", sheetsTest(serviceclient.NewSheetsClient(cfg.sheets)))
-	e.POST("/v1/signup", signup(pool))
 
+	routerBuilder, err := openapirouter.NewRouterBuilder(
+		spec,
+		echomiddleware.Options{
+			DoNotValidateServers: true,
+			Options: openapi3filter.Options{
+				AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
+			},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	err = routerBuilder.Security("SessionSecurity").HTTPHandler("bearer", func(_ *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	routerBuilder.AddRoute("healthCheck", health)
+	routerBuilder.AddRoute("sheetsTest", sheetsTest(serviceclient.NewSheetsClient(cfg.sheets)))
+	routerBuilder.AddRoute("upsertSignup", signup(pool))
+
+	err = routerBuilder.Mount(e)
+	if err != nil {
+		return nil, err
+	}
 	return e, nil
 }
 

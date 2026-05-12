@@ -1,15 +1,11 @@
-t_17:
-  title: >-
-    OpenAPI router like
-    https://vertx.io/docs/vertx-web-openapi-router/java/
-    https://github.com/responsibleapi/responsible/tree/master/packages/hono
+t_29:
+  title: improve echo-openapi-router security API
   success_criteria: >-
-    apps/api uses the OpenAPI router and
-    github.com/getkin/kin-openapi is only an indirect dependency in
-    apps/api/go.mod
-  created: 2026-05-03T01:32:14+0300
+    apps/api can mount echo-openapi-router without registering placeholder
+    security handlers for unimplemented secured routes
+  created: 2026-05-12T21:04:40+0300
   deps:
-    - t_9
+    - t_17
 
 t_11:
   title: create spike for api static config shape
