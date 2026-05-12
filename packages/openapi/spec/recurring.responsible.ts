@@ -70,7 +70,18 @@ const CreateExpense = () =>
     }),
   })
 
-const sessionAPI = scope({
+const Project = () =>
+  object({
+    name: NonEmptyString,
+    "archived_at?": unixMillis,
+  })
+
+const CreateProject = () =>
+  object({
+    name: NonEmptyString,
+  })
+
+const protectedAPI = scope({
   forEachOp: {
     req: {
       security: SessionSecurity,
@@ -83,19 +94,39 @@ const sessionAPI = scope({
       },
     },
   },
-  "/expenses": scope({
+  "/projects": scope({
     GET: {
-      id: "listExpenses",
+      id: "listProjects",
       res: {
-        200: array(Expense, { minItems: 0 }),
+        200: array(Project, { minItems: 0 }),
       },
     },
     POST: {
-      id: "createExpense",
-      req: CreateExpense,
+      id: "createProject",
+      req: CreateProject,
       res: {
-        201: Expense,
+        201: Project,
       },
+    },
+    "/:id": {
+      pathParams: {
+        id: NonEmptyString,
+      },
+      "/expenses": scope({
+        GET: {
+          id: "listExpenses",
+          res: {
+            200: array(Expense, { minItems: 0 }),
+          },
+        },
+        POST: {
+          id: "createExpense",
+          req: CreateExpense,
+          res: {
+            201: Expense,
+          },
+        },
+      }),
     },
   }),
   "/exports/workbook": GET({
@@ -137,6 +168,30 @@ const SignupSession = () =>
     session_id: NonEmptyString,
   })
 
+const v1API = scope({
+  forEachOp: {
+    req: {
+      mime: "application/json",
+    },
+    res: {
+      mime: "application/json",
+      add: {
+        400: ValidationErr,
+      },
+    },
+  },
+  "/signup": POST({
+    id: "upsertSignup",
+    description:
+      "Create or update a local user from web-authenticated Google signup/login data and return a session id for the web tier.",
+    req: Signup,
+    res: {
+      200: SignupSession,
+    },
+  }),
+  "/session": protectedAPI,
+})
+
 const api = responsibleAPI({
   partialDoc: {
     openapi: "3.1.0",
@@ -167,29 +222,7 @@ const api = responsibleAPI({
         }),
       },
     }),
-    "/v1": scope({
-      forEachOp: {
-        req: {
-          mime: "application/json",
-        },
-        res: {
-          mime: "application/json",
-          add: {
-            400: ValidationErr,
-          },
-        },
-      },
-      "/signup": POST({
-        id: "upsertSignup",
-        description:
-          "Create or update a local user from web-authenticated Google signup/login data and return a session id for the web tier.",
-        req: Signup,
-        res: {
-          200: SignupSession,
-        },
-      }),
-      "/session": sessionAPI,
-    }),
+    "/v1": v1API,
   },
 })
 

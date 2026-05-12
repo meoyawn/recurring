@@ -16,6 +16,7 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 	configgen "github.com/recurring/api/internal/gen/config"
 	"github.com/recurring/api/internal/gen/pggen"
+	sheetsgen "github.com/recurring/api/internal/gen/sheets"
 	"github.com/recurring/api/internal/serviceclient"
 	echomiddleware "github.com/responsibleapi/echo-middleware"
 	openapirouter "github.com/responsibleapi/echo-openapi-router"
@@ -39,6 +40,11 @@ type echoConfig struct {
 
 type EchoOption func(*echoConfig)
 
+type handler struct {
+	dbPool       *pgxpool.Pool
+	sheetsClient *sheetsgen.APIClient
+}
+
 func WithTracerProvider(provider trace.TracerProvider) EchoOption {
 	return func(cfg *echoConfig) {
 		cfg.tracerProvider = provider
@@ -51,7 +57,7 @@ func WithSheets(cfg configgen.ServiceConfig) EchoOption {
 	}
 }
 
-func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
+func NewEcho(dbPool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 	spec, err := loadOpenAPISpec()
 	if err != nil {
 		return nil, err
@@ -89,25 +95,42 @@ func NewEcho(pool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 		return nil, err
 	}
 
-	err = rb.Security("SessionSecurity").HTTPHandler(
-		"bearer",
-		func(ctx *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
-			return authenticateSession(ctx, pool)
-		},
-	)
-	if err != nil {
+	h := newHandler(dbPool, cfg)
+	if err := h.registerRoutes(rb); err != nil {
 		return nil, err
 	}
-
-	rb.AddRoute("healthCheck", health)
-	rb.AddRoute("sheetsTest", sheetsTest(serviceclient.NewSheetsClient(cfg.sheets)))
-	rb.AddRoute("upsertSignup", signup(pool))
 
 	if err := rb.Mount(e); err != nil {
 		return nil, err
 	}
 
 	return e, nil
+}
+
+func newHandler(dbPool *pgxpool.Pool, cfg echoConfig) *handler {
+	return &handler{
+		dbPool:       dbPool,
+		sheetsClient: serviceclient.NewSheetsClient(cfg.sheets),
+	}
+}
+
+func (h *handler) registerRoutes(rb *openapirouter.RouterBuilder) error {
+	err := rb.Security("SessionSecurity").HTTPHandler(
+		"bearer",
+		func(ctx *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
+			return h.authenticateSession(ctx)
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	rb.AddRoute("healthCheck", getHealth)
+	rb.AddRoute("sheetsTest", h.sheetsTest)
+	rb.AddRoute("upsertSignup", h.signup)
+	rb.AddRoute("createProject", h.createProject)
+
+	return nil
 }
 
 func loadOpenAPISpec() (*openapi3.T, error) {
@@ -118,12 +141,12 @@ func loadOpenAPISpec() (*openapi3.T, error) {
 	return spec, nil
 }
 
-func health(c *echo.Context) error {
+func getHealth(c *echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func authenticateSession(ctx *echo.Context, pool *pgxpool.Pool) error {
-	if pool == nil {
+func (h *handler) authenticateSession(ctx *echo.Context) error {
+	if h.dbPool == nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "database is not configured")
 	}
 
@@ -132,7 +155,7 @@ func authenticateSession(ctx *echo.Context, pool *pgxpool.Pool) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 	}
 
-	userID, err := pggen.NewQuerier(pool).SelectUserIDBySessionID(ctx.Request().Context(), sessionID)
+	userID, err := pggen.NewQuerier(h.dbPool).SelectUserIDBySessionID(ctx.Request().Context(), sessionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 	}

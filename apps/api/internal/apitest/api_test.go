@@ -58,6 +58,15 @@ type signupSessionResponse struct {
 	SessionID string `json:"session_id"`
 }
 
+type createProjectPayload struct {
+	Name string `json:"name"`
+}
+
+type projectResponse struct {
+	Name       string `json:"name"`
+	ArchivedAt *int64 `json:"archived_at,omitempty"`
+}
+
 type testEnv struct {
 	postgres *pgdocker.Container
 	server   *app.Server
@@ -340,33 +349,33 @@ func TestSessionSecurityRejectsMissingBearer(t *testing.T) {
 	t.Parallel()
 
 	client := http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/expenses", http.NoBody)
-	assert.NilError(t, err, "create GET /v1/session/expenses request")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/projects", http.NoBody)
+	assert.NilError(t, err, "create GET /v1/session/projects request")
 
 	resp, err := client.Do(req)
-	assert.NilError(t, err, "GET /v1/session/expenses")
+	assert.NilError(t, err, "GET /v1/session/projects")
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
-	assert.Equal(t, resp.StatusCode, http.StatusUnauthorized, "GET /v1/session/expenses status")
+	assert.Equal(t, resp.StatusCode, http.StatusUnauthorized, "GET /v1/session/projects status")
 }
 
 func TestSessionSecurityRejectsUnknownSession(t *testing.T) {
 	t.Parallel()
 
 	client := http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/expenses", http.NoBody)
-	assert.NilError(t, err, "create GET /v1/session/expenses request")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/projects", http.NoBody)
+	assert.NilError(t, err, "create GET /v1/session/projects request")
 	req.Header.Set("Authorization", "Bearer sess_00000000000000000000000000000000")
 
 	resp, err := client.Do(req)
-	assert.NilError(t, err, "GET /v1/session/expenses")
+	assert.NilError(t, err, "GET /v1/session/projects")
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
-	assert.Equal(t, resp.StatusCode, http.StatusUnauthorized, "GET /v1/session/expenses status")
+	assert.Equal(t, resp.StatusCode, http.StatusUnauthorized, "GET /v1/session/projects status")
 }
 
 func TestSessionSecurityAcceptsSignupSession(t *testing.T) {
@@ -374,17 +383,76 @@ func TestSessionSecurityAcceptsSignupSession(t *testing.T) {
 
 	client := http.Client{Timeout: 10 * time.Second}
 	session := postSignup(t, client, randomSignupPayload(t))
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/expenses", http.NoBody)
-	assert.NilError(t, err, "create GET /v1/session/expenses request")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/projects", http.NoBody)
+	assert.NilError(t, err, "create GET /v1/session/projects request")
 	req.Header.Set("Authorization", "Bearer "+session.SessionID)
 
 	resp, err := client.Do(req)
-	assert.NilError(t, err, "GET /v1/session/expenses")
+	assert.NilError(t, err, "GET /v1/session/projects")
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
-	assert.Equal(t, resp.StatusCode, http.StatusNotImplemented, "GET /v1/session/expenses status")
+	assert.Equal(t, resp.StatusCode, http.StatusNotImplemented, "GET /v1/session/projects status")
+}
+
+func TestCreateProjectRejectsMissingBearer(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	encoded, err := json.Marshal(createProjectPayload{Name: "Home"})
+	assert.NilError(t, err, "marshal POST /v1/session/projects request")
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		apiBaseURL+"/v1/session/projects",
+		bytes.NewReader(encoded),
+	)
+	assert.NilError(t, err, "create POST /v1/session/projects request")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "POST /v1/session/projects")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusUnauthorized, "POST /v1/session/projects status")
+}
+
+func TestCreateProject(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	session := postSignup(t, client, randomSignupPayload(t))
+	projectName := "Home " + randomHex(t, 8)
+	encoded, err := json.Marshal(createProjectPayload{Name: projectName})
+	assert.NilError(t, err, "marshal POST /v1/session/projects request")
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		apiBaseURL+"/v1/session/projects",
+		bytes.NewReader(encoded),
+	)
+	assert.NilError(t, err, "create POST /v1/session/projects request")
+	req.Header.Set("Authorization", "Bearer "+session.SessionID)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "POST /v1/session/projects")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusCreated, "POST /v1/session/projects status")
+
+	var body projectResponse
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	assert.NilError(t, err, "decode POST /v1/session/projects response")
+	assert.Equal(t, body.Name, projectName, "POST /v1/session/projects name")
+	assert.Assert(t, body.ArchivedAt == nil, "POST /v1/session/projects archived_at = %v, want null", body.ArchivedAt)
 }
 
 func TestSignupPostgresTrace(t *testing.T) {

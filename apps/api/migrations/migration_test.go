@@ -60,16 +60,20 @@ func TestMigrations(t *testing.T) {
 
 	version, err := goose.GetDBVersionContext(ctx, db)
 	assert.NilError(t, err, "get goose version")
-	assert.Equal(t, version, int64(2), "goose version")
+	assert.Equal(t, version, int64(3), "goose version")
 
 	assertGooseAppliedVersion(ctx, t, db, 1)
 	assertGooseAppliedVersion(ctx, t, db, 2)
+	assertGooseAppliedVersion(ctx, t, db, 3)
 	assertPgcrypto(ctx, t, db)
 	assertExpenseColumns(ctx, t, db)
 	assertExpenseConstraints(ctx, t, db)
 	assertExpenseInsertBehavior(ctx, t, db)
 	assertSignupColumns(ctx, t, db)
 	assertSignupInsertBehavior(ctx, t, db)
+	assertProjectColumns(ctx, t, db)
+	assertProjectConstraints(ctx, t, db)
+	assertProjectInsertBehavior(ctx, t, db)
 }
 
 func mustLoadDevConfig(t *testing.T) configgen.Config {
@@ -180,20 +184,10 @@ func assertExpenseColumns(ctx context.Context, t *testing.T, db *sql.DB) {
 	}
 	assert.NilError(t, rows.Err(), "iterate expense columns")
 
-	wantOrder := []string{
-		"id",
-		"name",
-		"amount_minor",
-		"currency",
-		"recurring",
-		"started_at",
-		"category",
-		"comment",
-		"cancel_url",
-		"canceled_at",
-		"created_at",
-		"updated_at",
-	}
+	wantOrder := strings.Fields(
+		"id name amount_minor currency recurring started_at category comment " +
+			"cancel_url canceled_at created_at updated_at project_id",
+	)
 	assert.DeepEqual(t, order, wantOrder)
 
 	assertColumn(t, got, "id", "text", "text", "NO", 0, []string{"exp_", sqlDefaultRandom, sqlDefaultEncode})
@@ -208,6 +202,7 @@ func assertExpenseColumns(ctx context.Context, t *testing.T, db *sql.DB) {
 	assertColumn(t, got, "canceled_at", "timestamp with time zone", "timestamptz", "YES", 0, nil)
 	assertColumn(t, got, "created_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{sqlDefaultNow})
 	assertColumn(t, got, "updated_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{sqlDefaultNow})
+	assertColumn(t, got, "project_id", "text", "text", "NO", 0, nil)
 }
 
 func assertColumn(
@@ -286,6 +281,7 @@ func assertExpenseConstraints(ctx context.Context, t *testing.T, db *sql.DB) {
 		{constraintCheck, "recurring > '00:00:00'::interval"},
 		{constraintCheck, "length(category) > 0"},
 		{constraintCheck, "length(comment) > 0"},
+		{"FOREIGN KEY", "project_id", "projects(id)", "ON DELETE CASCADE"},
 	}
 	for _, parts := range want {
 		assertConstraintDefinition(t, got, parts)
@@ -310,41 +306,43 @@ func assertConstraintDefinition(t *testing.T, got []string, parts []string) {
 func assertExpenseInsertBehavior(ctx context.Context, t *testing.T, db *sql.DB) {
 	t.Helper()
 
+	projectID := createProjectForTest(ctx, t, db, "expense-project-owner@example.com", "Expenses")
+
 	var id string
 	err := db.QueryRowContext(ctx, `
-		INSERT INTO public.expenses (name, amount_minor, currency, started_at)
-		VALUES ('Rent', 125000, 'USD', now())
+		INSERT INTO public.expenses (name, amount_minor, currency, started_at, project_id)
+		VALUES ('Rent', 125000, 'USD', now(), $1)
 		RETURNING id
-	`).Scan(&id)
+	`, projectID).Scan(&id)
 	assert.NilError(t, err, "insert valid expense")
 	assertGeneratedID(t, id, "exp", "generated id")
 
 	assertInsertRejected(ctx, t, db, "negative amount_minor", `
-		INSERT INTO public.expenses (name, amount_minor, currency, started_at)
-		VALUES ('Rent', -1, 'USD', now())
-	`)
+		INSERT INTO public.expenses (name, amount_minor, currency, started_at, project_id)
+		VALUES ('Rent', -1, 'USD', now(), $1)
+	`, projectID)
 	assertInsertRejected(ctx, t, db, "lowercase currency", `
-		INSERT INTO public.expenses (name, amount_minor, currency, started_at)
-		VALUES ('Rent', 1, 'usd', now())
-	`)
+		INSERT INTO public.expenses (name, amount_minor, currency, started_at, project_id)
+		VALUES ('Rent', 1, 'usd', now(), $1)
+	`, projectID)
 	assertInsertRejected(ctx, t, db, "empty name", `
-		INSERT INTO public.expenses (name, amount_minor, currency, started_at)
-		VALUES ('', 1, 'USD', now())
-	`)
+		INSERT INTO public.expenses (name, amount_minor, currency, started_at, project_id)
+		VALUES ('', 1, 'USD', now(), $1)
+	`, projectID)
 	assertInsertRejected(ctx, t, db, "empty category", `
-		INSERT INTO public.expenses (name, amount_minor, currency, started_at, category)
-		VALUES ('Rent', 1, 'USD', now(), '')
-	`)
+		INSERT INTO public.expenses (name, amount_minor, currency, started_at, category, project_id)
+		VALUES ('Rent', 1, 'USD', now(), '', $1)
+	`, projectID)
 	assertInsertRejected(ctx, t, db, "empty comment", `
-		INSERT INTO public.expenses (name, amount_minor, currency, started_at, comment)
-		VALUES ('Rent', 1, 'USD', now(), '')
-	`)
+		INSERT INTO public.expenses (name, amount_minor, currency, started_at, comment, project_id)
+		VALUES ('Rent', 1, 'USD', now(), '', $1)
+	`, projectID)
 }
 
-func assertInsertRejected(ctx context.Context, t *testing.T, db *sql.DB, name string, query string) {
+func assertInsertRejected(ctx context.Context, t *testing.T, db *sql.DB, name string, query string, args ...any) {
 	t.Helper()
 
-	_, err := db.ExecContext(ctx, query)
+	_, err := db.ExecContext(ctx, query, args...)
 	assert.Assert(t, err != nil, "%s insert succeeded, want constraint error", name)
 	assert.Assert(
 		t,
@@ -501,4 +499,136 @@ func assertSignupInsertBehavior(ctx context.Context, t *testing.T, db *sql.DB) {
 		INSERT INTO public.users (google_sub, email)
 		VALUES ('google-sub-2', '')
 	`)
+}
+
+func assertProjectColumns(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT column_name, data_type, udt_name, is_nullable, character_maximum_length, column_default
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'projects'
+		ORDER BY ordinal_position
+	`)
+	assert.NilError(t, err, "query project columns")
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	got := map[string]columnInfo{}
+	var order []string
+	for rows.Next() {
+		var name string
+		var col columnInfo
+		err = rows.Scan(
+			&name,
+			&col.dataType,
+			&col.udtName,
+			&col.nullable,
+			&col.maxLength,
+			&col.defaultValue,
+		)
+		assert.NilError(t, err, "scan project column")
+		got[name] = col
+		order = append(order, name)
+	}
+	assert.NilError(t, rows.Err(), "iterate project columns")
+
+	want := []string{
+		"id",
+		"user_id",
+		"name",
+		"archived_at",
+		"created_at",
+		"updated_at",
+	}
+	assert.DeepEqual(t, order, want)
+
+	assertColumn(t, got, "id", "text", "text", "NO", 0, []string{"prj_", sqlDefaultRandom, sqlDefaultEncode})
+	assertColumn(t, got, "user_id", "text", "text", "NO", 0, nil)
+	assertColumn(t, got, "name", "text", "text", "NO", 0, nil)
+	assertColumn(t, got, "archived_at", "timestamp with time zone", "timestamptz", "YES", 0, nil)
+	assertColumn(t, got, "created_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{sqlDefaultNow})
+	assertColumn(t, got, "updated_at", "timestamp with time zone", "timestamptz", "NO", 0, []string{sqlDefaultNow})
+}
+
+func assertProjectConstraints(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT pg_get_constraintdef(oid)
+		FROM pg_constraint
+		WHERE conrelid = 'public.projects'::regclass
+	`)
+	assert.NilError(t, err, "query project constraints")
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	var got []string
+	for rows.Next() {
+		var definition string
+		assert.NilError(t, rows.Scan(&definition), "scan project constraint")
+		got = append(got, definition)
+	}
+	assert.NilError(t, rows.Err(), "iterate project constraints")
+
+	want := [][]string{
+		{"PRIMARY KEY", "id"},
+		{constraintCheck, "prj_[0-9a-f]{32}"},
+		{constraintCheck, "length(name) > 0"},
+		{"FOREIGN KEY", "user_id", "users(id)", "ON DELETE CASCADE"},
+	}
+	for _, parts := range want {
+		assertConstraintDefinition(t, got, parts)
+	}
+}
+
+func assertProjectInsertBehavior(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	var userID string
+	err := db.QueryRowContext(ctx, `
+		INSERT INTO public.users (email)
+		VALUES ('project-owner@example.com')
+		RETURNING id
+	`).Scan(&userID)
+	assert.NilError(t, err, "insert project owner")
+
+	var projectID string
+	err = db.QueryRowContext(ctx, `
+		INSERT INTO public.projects (user_id, name, archived_at)
+		VALUES ($1, 'Home', now())
+		RETURNING id
+	`, userID).Scan(&projectID)
+	assert.NilError(t, err, "insert valid project")
+	assertGeneratedID(t, projectID, "prj", "generated project id")
+
+	assertInsertRejected(ctx, t, db, "empty project name", `
+		INSERT INTO public.projects (user_id, name)
+		VALUES ($1, '')
+	`, userID)
+}
+
+func createProjectForTest(ctx context.Context, t *testing.T, db *sql.DB, ownerEmail string, projectName string) string {
+	t.Helper()
+
+	var userID string
+	err := db.QueryRowContext(ctx, `
+		INSERT INTO public.users (email)
+		VALUES ($1)
+		RETURNING id
+	`, ownerEmail).Scan(&userID)
+	assert.NilError(t, err, "insert project owner")
+
+	var projectID string
+	err = db.QueryRowContext(ctx, `
+		INSERT INTO public.projects (user_id, name)
+		VALUES ($1, $2)
+		RETURNING id
+	`, userID, projectName).Scan(&projectID)
+	assert.NilError(t, err, "insert project")
+	assertGeneratedID(t, projectID, "prj", "generated project id")
+
+	return projectID
 }

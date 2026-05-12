@@ -10,36 +10,34 @@ import (
 	"github.com/recurring/api/internal/serviceclient"
 )
 
-func sheetsTest(client *sheetsgen.APIClient) echo.HandlerFunc {
-	return func(c *echo.Context) error {
-		ctx := c.Request().Context()
-		ctx = serviceclient.WithRetryable(ctx, true)
-		ctx = serviceclient.WithIdempotencyKey(ctx, "sheets-test")
+func (h *handler) sheetsTest(c *echo.Context) error {
+	ctx := c.Request().Context()
+	ctx = serviceclient.WithRetryable(ctx, true)
+	ctx = serviceclient.WithIdempotencyKey(ctx, "sheets-test")
 
-		file, resp, err := client.DefaultAPI.CreateWorkbookExport(ctx).
-			WorkbookExportRequest(*sheetsgen.NewWorkbookExportRequest("sheets-test", "USD", []sheetsgen.ExportRow{})).
-			Execute()
-		if resp != nil && resp.Body != nil {
-			defer func() {
-				_ = resp.Body.Close()
-			}()
-		}
-		if err != nil {
-			return sheetsExportError(err)
-		}
-		if file != nil {
-			defer func() {
-				name := file.Name()
-				_ = file.Close()
-				_ = os.Remove(name)
-			}()
-		}
-		if resp == nil || resp.StatusCode != http.StatusCreated {
-			return sheetsExportError(fmt.Errorf("unexpected sheets response: %v", resp))
-		}
-
-		return c.NoContent(http.StatusNoContent)
+	file, resp, err := h.sheetsClient.DefaultAPI.CreateWorkbookExport(ctx).
+		WorkbookExportRequest(*sheetsgen.NewWorkbookExportRequest("sheets-test", "USD", []sheetsgen.ExportRow{})).
+		Execute()
+	if resp != nil && resp.Body != nil {
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 	}
+	if err != nil {
+		return sheetsExportError(err)
+	}
+	if file != nil {
+		defer func() {
+			name := file.Name()
+			_ = file.Close()
+			_ = os.Remove(name)
+		}()
+	}
+	if resp == nil || resp.StatusCode != http.StatusCreated {
+		return sheetsExportError(fmt.Errorf("unexpected sheets response: %v", resp))
+	}
+
+	return c.NoContent(http.StatusNoContent)
 }
 
 func sheetsExportError(err error) error {
