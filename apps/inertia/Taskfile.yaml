@@ -29,7 +29,6 @@ tasks:
   typecheck:
     run: once
     deps:
-      - cf:types
       - openapi:generate:inertia-client
     cmd: bun tsc
     sources:
@@ -42,8 +41,6 @@ tasks:
 
   lint:
     run: once
-    deps:
-      - cf:types
     dir: ../../
     cmd: bun oxlint --config oxlint.config.ts apps/inertia/src/
     sources:

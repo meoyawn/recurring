@@ -1,4 +1,5 @@
 import { isRecord, type EmailAddrStr } from "@recurring/shared-ts"
+import type { EnvVars } from "../env.schema.ts"
 import { Paths } from "../paths.ts"
 import { upsertSignup } from "./api.ts"
 import { readCookie, sessionCookieName } from "./session-cookie.ts"
@@ -84,7 +85,7 @@ const errorRedirect = (
 
 const authConfig = (
   request: Request,
-  bindings: Env,
+  bindings: EnvVars,
   callbackPath: string,
 ): GoogleAuthConfig => {
   if (
@@ -202,7 +203,7 @@ const fetchGoogleProfile = async (
 
 export const startGoogleAuth = async (
   request: Request,
-  bindings: Env,
+  bindings: EnvVars,
   callbackPath: string,
 ): Promise<Response> => {
   try {
@@ -223,7 +224,7 @@ export const startGoogleAuth = async (
 
 export const finishGoogleAuth = async (
   request: Request,
-  bindings: Env,
+  bindings: EnvVars,
   callbackPath: string,
 ): Promise<Response> => {
   const secure = isSecureRequest(request)

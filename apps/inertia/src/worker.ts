@@ -7,6 +7,7 @@ import {
 import { Hono } from "hono"
 import { healthCheck } from "./app/api.ts"
 import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
+import type { EnvVars } from "./env.schema.ts"
 import { readSessionID } from "./app/session-cookie.ts"
 import { Paths } from "./paths.ts"
 import { rootView } from "./root-view.tsx"
@@ -14,10 +15,10 @@ import { rootView } from "./root-view.tsx"
 const inertiaVersion = "recurring-inertia-1"
 
 const createApp = () => {
-  const app = new Hono<{ Bindings: Env }>()
+  const app = new Hono<{ Bindings: EnvVars }>()
 
   app.use(
-    honoTracing<{ Bindings: Env }>({
+    honoTracing<{ Bindings: EnvVars }>({
       serviceName: "recurring-inertia",
       traceEndpoint: c =>
         otlpTraceEndpointFromEnv({

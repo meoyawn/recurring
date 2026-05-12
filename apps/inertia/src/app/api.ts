@@ -2,6 +2,7 @@ import { serviceFetch, type ServiceClientContext } from "@recurring/shared-ts"
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { Configuration } from "../../gen/runtime.ts"
+import type { EnvVars } from "../env.schema.ts"
 import type { GoogleProfile } from "./google-auth.ts"
 import { readSessionID } from "./session-cookie.ts"
 
@@ -16,7 +17,7 @@ const requiredBinding = (value: string | undefined, name: string): string => {
   return value
 }
 
-export const apiOrigin = (bindings: Env): string =>
+export const apiOrigin = (bindings: EnvVars): string =>
   requiredBinding(bindings.RECURRING_API_ORIGIN, "RECURRING_API_ORIGIN").replace(
     /\/$/,
     "",
@@ -51,7 +52,7 @@ const serviceClientContextFromRequest = (
   return context
 }
 
-const api = (bindings: Env, request: Request): DefaultApi =>
+const api = (bindings: EnvVars, request: Request): DefaultApi =>
   new DefaultApi(
     new Configuration({
       accessToken: readSessionID(request),
@@ -64,7 +65,7 @@ const api = (bindings: Env, request: Request): DefaultApi =>
 
 export const healthCheck = async (
   request: Request,
-  bindings: Env,
+  bindings: EnvVars,
 ): Promise<HealthPayload> => {
   await api(bindings, request).healthCheck()
   return { status: "ok" }
@@ -73,7 +74,7 @@ export const healthCheck = async (
 export const upsertSignup = async (
   request: Request,
   profile: GoogleProfile,
-  bindings: Env,
+  bindings: EnvVars,
 ): Promise<SignupSession> => {
   const signup: Signup = {
     google_sub: profile.sub,
