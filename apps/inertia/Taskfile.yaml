@@ -32,6 +32,9 @@ tasks:
     cmds:
       - bun wrangler secret list --env development
       - bun wrangler secret list --env production
+    sources:
+      - wrangler.toml
+      - ../../bun.lock
 
   typecheck:
     run: once
