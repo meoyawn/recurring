@@ -26,6 +26,13 @@ tasks:
     generates:
       - "{{.WORKER_TYPES}}"
 
+  cf:secrets:
+    run: once
+    desc: Verify Cloudflare Worker secret bindings exist
+    cmds:
+      - bun wrangler secret list --env development
+      - bun wrangler secret list --env production
+
   typecheck:
     run: once
     deps:
@@ -83,6 +90,7 @@ tasks:
 
   check:
     deps:
+      - cf:secrets
       - lint
       - typecheck
       - test
