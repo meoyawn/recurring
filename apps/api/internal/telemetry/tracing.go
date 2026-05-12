@@ -18,7 +18,26 @@ const (
 	serviceName = "recurring-api"
 )
 
-func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Context) error, error) {
+type startConfig struct {
+	serviceVersion string
+}
+
+// Option configures telemetry startup.
+type Option func(*startConfig)
+
+// WithServiceVersion configures the service.version resource attribute.
+func WithServiceVersion(version string) Option {
+	return func(cfg *startConfig) {
+		cfg.serviceVersion = version
+	}
+}
+
+func Start(ctx context.Context, cfg configgen.TelemetryConfig, opts ...Option) (func(context.Context) error, error) {
+	startCfg := startConfig{}
+	for _, opt := range opts {
+		opt(&startCfg)
+	}
+
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
@@ -28,14 +47,14 @@ func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Con
 		resource.WithFromEnv(),
 		resource.WithTelemetrySDK(),
 		resource.WithAttributes(
-			attribute.String("service.name", serviceName),
+			resourceAttributes(startCfg)...,
 		),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	opts := []sdktrace.TracerProviderOption{
+	traceOpts := []sdktrace.TracerProviderOption{
 		sdktrace.WithResource(res),
 	}
 	if traceExporterConfigured(cfg) {
@@ -43,12 +62,22 @@ func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Con
 		if err != nil {
 			return nil, err
 		}
-		opts = append(opts, sdktrace.WithBatcher(exporter))
+		traceOpts = append(traceOpts, sdktrace.WithBatcher(exporter))
 	}
 
-	provider := sdktrace.NewTracerProvider(opts...)
+	provider := sdktrace.NewTracerProvider(traceOpts...)
 	otel.SetTracerProvider(provider)
 	return provider.Shutdown, nil
+}
+
+func resourceAttributes(cfg startConfig) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("service.name", serviceName),
+	}
+	if cfg.serviceVersion != "" {
+		attrs = append(attrs, attribute.String("service.version", cfg.serviceVersion))
+	}
+	return attrs
 }
 
 func traceExporterConfigured(cfg configgen.TelemetryConfig) bool {

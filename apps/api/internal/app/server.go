@@ -32,16 +32,35 @@ type Server struct {
 	errc       chan error
 }
 
-func Start(ctx context.Context) (*Server, error) {
+type options struct {
+	release string
+}
+
+// Option configures API server startup.
+type Option func(*options)
+
+// WithRelease configures the release identifier used by telemetry.
+func WithRelease(release string) Option {
+	return func(opts *options) {
+		opts.release = release
+	}
+}
+
+func Start(ctx context.Context, opts ...Option) (*Server, error) {
 	cfg, err := config.LoadFromEnv()
 	if err != nil {
 		return nil, err
 	}
-	return StartWithConfig(ctx, cfg)
+	return StartWithConfig(ctx, cfg, opts...)
 }
 
-func StartWithConfig(ctx context.Context, cfg configgen.Config) (*Server, error) {
-	traceStop, err := telemetry.Start(ctx, cfg.Telemetry)
+func StartWithConfig(ctx context.Context, cfg configgen.Config, opts ...Option) (*Server, error) {
+	appOpts := options{}
+	for _, opt := range opts {
+		opt(&appOpts)
+	}
+
+	traceStop, err := telemetry.Start(ctx, cfg.Telemetry, telemetry.WithServiceVersion(appOpts.release))
 	if err != nil {
 		return nil, fmt.Errorf("start telemetry: %w", err)
 	}
@@ -87,8 +106,8 @@ func StartWithConfig(ctx context.Context, cfg configgen.Config) (*Server, error)
 	return server, nil
 }
 
-func Run(ctx context.Context) error {
-	server, err := Start(ctx)
+func Run(ctx context.Context, opts ...Option) error {
+	server, err := Start(ctx, opts...)
 	if err != nil {
 		return err
 	}

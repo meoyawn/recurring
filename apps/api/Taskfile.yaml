@@ -53,14 +53,11 @@ tasks:
       - pggen
     vars:
       BIN: dist/recurring-api-linux-arm64
+      GIT_RELEASE:
+        sh: git describe --tags --always --dirty
     cmds:
       - mkdir -p dist
-      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o {{.BIN}} ./cmd/api
-    generates:
-      - "{{.BIN}}"
-    sources:
-      - ./**/*.go
-      - internal/httpapi/recurring.openapi.yaml
+      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.release={{default .GIT_RELEASE .RELEASE}}" -o {{.BIN}} ./cmd/api
 
   migrate:local:
     run: once
