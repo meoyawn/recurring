@@ -67,9 +67,14 @@ tasks:
       - inertia:check
       - sheets:check
 
+  tidy:
+    deps:
+      - api:tidy
+    cmd: bun i
+
   check:
     cmds:
-      - bun i
+      - task: tidy
       - task: check-impl
 
   bun:outdated:
