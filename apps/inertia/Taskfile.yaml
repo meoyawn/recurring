@@ -73,6 +73,8 @@ tasks:
       - src/**/*.{ts,tsx}
       - gen/**/*.{ts,tsx}
       - vitest.miniflare.config.ts
+      - ../api/**/*.go
+      - ../sheets/src/**/*.ts
 
   test:unit:
     run: once
