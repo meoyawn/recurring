@@ -8,7 +8,10 @@ import (
 	"time"
 )
 
-const jaegerQueryOrigin = "http://jaeger.localhost:16686"
+const (
+	jaegerQueryOrigin = "http://jaeger.localhost:16686"
+	jaegerPollDelay   = 100 * time.Millisecond
+)
 
 func containsTraceValue(value any, needle string) bool {
 	switch x := value.(type) {
@@ -56,7 +59,7 @@ func jaegerTraceContains(ctx context.Context, traceID string, needle string) (bo
 }
 
 func waitForJaegerTrace(ctx context.Context, traceID string, needle string) error {
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(jaegerPollDelay)
 	defer ticker.Stop()
 
 	for {

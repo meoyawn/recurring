@@ -5,14 +5,13 @@ import (
 	"net/url"
 	"strings"
 
+	configgen "github.com/recurring/api/internal/gen/config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-
-	configgen "github.com/recurring/api/internal/gen/config"
 )
 
 const (
@@ -20,7 +19,10 @@ const (
 )
 
 func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Context) error, error) {
-	otel.SetTextMapPropagator(textMapPropagator())
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
 
 	res, err := resource.New(ctx,
 		resource.WithFromEnv(),
@@ -47,13 +49,6 @@ func Start(ctx context.Context, cfg configgen.TelemetryConfig) (func(context.Con
 	provider := sdktrace.NewTracerProvider(opts...)
 	otel.SetTracerProvider(provider)
 	return provider.Shutdown, nil
-}
-
-func textMapPropagator() propagation.TextMapPropagator {
-	return propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	)
 }
 
 func traceExporterConfigured(cfg configgen.TelemetryConfig) bool {

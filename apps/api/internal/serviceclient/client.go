@@ -2,9 +2,10 @@ package serviceclient
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand/v2"
+	"math/big"
 	"net"
 	"net/http"
 	"time"
@@ -12,6 +13,13 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
+)
+
+const (
+	defaultMaxAttempts    = 1
+	defaultRetryBackoff   = 100 * time.Millisecond
+	jitterDivisor         = 2
+	unixSocketDialTimeout = 10 * time.Second
 )
 
 type Config struct {
@@ -39,12 +47,10 @@ func NewTransport(cfg Config, base http.RoundTripper) http.RoundTripper {
 		base = baseTransport(cfg)
 	}
 	maxAttempts := cfg.MaxAttempts
-	if maxAttempts < 1 {
-		maxAttempts = 1
-	}
+	maxAttempts = max(maxAttempts, defaultMaxAttempts)
 	backoff := cfg.RetryBackoff
 	if backoff == 0 {
-		backoff = 100 * time.Millisecond
+		backoff = defaultRetryBackoff
 	}
 	return retryTransport{
 		base:        base,
@@ -59,7 +65,7 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	var lastErr error
-	for attempt := 0; attempt < t.maxAttempts; attempt++ {
+	for attempt := range t.maxAttempts {
 		attemptReq, err := cloneRequest(req, attempt)
 		if err != nil {
 			return nil, err
@@ -70,10 +76,7 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		resp, err := t.roundTrip(attemptReq, attempt)
 		if err != nil {
 			lastErr = err
-			if !t.shouldRetry(req, attempt, nil, err) {
-				return nil, err
-			}
-			if err := t.wait(req.Context(), attempt); err != nil {
+			if err := t.waitAfterError(req, attempt, err); err != nil {
 				return nil, err
 			}
 			continue
@@ -99,6 +102,13 @@ func (t retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return nil, errors.New("request failed without response")
 }
 
+func (t retryTransport) waitAfterError(req *http.Request, attempt int, err error) error {
+	if !t.shouldRetry(req, attempt, nil, err) {
+		return err
+	}
+	return t.wait(req.Context(), attempt)
+}
+
 func (t retryTransport) roundTrip(req *http.Request, attempt int) (*http.Response, error) {
 	return otelhttp.NewTransport(t.base, otelhttp.WithSpanOptions(
 		trace.WithAttributes(semconv.HTTPRequestResendCount(attempt)),
@@ -106,9 +116,14 @@ func (t retryTransport) roundTrip(req *http.Request, attempt int) (*http.Respons
 }
 
 func baseTransport(cfg Config) http.RoundTripper {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return http.DefaultTransport
+	}
+
+	transport := defaultTransport.Clone()
 	if cfg.UnixSocketPath != "" {
-		dialer := net.Dialer{Timeout: 10 * time.Second}
+		dialer := net.Dialer{Timeout: unixSocketDialTimeout}
 		transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return dialer.DialContext(ctx, "unix", cfg.UnixSocketPath)
 		}
@@ -170,11 +185,7 @@ func retryableStatus(status int) bool {
 
 func (t retryTransport) wait(ctx context.Context, attempt int) error {
 	delay := t.backoff * time.Duration(1<<attempt)
-	var jitter time.Duration
-	if delay > time.Nanosecond {
-		jitter = time.Duration(rand.Int64N(int64(delay / 2)))
-	}
-	timer := time.NewTimer(delay + jitter)
+	timer := time.NewTimer(delay + randomJitter(delay/jitterDivisor))
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
@@ -182,4 +193,15 @@ func (t retryTransport) wait(ctx context.Context, attempt int) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+func randomJitter(maxDelay time.Duration) time.Duration {
+	if maxDelay <= 0 {
+		return 0
+	}
+	jitter, err := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(maxDelay)))
+	if err != nil {
+		return 0
+	}
+	return time.Duration(jitter.Int64())
 }
