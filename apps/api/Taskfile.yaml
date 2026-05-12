@@ -39,7 +39,7 @@ tasks:
     cmds:
       - go run ./cmd/api
 
-  devlogin:
+  login:dev:
     desc: Create a local dev session and open the web origin
     deps:
       - openapi:generate:config-go-structs
