@@ -1,4 +1,46 @@
-export const sessionCookieName = "sessionID"
+const sessionCookieName = "sessionID"
+const sessionCookieMaxAge = 60 * 60 * 24 * 30
+
+export type CookieOptions = {
+  path?: string
+  maxAge: number
+  secure: boolean
+}
+
+export const isSecureRequest = (request: Request): boolean =>
+  new URL(request.url).protocol === "https:"
+
+export const cookie = (
+  name: string,
+  value: string,
+  opts: CookieOptions,
+): string => {
+  const parts = [
+    `${name}=${encodeURIComponent(value)}`,
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${opts.maxAge}`,
+  ]
+  if (opts.path !== undefined) {
+    parts.splice(1, 0, `Path=${opts.path}`)
+  }
+  if (opts.secure) {
+    parts.push("Secure")
+  }
+  return parts.join("; ")
+}
+
+export const clearCookie = (
+  name: string,
+  path: string,
+  secure: boolean,
+): string => cookie(name, "", { path, maxAge: 0, secure })
+
+export const sessionCookie = (sessionID: string, secure: boolean): string =>
+  cookie(sessionCookieName, sessionID, {
+    maxAge: sessionCookieMaxAge,
+    secure,
+  })
 
 export const readCookie = (
   request: Request,

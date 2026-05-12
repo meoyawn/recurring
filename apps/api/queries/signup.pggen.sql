@@ -1,7 +1,7 @@
 -- CreateSignupSession upserts a Google user and opens a session.
 -- name: CreateSignupSession :one
 WITH upserted AS (
-    INSERT INTO public.users (google_sub, email, name, picture_url)
+    INSERT INTO users (google_sub, email, name, picture_url)
     VALUES (
         pggen.arg('GoogleSub'),
         pggen.arg('Email'),
@@ -16,6 +16,6 @@ WITH upserted AS (
     RETURNING id
 )
 
-INSERT INTO public.sessions (user_id)
+INSERT INTO sessions (user_id)
 SELECT id FROM upserted
 RETURNING id;

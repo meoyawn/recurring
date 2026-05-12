@@ -39,6 +39,13 @@ tasks:
     cmds:
       - go run ./cmd/api
 
+  devlogin:
+    desc: Create a local dev session and open the web origin
+    deps:
+      - openapi:generate:config-go-structs
+      - pggen
+    cmd: go run ./cmd/devlogin {{.CLI_ARGS}}
+
   build:
     deps:
       - openapi:generate:config-go-structs

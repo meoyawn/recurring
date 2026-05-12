@@ -208,10 +208,16 @@ describe("inertia worker", () => {
     expect(requireHeader(finishRes, "location")).toEqual(
       route(Paths.home).toString(),
     )
+    const setCookie = requireHeader(finishRes, "set-cookie")
+    const sessionCookie = setCookie
+      .split(", ")
+      .find(value => value.startsWith("sessionID="))
+    if (sessionCookie === undefined) {
+      throw new Error("sessionID Set-Cookie header is missing")
+    }
     expect(
-      sessionIDPattern.test(
-        cookieValue(requireHeader(finishRes, "set-cookie"), "sessionID"),
-      ),
+      sessionIDPattern.test(cookieValue(sessionCookie, "sessionID")),
     ).toEqual(true)
+    expect(sessionCookie).not.toContain("Path=")
   })
 })

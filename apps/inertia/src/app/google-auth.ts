@@ -2,9 +2,13 @@ import { isRecord, type EmailAddrStr } from "@recurring/shared-ts"
 import type { EnvVars } from "../config/env.schema.ts"
 import { Paths } from "../paths.ts"
 import { upsertSignup } from "./api.ts"
-import { readCookie, sessionCookieName } from "./session-cookie.ts"
-
-const googleStateCookieName = "googleOAuthState"
+import {
+  clearCookie,
+  cookie,
+  isSecureRequest,
+  readCookie,
+  sessionCookie,
+} from "./session-cookie.ts"
 
 type GoogleAuthConfig = {
   authorizationEndpoint: string
@@ -15,11 +19,7 @@ type GoogleAuthConfig = {
   userinfoEndpoint: string
 }
 
-type CookieOptions = {
-  path: string
-  maxAge: number
-  secure: boolean
-}
+const googleStateCookieName = "googleOAuthState"
 
 export type GoogleProfile = {
   sub: string
@@ -40,26 +40,6 @@ const publicOrigin = (request: Request): string => {
 
   return new URL(request.url).origin
 }
-
-const isSecureRequest = (request: Request): boolean =>
-  new URL(request.url).protocol === "https:"
-
-const cookie = (name: string, value: string, opts: CookieOptions): string => {
-  const parts = [
-    `${name}=${encodeURIComponent(value)}`,
-    `Path=${opts.path}`,
-    "HttpOnly",
-    "SameSite=Lax",
-    `Max-Age=${opts.maxAge}`,
-  ]
-  if (opts.secure) {
-    parts.push("Secure")
-  }
-  return parts.join("; ")
-}
-
-const clearCookie = (name: string, path: string, secure: boolean): string =>
-  cookie(name, "", { path, maxAge: 0, secure })
 
 const redirect = (
   location: string,
@@ -255,14 +235,7 @@ export const finishGoogleAuth = async (
     return redirect(
       new URL(Paths.home, publicOrigin(request)).toString(),
       302,
-      [
-        clearState,
-        cookie(sessionCookieName, signup.session_id, {
-          path: Paths.home,
-          maxAge: 60 * 60 * 24 * 30,
-          secure,
-        }),
-      ],
+      [clearState, sessionCookie(signup.session_id, secure)],
     )
   } catch {
     return errorRedirect(request, "login_failed", [clearState])

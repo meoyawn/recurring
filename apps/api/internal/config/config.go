@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/providers/structs"
 	"github.com/knadh/koanf/v2"
 	configgen "github.com/recurring/api/internal/gen/config"
 )
@@ -34,7 +34,7 @@ func Load(path string) (configgen.Config, error) {
 	}
 
 	k := koanf.New(".")
-	if err := k.Load(confmap.Provider(defaults(), "."), nil); err != nil {
+	if err := k.Load(structs.Provider(defaults(), "json"), nil); err != nil {
 		return configgen.Config{}, fmt.Errorf("load config defaults: %w", err)
 	}
 	if err := k.Load(file.Provider(path), yaml.Parser()); err != nil {
@@ -48,13 +48,23 @@ func Load(path string) (configgen.Config, error) {
 	return cfg, nil
 }
 
-func defaults() map[string]any {
-	return map[string]any{
-		"api.listener.kind":   "tcp",
-		"api.listener.addr":   ":8080",
-		"db.sslmode":          "disable",
-		"db.max_conns":        defaultDBMaxConns,
-		"sheets.timeout_ms":   defaultSheetsTimeoutMS,
-		"sheets.max_attempts": defaultSheetsAttempts,
+func defaults() configgen.Config {
+	addr := ":8080"
+
+	return configgen.Config{
+		Api: configgen.APIConfig{
+			Listener: configgen.ListenerConfig{
+				Kind: configgen.TCP,
+				Addr: &addr,
+			},
+		},
+		Db: configgen.DBConfig{
+			Sslmode:  configgen.DISABLE,
+			MaxConns: defaultDBMaxConns,
+		},
+		Sheets: configgen.ServiceConfig{
+			TimeoutMs:   defaultSheetsTimeoutMS,
+			MaxAttempts: defaultSheetsAttempts,
+		},
 	}
 }

@@ -18,10 +18,10 @@ const requiredBinding = (value: string | undefined, name: string): string => {
 }
 
 export const apiOrigin = (bindings: EnvVars): string =>
-  requiredBinding(bindings.RECURRING_API_ORIGIN, "RECURRING_API_ORIGIN").replace(
-    /\/$/,
-    "",
-  )
+  requiredBinding(
+    bindings.RECURRING_API_ORIGIN,
+    "RECURRING_API_ORIGIN",
+  ).replace(/\/$/, "")
 
 const headerValue = (request: Request, name: string): string | undefined => {
   const value = request.headers.get(name)
