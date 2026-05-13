@@ -10,7 +10,9 @@ export { delay, isRecord } from "./typescript.ts"
 export { userIDFromString, userIDString, type UserID } from "./ids.ts"
 
 export {
+  serviceClientContextFromHeaders,
   serviceFetch,
+  setServiceClientContextHeaders,
   type ServiceClientAttemptEvent,
   type ServiceClientContext,
   type ServiceClientErrorEvent,

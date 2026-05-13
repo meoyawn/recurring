@@ -11,10 +11,10 @@ export type ServiceClientOptions = {
 }
 
 export type ServiceClientContext = {
-  requestID?: string
-  traceparent?: string
-  tracestate?: string
-  idempotencyKey?: string
+  requestID?: string | null
+  traceparent?: string | null
+  tracestate?: string | null
+  idempotencyKey?: string | null
   retryable?: boolean
 }
 
@@ -78,6 +78,33 @@ const requestMethod = (input: RequestInfo | URL, init: RequestInit): string => {
   return "GET"
 }
 
+export function setServiceClientContextHeaders(
+  headers: Headers,
+  ctx: ServiceClientContext,
+): void {
+  if (ctx.traceparent) {
+    headers.set("traceparent", ctx.traceparent)
+  }
+  if (ctx.tracestate) {
+    headers.set("tracestate", ctx.tracestate)
+  }
+  if (ctx.requestID) {
+    headers.set("x-request-id", ctx.requestID)
+  }
+  if (ctx.idempotencyKey) {
+    headers.set("idempotency-key", ctx.idempotencyKey)
+  }
+}
+
+export const serviceClientContextFromHeaders = (
+  headers: Headers,
+): ServiceClientContext => ({
+  traceparent: headers.get("traceparent"),
+  tracestate: headers.get("tracestate"),
+  requestID: headers.get("x-request-id"),
+  idempotencyKey: headers.get("idempotency-key"),
+})
+
 const mergeHeaders = (
   input: RequestInfo | URL,
   init: RequestInit,
@@ -94,17 +121,8 @@ const mergeHeaders = (
   }
 
   const context = options.context
-  if (context?.traceparent !== undefined) {
-    headers.set("traceparent", context.traceparent)
-  }
-  if (context?.tracestate !== undefined) {
-    headers.set("tracestate", context.tracestate)
-  }
-  if (context?.requestID !== undefined) {
-    headers.set("x-request-id", context.requestID)
-  }
-  if (context?.idempotencyKey !== undefined) {
-    headers.set("idempotency-key", context.idempotencyKey)
+  if (context !== undefined) {
+    setServiceClientContextHeaders(headers, context)
   }
 
   return headers
