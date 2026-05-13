@@ -156,18 +156,33 @@ const ValidationErr = () =>
     errors: array(ValidationIssue),
   })
 
+const ValidationLocation = () =>
+  string({
+    enum: ["body", "query", "path", "header", "cookie"],
+  })
+
+const ValidationIssueCode = () =>
+  string({
+    description: "Stable machine-readable validation failure code.",
+    enum: [
+      "const",
+      "invalid",
+      "minLength",
+      "minimum",
+      "parse",
+      "pattern",
+      "required",
+      "type",
+    ],
+  })
+
 const ValidationIssue = () =>
   object({
     in: ValidationLocation,
     "field?": string(),
     "path?": array(string),
-    code: string(),
+    code: ValidationIssueCode,
     message: string(),
-  })
-
-const ValidationLocation = () =>
-  string({
-    enum: ["body", "query", "path", "header", "cookie"],
   })
 
 const GoogleSubject = () =>

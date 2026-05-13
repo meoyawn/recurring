@@ -17,7 +17,7 @@ func CreateExpense(deps *HandlerDeps) echo.HandlerFunc {
 		var req openapi.CreateExpense
 		MustBind(c, &req)
 
-		_, err := pggen.NewQuerier(deps.dbPool).InsertExpense(c.Request().Context(), pggen.InsertExpenseParams{
+		id, err := pggen.NewQuerier(deps.dbPool).InsertExpense(c.Request().Context(), pggen.InsertExpenseParams{
 			ProjectID:            c.Param("id"),
 			UserID:               userID.String(),
 			Name:                 req.Name,
@@ -37,7 +37,17 @@ func CreateExpense(deps *HandlerDeps) echo.HandlerFunc {
 			return err
 		}
 
-		return c.JSON(http.StatusCreated, openapi.Expense(req))
+		return c.JSON(http.StatusCreated, openapi.Expense{
+			Id:         id,
+			Name:       req.Name,
+			Money:      req.Money,
+			Recurring:  req.Recurring,
+			StartedAt:  req.StartedAt,
+			Category:   req.Category,
+			Comment:    req.Comment,
+			CancelUrl:  req.CancelUrl,
+			CanceledAt: req.CanceledAt,
+		})
 	}
 }
 
