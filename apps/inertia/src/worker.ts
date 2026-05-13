@@ -14,7 +14,7 @@ import { rootView } from "./root-view.tsx"
 
 const inertiaVersion = "recurring-inertia-1"
 
-const createApp = () => {
+const mkApp = (): Hono<{ Bindings: EnvVars }> => {
   const app = new Hono<{ Bindings: EnvVars }>()
 
   app.use(
@@ -52,4 +52,4 @@ const createApp = () => {
   return app
 }
 
-export default createApp()
+export default mkApp()
