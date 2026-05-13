@@ -22,6 +22,7 @@ const (
 	tracerName      = "github.com/recurring/api/internal/httpapi"
 )
 
+// traceMiddleware bridges Echo v5 route/status/request-id state into OTel spans.
 func traceMiddleware(provider trace.TracerProvider) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {

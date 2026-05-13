@@ -1,7 +1,22 @@
 # API Error Shape Spike
 
-Success criteria: document current validation-error research and open questions
-for field-level API errors.
+Success criteria:
+
+1. `ValidationErr` in `packages/openapi/spec/recurring.responsible.ts` requires
+   `message` and `errors`.
+2. Each validation issue is typed with `in`, optional `field`, optional `path`,
+   `code`, and `message`.
+3. Runtime OpenAPI request-validation 400 responses use that `ValidationErr`
+   machine shape.
+4. Validation error handling is wired once through
+   `echomiddleware.Options.ErrorHandler` in
+   `apps/api/internal/httpapi/mux.go`.
+5. That handler is scoped to the Echo group created by
+   `github.com/responsibleapi/echo-openapi-router` and covers all operations
+   mounted by that router builder.
+6. `apps/api/internal/apitest/api_test.go` asserts invalid expense creation
+   returns field-level body errors with stable `field`, `path`, and `code`.
+7. `task check` passes after implementation.
 
 ## Context
 
@@ -39,14 +54,15 @@ itself. It delegates request validation to:
 github.com/responsibleapi/echo-middleware
 ```
 
-The router mounts middlewares in this order:
+`github.com/responsibleapi/echo-openapi-router` mounts an Echo group and adds
+middleware to that group in this order:
 
 - root middlewares registered with `RouterBuilder.RootHandler`
 - OpenAPI request validation middleware
 - route metadata, security, route-specific middlewares, and handlers
 
-This means a root middleware can wrap the validation middleware and intercept
-validation errors before Echo's global error handler serializes them.
+This keeps validation handling on the API group created by the router builder.
+Routes mounted outside that group keep their own Echo behavior.
 
 `echo-middleware` also exposes an `ErrorHandler` option:
 
@@ -54,8 +70,8 @@ validation errors before Echo's global error handler serializes them.
 type ErrorHandler func(c *echo.Context, err *echo.HTTPError) error
 ```
 
-Using this hook is narrower than a second generic middleware because it only
-handles validation failures produced by `echo-middleware`.
+Using this hook keeps the JSON shape tied to validation failures produced by
+`echo-middleware`.
 
 Echo v5 `HTTPError` has:
 
@@ -64,8 +80,8 @@ func (he *HTTPError) Unwrap() error
 ```
 
 `echo-middleware` wraps underlying kin-openapi errors when creating
-`*echo.HTTPError`, so application code can inspect the original validation
-error with `errors.As`.
+`*echo.HTTPError`, so application code can inspect the original validation error
+with `errors.As`.
 
 Kin-openapi exposes useful structure:
 
@@ -83,7 +99,7 @@ multiple validation issues instead of stopping at the first one.
 Current default response body is:
 
 ```json
-{"message":"request body has an error: value is required but missing"}
+{ "message": "request body has an error: value is required but missing" }
 ```
 
 Other upstream examples include:
@@ -97,9 +113,10 @@ Other upstream examples include:
 The existing `ValidationErr` schema matches this body because it only requires
 `message`.
 
-## Desired Shape
+## Contract
 
-Field-level validation should return stable machine-readable issues:
+Field-level validation should return stable machine-readable issues. The backend
+response is a transport contract, not localized UI copy:
 
 ```json
 {
@@ -119,12 +136,17 @@ Field-level validation should return stable machine-readable issues:
 Suggested OpenAPI schema:
 
 ```ts
+const ValidationLocation = () =>
+  string({
+    enum: ["body", "query", "path", "header", "cookie"],
+  })
+
 const ValidationIssue = () =>
   object({
-    in: string(),
+    in: ValidationLocation,
     "field?": string(),
     "path?": array(string()),
-    "code?": string(),
+    code: string(),
     message: string(),
   })
 
@@ -135,14 +157,31 @@ const ValidationErr = () =>
   })
 ```
 
-`field` should be optimized for form libraries. For a simple body field,
-`field` should be `email`, not `/email`. For nested values, use the frontend's
-chosen convention, for example `items.0.amount`, while keeping `path` as the
-lossless segment list.
+`field` should be optimized for form libraries. For a simple body field, `field`
+should be `email`, not `/email`. For nested values, use dot-separated segments
+with numeric indexes, for example `items.0.amount`. Keep `path` as the lossless
+segment list.
+
+`code` should be stable enough for frontend translation. First-pass codes can
+use normalized OpenAPI and JSON Schema keywords, for example `required`,
+`format.email`, `type`, `minimum`, `maximum`, `pattern`, `additionalProperties`,
+`parse`, and `invalid`.
+
+I18n is out of scope for the API. `apps/inertia` should translate by `code` and
+field context. Backend `message` is an English fallback for logs, debugging, and
+non-localized clients.
 
 ## Implementation Options
 
 Use `echo-middleware.Options.ErrorHandler` first.
+
+`apps/api/internal/httpapi/mux.go` passes one `echomiddleware.Options` value
+into `openapirouter.NewRouterBuilder`. `RouterBuilder.Mount` creates an Echo
+group, installs `builder.validationMiddleware(prefix)` on that group, then adds
+the generated routes. `echomiddleware.Options.ErrorHandler` therefore covers
+validation failures for every operation mounted by that router builder,
+including routes registered through `rb.AddRoute(...)`. It does not affect Echo
+routes mounted outside that group.
 
 Expected shape:
 
@@ -169,8 +208,12 @@ echomiddleware.Options{
 - preserve non-400 validation statuses such as 401, 403, 404, and 405 unless a
   broader error-envelope decision changes them
 
-A root middleware wrapper can also work, but it couples error shaping to Echo
-middleware ordering. The `ErrorHandler` option is the narrower hook.
+A root middleware wrapper can also work, but `ErrorHandler` is the direct hook
+for validation errors from `echo-middleware`.
+
+`apps/api/internal/httpapi/route_expenses.go` should not need route-local
+validation logic for OpenAPI shape errors. Invalid `createExpense` payloads
+should fail before `CreateExpense` runs.
 
 ## I18n
 
@@ -187,10 +230,10 @@ That is not enough for a complete localized form-error API because it only
 covers schema errors. It does not localize every route, parameter, parse, or
 security wrapper.
 
-Preferred contract:
+Decision:
 
 - backend returns stable `code`, `in`, `field`, and `path`
-- frontend translates by `code` and field context
+- frontend translates by `code` and field context in `apps/inertia`
 - backend includes English `message` as a fallback only
 
 ## Recommendation
@@ -198,8 +241,16 @@ Preferred contract:
 Implement field-level validation JSON in the API first by using
 `echo-middleware.Options.ErrorHandler`.
 
-Do not patch `github.com/responsibleapi/echo-middleware` for the first pass.
-Patch upstream later only after the local normalized issue shape proves useful.
+Update `packages/openapi/spec/recurring.responsible.ts` first so `ValidationErr`
+is the typed machine contract. Then wire the handler in
+`apps/api/internal/httpapi/mux.go`, assert invalid `createExpense` field errors
+in `apps/api/internal/apitest/api_test.go`, and run `task check`.
+
+Do not patch `github.com/responsibleapi/echo-openapi-router` or
+`github.com/responsibleapi/echo-middleware` for the first pass. First implement
+the group-scoped handler through local `mux.go` and verify coverage through API
+tests. Patch upstream later only after the local normalized issue shape proves
+useful.
 
 If upstreaming, normalize kin-openapi errors inside `echo-middleware` because
 that package owns the kin-openapi integration. Then expose a convenience hook in
@@ -207,16 +258,8 @@ that package owns the kin-openapi integration. Then expose a convenience hook in
 
 ## Open Questions
 
-- What exact `field` convention should the web frontend use for nested arrays:
-  `items.0.amount`, `items[0].amount`, or another form-library-native format?
-- Should validation errors for query, path, header, and cookie parameters use
-  the same `errors` array as body/form errors?
 - Should `message` be a generic `"Validation failed"` for all 400 validation
   responses, or should it summarize the first issue?
-- Should backend ever translate validation messages, or should translation live
-  exclusively in the frontend?
-- Which stable `code` taxonomy should be used for kin-openapi errors:
-  OpenAPI/JSON Schema keywords, local application codes, or both?
 - How much original kin-openapi detail should be included in development logs
   while keeping response bodies safe for user input and secrets?
 - Should 401, 403, 404, and 405 responses share the same error envelope as 400
@@ -224,5 +267,16 @@ that package owns the kin-openapi integration. Then expose a convenience hook in
 
 ## Criteria Status
 
-The criterion is answered. Current research, likely implementation path, and
-open questions are captured here.
+1. Answered by the proposed `ValidationErr` shape with required `errors`.
+2. Answered: `code`, `in`, `field`, and `path` are machine fields; i18n belongs
+   in `apps/inertia`.
+3. Answered by the `ValidationLocation`, `ValidationIssue`, and `ValidationErr`
+   schema sketch for `recurring.responsible.ts`.
+4. Answered by the Echo group-scoped `echo-middleware.Options.ErrorHandler`
+   wiring plan for `mux.go`; no upstream router patch is needed for the first
+   pass.
+5. Answered as a test requirement: assert invalid `createExpense` payloads
+   return field-level 400 issues in `api_test.go`.
+6. Unresolved until implementation runs `task check`.
+
+No implementation has been done in this spike.
