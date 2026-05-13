@@ -28,3 +28,12 @@ t_28:
     script creates a local user directly in Postgres, serves a temporary
     bun.serve endpoint on recurring.localhost, and sets the expected auth cookie
   created: 2026-05-12T12:53:37+0300
+
+t_31:
+  title: >-
+    in apps/inertia add best-effort in-memory caching for DefaultApi client
+    without depending on Cloudflare Worker isolate lifetime
+  success_criteria: >-
+    two different requests/HonoCtxs produce different accessToken values and
+    serviceClientContextFromRequest values, while sharing the same apiOrigin
+  created: 2026-05-13T20:30:11+0300

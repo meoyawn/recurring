@@ -54,16 +54,22 @@ const serviceClientContextFromRequest = (
   return context
 }
 
-const api = (ctx: HonoCtx): DefaultApi =>
-  new DefaultApi(
+/**
+ * Creates a fresh API client for each request instead of caching one, so
+ * request-scoped auth and tracing context stay bound to the current request
+ * without depending on Cloudflare Workers cache behavior.
+ */
+function api(ctx: HonoCtx): DefaultApi {
+  const req = tracedRequest(ctx)
+
+  return new DefaultApi(
     new Configuration({
-      accessToken: readSessionID(tracedRequest(ctx)),
+      accessToken: readSessionID(req),
       basePath: apiOrigin(ctx.env),
-      fetchApi: serviceFetch({
-        context: serviceClientContextFromRequest(tracedRequest(ctx)),
-      }),
+      fetchApi: serviceFetch({ context: serviceClientContextFromRequest(req) }),
     }),
   )
+}
 
 export const healthCheck = async (ctx: HonoCtx): Promise<HealthPayload> => {
   await api(ctx).healthCheck()
