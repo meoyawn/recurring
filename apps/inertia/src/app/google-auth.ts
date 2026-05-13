@@ -1,6 +1,8 @@
 import { isRecord, type EmailAddrStr } from "@recurring/shared-ts"
-import type { EnvVars } from "../config/env.schema.ts"
+import { tracedRequest } from "@recurring/shared-ts/hono-tracing"
+
 import { Paths } from "../paths.ts"
+import type { HonoCtx } from "../worker.ts"
 import { upsertSignup } from "./api.ts"
 import {
   clearCookie,
@@ -63,11 +65,8 @@ const errorRedirect = (
   return redirect(url.toString(), 302, cookies)
 }
 
-const authConfig = (
-  request: Request,
-  bindings: EnvVars,
-  callbackPath: string,
-): GoogleAuthConfig => {
+const authConfig = (ctx: HonoCtx, callbackPath: string): GoogleAuthConfig => {
+  const bindings = ctx.env
   if (
     bindings.GOOGLE_CLIENT_ID === undefined ||
     bindings.GOOGLE_CLIENT_SECRET === undefined
@@ -90,7 +89,10 @@ const authConfig = (
     ),
     clientId: bindings.GOOGLE_CLIENT_ID,
     clientSecret: bindings.GOOGLE_CLIENT_SECRET,
-    redirectURI: new URL(callbackPath, publicOrigin(request)).toString(),
+    redirectURI: new URL(
+      callbackPath,
+      publicOrigin(tracedRequest(ctx)),
+    ).toString(),
   }
 }
 
@@ -182,12 +184,12 @@ const fetchGoogleProfile = async (
 }
 
 export const startGoogleAuth = async (
-  request: Request,
-  bindings: EnvVars,
+  ctx: HonoCtx,
   callbackPath: string,
 ): Promise<Response> => {
+  const request = tracedRequest(ctx)
   try {
-    const config = authConfig(request, bindings, callbackPath)
+    const config = authConfig(ctx, callbackPath)
     const state = randomState()
 
     return redirect(authorizationURL(config, state), 302, [
@@ -203,10 +205,10 @@ export const startGoogleAuth = async (
 }
 
 export const finishGoogleAuth = async (
-  request: Request,
-  bindings: EnvVars,
+  ctx: HonoCtx,
   callbackPath: string,
 ): Promise<Response> => {
+  const request = tracedRequest(ctx)
   const secure = isSecureRequest(request)
   const clearState = clearCookie(googleStateCookieName, callbackPath, secure)
 
@@ -227,10 +229,10 @@ export const finishGoogleAuth = async (
       return errorRedirect(request, "invalid_state", [clearState])
     }
 
-    const config = authConfig(request, bindings, callbackPath)
+    const config = authConfig(ctx, callbackPath)
     const accessToken = await exchangeAuthorizationCode(config, code)
     const profile = await fetchGoogleProfile(accessToken, config)
-    const signup = await upsertSignup(request, profile, bindings)
+    const signup = await upsertSignup(ctx, profile)
 
     return redirect(
       new URL(Paths.home, publicOrigin(request)).toString(),

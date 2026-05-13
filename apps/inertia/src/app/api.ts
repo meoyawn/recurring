@@ -1,8 +1,10 @@
 import { serviceFetch, type ServiceClientContext } from "@recurring/shared-ts"
+import { tracedRequest } from "@recurring/shared-ts/hono-tracing"
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
 import { Configuration } from "../../gen/runtime.ts"
 import type { EnvVars } from "../config/env.schema.ts"
+import type { HonoCtx } from "../worker.ts"
 import type { GoogleProfile } from "./google-auth.ts"
 import { readSessionID } from "./session-cookie.ts"
 
@@ -52,29 +54,25 @@ const serviceClientContextFromRequest = (
   return context
 }
 
-const api = (bindings: EnvVars, request: Request): DefaultApi =>
+const api = (ctx: HonoCtx): DefaultApi =>
   new DefaultApi(
     new Configuration({
-      accessToken: readSessionID(request),
-      basePath: apiOrigin(bindings),
+      accessToken: readSessionID(tracedRequest(ctx)),
+      basePath: apiOrigin(ctx.env),
       fetchApi: serviceFetch({
-        context: serviceClientContextFromRequest(request),
+        context: serviceClientContextFromRequest(tracedRequest(ctx)),
       }),
     }),
   )
 
-export const healthCheck = async (
-  request: Request,
-  bindings: EnvVars,
-): Promise<HealthPayload> => {
-  await api(bindings, request).healthCheck()
+export const healthCheck = async (ctx: HonoCtx): Promise<HealthPayload> => {
+  await api(ctx).healthCheck()
   return { status: "ok" }
 }
 
 export const upsertSignup = async (
-  request: Request,
+  ctx: HonoCtx,
   profile: GoogleProfile,
-  bindings: EnvVars,
 ): Promise<SignupSession> => {
   const signup: Signup = {
     google_sub: profile.sub,
@@ -87,5 +85,5 @@ export const upsertSignup = async (
     signup.picture_url = profile.picture
   }
 
-  return api(bindings, request).upsertSignup(signup)
+  return api(ctx).upsertSignup(signup)
 }

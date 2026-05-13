@@ -2,15 +2,16 @@ import { inertia } from "@hono/inertia"
 import {
   honoTracing,
   otlpTraceEndpointFromEnv,
-  tracedRequest,
 } from "@recurring/shared-ts/hono-tracing"
-import { Hono } from "hono"
+import { Hono, type Context } from "hono"
 import { healthCheck } from "./app/api.ts"
 import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
 import { readSessionID } from "./app/session-cookie.ts"
 import type { EnvVars } from "./config/env.schema.ts"
 import { Paths } from "./paths.ts"
 import { rootView } from "./root-view.tsx"
+
+export type HonoCtx = Context<{ Bindings: EnvVars }>
 
 const mkApp = (): Hono<{ Bindings: EnvVars }> => {
   const app = new Hono<{ Bindings: EnvVars }>()
@@ -24,15 +25,21 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
         }),
     }),
   )
-  app.use(inertia({ version: INERTIA_VERSION, rootView }))
+  app.use(
+    inertia({
+      /** Inertia asset-version mismatch reloads only trigger for HTTP GET. */
+      version: INERTIA_VERSION,
+      rootView,
+    }),
+  )
 
   app.get(Paths.healthz, c => c.body(null, 200))
 
   app.get(Paths.googleAuthStart, c =>
-    startGoogleAuth(tracedRequest(c), c.env, Paths.googleAuthCallback),
+    startGoogleAuth(c, Paths.googleAuthCallback),
   )
   app.get(Paths.googleAuthCallback, c =>
-    finishGoogleAuth(tracedRequest(c), c.env, Paths.googleAuthCallback),
+    finishGoogleAuth(c, Paths.googleAuthCallback),
   )
 
   app.get(Paths.login, c => c.render("Login"))
@@ -42,7 +49,7 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
       return c.redirect(new URL(Paths.login, c.req.url).toString(), 302)
     }
 
-    const health = await healthCheck(tracedRequest(c), c.env)
+    const health = await healthCheck(c)
 
     return c.render("Home", { health })
   })
