@@ -40,7 +40,7 @@ type echoConfig struct {
 
 type EchoOption func(*echoConfig)
 
-type handler struct {
+type HandlerDeps struct {
 	dbPool       *pgxpool.Pool
 	sheetsClient *sheetsgen.APIClient
 }
@@ -95,8 +95,11 @@ func NewEcho(dbPool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 		return nil, err
 	}
 
-	h := newHandler(dbPool, cfg)
-	h.registerRoutes(rb)
+	deps, err := newHandlerDeps(dbPool, cfg)
+	if err != nil {
+		return nil, err
+	}
+	deps.registerRoutes(rb)
 	if err := rb.Mount(e); err != nil {
 		return nil, err
 	}
@@ -104,22 +107,33 @@ func NewEcho(dbPool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 	return e, nil
 }
 
-func newHandler(dbPool *pgxpool.Pool, cfg echoConfig) *handler {
-	return &handler{
-		dbPool:       dbPool,
-		sheetsClient: serviceclient.NewSheetsClient(cfg.sheets),
+func newHandlerDeps(dbPool *pgxpool.Pool, cfg echoConfig) (*HandlerDeps, error) {
+	if dbPool == nil {
+		return nil, errors.New("database is not configured")
 	}
+
+	sheetsClient := serviceclient.NewSheetsClient(cfg.sheets)
+	if sheetsClient == nil {
+		return nil, errors.New("sheets client is not configured")
+	}
+	return &HandlerDeps{
+		dbPool:       dbPool,
+		sheetsClient: sheetsClient,
+	}, nil
 }
 
-func (h *handler) registerRoutes(rb *openapirouter.RouterBuilder) {
+func (deps *HandlerDeps) registerRoutes(rb *openapirouter.RouterBuilder) {
 	rb.Security("SessionSecurity", func(ctx *echo.Context, _ *openapi3.SecurityScheme, _ []string) error {
-		return h.authenticateSession(ctx)
+		return deps.authenticateSession(ctx)
 	})
 
-	rb.AddRoute("healthCheck", getHealth)
-	rb.AddRoute("sheetsTest", h.sheetsTest)
-	rb.AddRoute("upsertSignup", h.signup)
-	rb.AddRoute("createProject", h.createProject)
+	rb.AddRoute("healthCheck", func(ctx *echo.Context) error {
+		return ctx.NoContent(http.StatusNoContent)
+	})
+	rb.AddRoute("sheetsTest", SheetsTest(deps))
+	rb.AddRoute("upsertSignup", Signup(deps))
+	rb.AddRoute("createProject", CreateProject(deps))
+	rb.AddRoute("createExpense", CreateExpense(deps))
 }
 
 func loadOpenAPISpec() (*openapi3.T, error) {
@@ -130,21 +144,13 @@ func loadOpenAPISpec() (*openapi3.T, error) {
 	return spec, nil
 }
 
-func getHealth(c *echo.Context) error {
-	return c.NoContent(http.StatusNoContent)
-}
-
-func (h *handler) authenticateSession(ctx *echo.Context) error {
-	if h.dbPool == nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "database is not configured")
-	}
-
+func (deps *HandlerDeps) authenticateSession(ctx *echo.Context) error {
 	sessionID, ok := bearerToken(ctx.Request().Header.Get("Authorization"))
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 	}
 
-	rawUserID, err := pggen.NewQuerier(h.dbPool).SelectUserIDBySessionID(ctx.Request().Context(), sessionID)
+	rawUserID, err := pggen.NewQuerier(deps.dbPool).SelectUserIDBySessionID(ctx.Request().Context(), sessionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 	}
@@ -153,7 +159,7 @@ func (h *handler) authenticateSession(ctx *echo.Context) error {
 	}
 	userID, ok := domain.UserIDFromString(rawUserID)
 	if !ok {
-		return echo.NewHTTPError(http.StatusInternalServerError, "authenticated user is invalid")
+		return echo.NewHTTPError(http.StatusUnauthorized, "authenticated user is invalid")
 	}
 	setUserID(ctx, userID)
 	return nil

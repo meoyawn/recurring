@@ -19,11 +19,17 @@ tasks:
     cmds:
       - rm -rf {{.OUT_DIR}}
       - mkdir -p {{.OUT_DIR}}
-      - go tool pggen gen go --schema-glob 'migrations/*.sql' --query-glob 'queries/*.sql' --output-dir {{.OUT_DIR}} --acronym url
+      - >-
+        go tool pggen gen go
+        --schema-glob 'migrations/*.sql'
+        --query-glob 'queries/*.sql'
+        --output-dir {{.OUT_DIR}}
+        --acronym url
+        --go-type bigint=int64
     generates:
       - "{{.OUT_DIR}}/**/*"
     sources:
-      - Taskfile.yaml
+      - "{{.TASKFILE}}"
       - migrations/*.sql
       - queries/*.sql
 

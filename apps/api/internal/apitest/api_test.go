@@ -21,6 +21,7 @@ import (
 
 	"github.com/recurring/api/internal/app"
 	"github.com/recurring/api/internal/config"
+	"github.com/recurring/api/internal/dbtest"
 	configgen "github.com/recurring/api/internal/gen/config"
 	"github.com/recurring/api/internal/httpapi"
 	"github.com/recurring/api/pkg/pgdocker"
@@ -33,8 +34,9 @@ import (
 )
 
 var (
-	apiBaseURL       string
-	sessionIDPattern = regexp.MustCompile(`^sess_[0-9a-f]{32}$`)
+	apiBaseURL                  string
+	apiPostgresConnectionString string
+	sessionIDPattern            = regexp.MustCompile(`^sess_[0-9a-f]{32}$`)
 )
 
 const (
@@ -62,9 +64,36 @@ type createProjectPayload struct {
 	Name string `json:"name"`
 }
 
+type moneyPayload struct {
+	Amount   int64  `json:"amount"`
+	Currency string `json:"currency"`
+}
+
+type createExpensePayload struct {
+	Name       string       `json:"name"`
+	Money      moneyPayload `json:"money"`
+	Recurring  *string      `json:"recurring,omitempty"`
+	StartedAt  int64        `json:"started_at"`
+	Category   *string      `json:"category,omitempty"`
+	Comment    *string      `json:"comment,omitempty"`
+	CancelURL  *string      `json:"cancel_url,omitempty"`
+	CanceledAt *int64       `json:"canceled_at,omitempty"`
+}
+
 type projectResponse struct {
 	Name       string `json:"name"`
 	ArchivedAt *int64 `json:"archived_at,omitempty"`
+}
+
+type expenseResponse struct {
+	Name       string       `json:"name"`
+	Money      moneyPayload `json:"money"`
+	Recurring  *string      `json:"recurring,omitempty"`
+	StartedAt  int64        `json:"started_at"`
+	Category   *string      `json:"category,omitempty"`
+	Comment    *string      `json:"comment,omitempty"`
+	CancelURL  *string      `json:"cancel_url,omitempty"`
+	CanceledAt *int64       `json:"canceled_at,omitempty"`
 }
 
 type testEnv struct {
@@ -167,6 +196,7 @@ func startAPI(
 		return nil, err
 	}
 	apiBaseURL = "http://" + server.Addr()
+	apiPostgresConnectionString = container.ConnectionString("recurring_api_test")
 	return server, nil
 }
 
@@ -455,6 +485,59 @@ func TestCreateProject(t *testing.T) {
 	assert.Assert(t, body.ArchivedAt == nil, "POST /v1/session/projects archived_at = %v, want null", body.ArchivedAt)
 }
 
+func TestCreateExpense(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	session := postSignup(t, client, randomSignupPayload(t))
+	projectName := "Expense Project " + randomHex(t, 8)
+	projectID := postProject(t, client, session.SessionID, projectName)
+	recurring := "P1M"
+	category := "Housing"
+	comment := "Monthly rent"
+	cancelURL := "https://example.com/cancel"
+	canceledAt := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC).UnixMilli()
+	payload := createExpensePayload{
+		Name: "Rent " + randomHex(t, 8),
+		Money: moneyPayload{
+			Amount:   125000,
+			Currency: "USD",
+		},
+		Recurring:  &recurring,
+		StartedAt:  time.Date(2026, time.May, 1, 12, 0, 0, 0, time.UTC).UnixMilli(),
+		Category:   &category,
+		Comment:    &comment,
+		CancelURL:  &cancelURL,
+		CanceledAt: &canceledAt,
+	}
+	encoded, err := json.Marshal(payload)
+	assert.NilError(t, err, "marshal POST /v1/session/projects/:id/expenses request")
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		apiBaseURL+"/v1/session/projects/"+projectID+"/expenses",
+		bytes.NewReader(encoded),
+	)
+	assert.NilError(t, err, "create POST /v1/session/projects/:id/expenses request")
+	req.Header.Set("Authorization", "Bearer "+session.SessionID)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "POST /v1/session/projects/:id/expenses")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusCreated, "POST /v1/session/projects/:id/expenses status")
+
+	var body expenseResponse
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	assert.NilError(t, err, "decode POST /v1/session/projects/:id/expenses response")
+	assert.DeepEqual(t, body, expenseResponse(payload))
+	assertExpenseInserted(t, projectID, payload)
+}
+
 func TestSignupPostgresTrace(t *testing.T) {
 	t.Parallel()
 
@@ -553,6 +636,54 @@ func postSignup(t *testing.T, client http.Client, payload signupPayload) signupS
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	assert.NilError(t, err, "decode POST /v1/signup response")
 	return body
+}
+
+func postProject(t *testing.T, client http.Client, sessionID string, projectName string) string {
+	t.Helper()
+
+	encoded, err := json.Marshal(createProjectPayload{Name: projectName})
+	assert.NilError(t, err, "marshal POST /v1/session/projects request")
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		apiBaseURL+"/v1/session/projects",
+		bytes.NewReader(encoded),
+	)
+	assert.NilError(t, err, "create POST /v1/session/projects request")
+	req.Header.Set("Authorization", "Bearer "+sessionID)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "POST /v1/session/projects")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusCreated, "POST /v1/session/projects status")
+
+	projectID, err := dbtest.SelectProjectIDByName(t.Context(), apiPostgresConnectionString, projectName)
+	assert.NilError(t, err, "select project id")
+	return projectID
+}
+
+func assertExpenseInserted(t *testing.T, projectID string, payload createExpensePayload) {
+	t.Helper()
+
+	exists, err := dbtest.ExpenseExists(t.Context(), apiPostgresConnectionString, dbtest.InsertedExpense{
+		ProjectID:   projectID,
+		Name:        payload.Name,
+		AmountMinor: payload.Money.Amount,
+		Currency:    payload.Money.Currency,
+		Recurring:   *payload.Recurring,
+		StartedAt:   payload.StartedAt,
+		Category:    *payload.Category,
+		Comment:     *payload.Comment,
+		CancelURL:   *payload.CancelURL,
+		CanceledAt:  *payload.CanceledAt,
+	})
+	assert.NilError(t, err, "select inserted expense")
+	assert.Assert(t, exists, "inserted expense was not found")
 }
 
 func randomSignupPayload(t *testing.T) signupPayload {
