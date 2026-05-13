@@ -163,17 +163,9 @@ const ValidationLocation = () =>
 
 const ValidationIssueCode = () =>
   string({
-    description: "Stable machine-readable validation failure code.",
-    enum: [
-      "const",
-      "invalid",
-      "minLength",
-      "minimum",
-      "parse",
-      "pattern",
-      "required",
-      "type",
-    ],
+    description:
+      "Stable machine-readable validation failure code. Uses invalid, parse, required, JSON Schema keyword names, additionalProperties for unknown object fields, and format.<format> for named format failures.",
+    examples: ["required", "minLength", "format.uri", "additionalProperties"],
   })
 
 const ValidationIssue = () =>

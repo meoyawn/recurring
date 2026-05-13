@@ -9,27 +9,16 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/labstack/echo/v5"
+	"github.com/recurring/api/internal/gen/openapi"
 )
 
 const (
 	validationCodeInvalid  = "invalid"
 	validationCodeParse    = "parse"
+	validationCodeRequired = "required"
 	validationFailed       = "Validation failed"
-	validationLocationBody = "body"
+	validationLocationBody = openapi.BODY
 )
-
-type validationErrorBody struct {
-	Message string            `json:"message"`
-	Errors  []validationIssue `json:"errors"`
-}
-
-type validationIssue struct {
-	In      string   `json:"in"`
-	Field   string   `json:"field,omitempty"`
-	Path    []string `json:"path,omitempty"`
-	Code    string   `json:"code"`
-	Message string   `json:"message"`
-}
 
 func validationErrorHandler(c *echo.Context, err *echo.HTTPError) error {
 	if err.Code != http.StatusBadRequest {
@@ -41,13 +30,13 @@ func validationErrorHandler(c *echo.Context, err *echo.HTTPError) error {
 		return err
 	}
 
-	return c.JSON(http.StatusBadRequest, validationErrorBody{
+	return c.JSON(http.StatusBadRequest, openapi.ValidationErr{
 		Message: validationFailed,
 		Errors:  issues,
 	})
 }
 
-func validationIssues(err error) []validationIssue {
+func validationIssues(err error) []openapi.ValidationIssue {
 	if err == nil {
 		return nil
 	}
@@ -72,26 +61,28 @@ func validationIssues(err error) []validationIssue {
 
 	var schemaErr *openapi3.SchemaError
 	if errors.As(err, &schemaErr) {
-		return []validationIssue{newSchemaValidationIssue(validationLocationBody, nil, schemaErr)}
+		return []openapi.ValidationIssue{newSchemaValidationIssue(validationLocationBody, nil, schemaErr)}
 	}
 
 	var parseErr *openapi3filter.ParseError
 	if errors.As(err, &parseErr) {
-		return []validationIssue{newParseValidationIssue(validationLocationBody, nil, parseErr)}
+		return []openapi.ValidationIssue{newParseValidationIssue(validationLocationBody, nil, parseErr)}
 	}
 
-	return []validationIssue{newGenericValidationIssue(validationLocationBody, nil, validationCodeInvalid, err.Error())}
+	return []openapi.ValidationIssue{
+		newGenericValidationIssue(validationLocationBody, nil, validationCodeInvalid, err.Error()),
+	}
 }
 
-func validationIssuesFromMultiError(multiErr openapi3.MultiError) []validationIssue {
-	issues := make([]validationIssue, 0, len(multiErr))
+func validationIssuesFromMultiError(multiErr openapi3.MultiError) []openapi.ValidationIssue {
+	issues := make([]openapi.ValidationIssue, 0, len(multiErr))
 	for _, err := range multiErr {
 		issues = append(issues, validationIssues(err)...)
 	}
 	return issues
 }
 
-func validationIssuesFromRequestError(err *openapi3filter.RequestError) []validationIssue {
+func validationIssuesFromRequestError(err *openapi3filter.RequestError) []openapi.ValidationIssue {
 	location, fallbackPath := validationRequestLocation(err)
 	if err.Err != nil {
 		issues := validationIssuesFromNested(err.Err, location, fallbackPath)
@@ -102,19 +93,23 @@ func validationIssuesFromRequestError(err *openapi3filter.RequestError) []valida
 
 	code := validationCodeInvalid
 	if errors.Is(err.Err, openapi3filter.ErrInvalidRequired) {
-		code = "required"
+		code = validationCodeRequired
 	}
-	return []validationIssue{newGenericValidationIssue(location, fallbackPath, code, err.Error())}
+	return []openapi.ValidationIssue{newGenericValidationIssue(location, fallbackPath, code, err.Error())}
 }
 
-func validationIssuesFromNested(err error, location string, fallbackPath []string) []validationIssue {
+func validationIssuesFromNested(
+	err error,
+	location openapi.ValidationLocation,
+	fallbackPath []string,
+) []openapi.ValidationIssue {
 	if err == nil {
 		return nil
 	}
 
 	multiErr, ok := err.(openapi3.MultiError) //nolint:errorlint // Direct MultiError preserves all sibling issues.
 	if ok {
-		issues := make([]validationIssue, 0, len(multiErr))
+		issues := make([]openapi.ValidationIssue, 0, len(multiErr))
 		for _, err := range multiErr {
 			issues = append(issues, validationIssuesFromNested(err, location, fallbackPath)...)
 		}
@@ -123,29 +118,33 @@ func validationIssuesFromNested(err error, location string, fallbackPath []strin
 
 	var schemaErr *openapi3.SchemaError
 	if errors.As(err, &schemaErr) {
-		return []validationIssue{newSchemaValidationIssue(location, fallbackPath, schemaErr)}
+		return []openapi.ValidationIssue{newSchemaValidationIssue(location, fallbackPath, schemaErr)}
 	}
 
 	var parseErr *openapi3filter.ParseError
 	if errors.As(err, &parseErr) {
-		return []validationIssue{newParseValidationIssue(location, fallbackPath, parseErr)}
+		return []openapi.ValidationIssue{newParseValidationIssue(location, fallbackPath, parseErr)}
 	}
 
 	code := validationCodeInvalid
 	if errors.Is(err, openapi3filter.ErrInvalidRequired) {
-		code = "required"
+		code = validationCodeRequired
 	}
-	return []validationIssue{newGenericValidationIssue(location, fallbackPath, code, err.Error())}
+	return []openapi.ValidationIssue{newGenericValidationIssue(location, fallbackPath, code, err.Error())}
 }
 
-func validationRequestLocation(err *openapi3filter.RequestError) (string, []string) {
+func validationRequestLocation(err *openapi3filter.RequestError) (openapi.ValidationLocation, []string) {
 	if err.Parameter != nil {
-		return err.Parameter.In, []string{err.Parameter.Name}
+		return openapi.ValidationLocation(err.Parameter.In), []string{err.Parameter.Name}
 	}
 	return validationLocationBody, nil
 }
 
-func newSchemaValidationIssue(location string, fallbackPath []string, err *openapi3.SchemaError) validationIssue {
+func newSchemaValidationIssue(
+	location openapi.ValidationLocation,
+	fallbackPath []string,
+	err *openapi3.SchemaError,
+) openapi.ValidationIssue {
 	path := err.JSONPointer()
 	if len(path) == 0 {
 		path = fallbackPath
@@ -153,7 +152,11 @@ func newSchemaValidationIssue(location string, fallbackPath []string, err *opena
 	return newGenericValidationIssue(location, path, schemaErrorCode(err), schemaErrorMessage(err))
 }
 
-func newParseValidationIssue(location string, fallbackPath []string, err *openapi3filter.ParseError) validationIssue {
+func newParseValidationIssue(
+	location openapi.ValidationLocation,
+	fallbackPath []string,
+	err *openapi3filter.ParseError,
+) openapi.ValidationIssue {
 	path := stringPath(err.Path())
 	if len(path) == 0 {
 		path = fallbackPath
@@ -161,14 +164,19 @@ func newParseValidationIssue(location string, fallbackPath []string, err *openap
 	return newGenericValidationIssue(location, path, validationCodeParse, err.Error())
 }
 
-func newGenericValidationIssue(location string, path []string, code string, message string) validationIssue {
-	issue := validationIssue{
+func newGenericValidationIssue(
+	location openapi.ValidationLocation,
+	path []string,
+	code string,
+	message string,
+) openapi.ValidationIssue {
+	issue := openapi.ValidationIssue{
 		In:      location,
 		Code:    code,
 		Message: message,
 	}
 	if field := validationField(path); field != "" {
-		issue.Field = field
+		issue.Field = &field
 		issue.Path = validationPath(path)
 	}
 	return issue
