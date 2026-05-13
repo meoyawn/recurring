@@ -88,7 +88,9 @@ func NewEcho(dbPool *pgxpool.Pool, opts ...EchoOption) (*echo.Echo, error) {
 			DoNotValidateServers: true,
 			Options: openapi3filter.Options{
 				AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
+				MultiError:         true,
 			},
+			ErrorHandler: validationErrorHandler,
 		},
 	)
 	if err != nil {

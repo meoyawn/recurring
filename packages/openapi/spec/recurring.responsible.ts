@@ -147,6 +147,21 @@ const protectedAPI = scope({
 const ValidationErr = () =>
   object({
     message: string(),
+    errors: array(ValidationIssue),
+  })
+
+const ValidationIssue = () =>
+  object({
+    in: ValidationLocation,
+    "field?": string(),
+    "path?": array(string),
+    code: string(),
+    message: string(),
+  })
+
+const ValidationLocation = () =>
+  string({
+    enum: ["body", "query", "path", "header", "cookie"],
   })
 
 const GoogleSubject = () =>

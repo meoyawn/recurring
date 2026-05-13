@@ -48,6 +48,8 @@ const (
 	otelpgxTracerName   = "github.com/exaring/otelpgx"
 	maxPostgresPort     = math.MaxInt32
 	providerStopTimeout = 5 * time.Second
+	validationIssueBody = "body"
+	validationRequired  = "required"
 )
 
 type signupPayload struct {
@@ -95,6 +97,19 @@ type expenseResponse struct {
 	Comment    *string      `json:"comment,omitempty"`
 	CancelURL  *string      `json:"cancel_url,omitempty"`
 	CanceledAt *int64       `json:"canceled_at,omitempty"`
+}
+
+type validationErrorResponse struct {
+	Message string                    `json:"message"`
+	Errors  []validationIssueResponse `json:"errors"`
+}
+
+type validationIssueResponse struct {
+	In      string   `json:"in"`
+	Field   string   `json:"field,omitempty"`
+	Path    []string `json:"path,omitempty"`
+	Code    string   `json:"code"`
+	Message string   `json:"message"`
 }
 
 type testEnv struct {
@@ -537,6 +552,56 @@ func TestCreateExpense(t *testing.T) {
 	assertExpenseInserted(t, projectID, payload)
 }
 
+func TestCreateExpenseValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	session := postSignup(t, client, randomSignupPayload(t))
+	projectName := "Expense Validation Project " + randomHex(t, 8)
+	projectID := postProject(t, client, session.SessionID, projectName)
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		apiBaseURL+"/v1/session/projects/"+projectID+"/expenses",
+		strings.NewReader(`{"money":{"currency":"USD"}}`),
+	)
+	assert.NilError(t, err, "create invalid POST /v1/session/projects/:id/expenses request")
+	req.Header.Set("Authorization", "Bearer "+session.SessionID)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "POST invalid /v1/session/projects/:id/expenses")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusBadRequest, "POST invalid /v1/session/projects/:id/expenses status")
+
+	var body validationErrorResponse
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	assert.NilError(t, err, "decode POST invalid /v1/session/projects/:id/expenses response")
+	assert.Equal(t, body.Message, "Validation failed", "POST invalid /v1/session/projects/:id/expenses message")
+	assertValidationIssue(t, body.Errors, validationIssueResponse{
+		In:    validationIssueBody,
+		Field: "started_at",
+		Path:  []string{"started_at"},
+		Code:  validationRequired,
+	})
+	assertValidationIssue(t, body.Errors, validationIssueResponse{
+		In:    validationIssueBody,
+		Field: "name",
+		Path:  []string{"name"},
+		Code:  validationRequired,
+	})
+	assertValidationIssue(t, body.Errors, validationIssueResponse{
+		In:    validationIssueBody,
+		Field: "money.amount",
+		Path:  []string{"money", "amount"},
+		Code:  validationRequired,
+	})
+}
+
 func TestSignupPostgresTrace(t *testing.T) {
 	t.Parallel()
 
@@ -683,6 +748,28 @@ func assertExpenseInserted(t *testing.T, projectID string, payload createExpense
 	})
 	assert.NilError(t, err, "select inserted expense")
 	assert.Assert(t, exists, "inserted expense was not found")
+}
+
+func assertValidationIssue(t *testing.T, issues []validationIssueResponse, expected validationIssueResponse) {
+	t.Helper()
+
+	for _, issue := range issues {
+		if issue.In != expected.In || issue.Field != expected.Field || issue.Code != expected.Code {
+			continue
+		}
+
+		assert.DeepEqual(t, issue.Path, expected.Path)
+		assert.Assert(t, issue.Message != "", "validation issue %s message is empty", expected.Field)
+		return
+	}
+
+	t.Fatalf(
+		"validation issue not found: in=%q field=%q code=%q body=%+v",
+		expected.In,
+		expected.Field,
+		expected.Code,
+		issues,
+	)
 }
 
 func randomSignupPayload(t *testing.T) signupPayload {
