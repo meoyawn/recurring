@@ -42,8 +42,13 @@ const SessionSecurity = () =>
     scheme: "bearer",
   })
 
+const ProjectID = () => string({ pattern: "^prj_[0-9a-f]{32}$" })
+
+const ExpenseID = () => string({ pattern: "^exp_[0-9a-f]{32}$" })
+
 const Expense = () =>
   object({
+    id: ExpenseID,
     name: NonEmptyString,
     money: Money,
     "recurring?": RecurringInterval,
@@ -72,6 +77,7 @@ const CreateExpense = () =>
 
 const Project = () =>
   object({
+    id: ProjectID,
     name: NonEmptyString,
     "archived_at?": unixMillis,
   })
@@ -110,7 +116,7 @@ const protectedAPI = scope({
     },
     "/:id": {
       pathParams: {
-        id: NonEmptyString,
+        id: ProjectID,
       },
       "/expenses": scope({
         GET: {
