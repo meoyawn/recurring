@@ -160,12 +160,23 @@ describe("serviceFetch", () => {
       },
     })
 
-    await expect(
-      fetchApi("https://internal.test/signups", {
+    let error: unknown
+    try {
+      await fetchApi("https://internal.test/signups", {
         body,
         method: "POST",
-      }),
-    ).rejects.toThrow("retryable requests require a replayable body")
+      })
+    } catch (caught) {
+      error = caught
+    }
+
+    if (!(error instanceof TypeError)) {
+      throw new Error("retryable streamed body error is missing")
+    }
+
+    expect(error.message).toEqual(
+      "retryable requests require a replayable body",
+    )
   })
 
   test("retries 502 503 and 504 responses", async () => {

@@ -99,19 +99,15 @@ export default defineConfig({
       },
     },
     {
-      files: ["**/*.{test,spec}.ts", "**/*.{test,spec}.tsx"],
+      files: ["apps/shared-ts/src/server/**/*.ts"],
       rules: {
-        "typescript/no-unsafe-type-assertion": "off",
+        "no-console": "off",
       },
     },
     {
-      files: ["**/gen/**/*.ts", "**/.nitro/**/*.ts", "**/.output/**/*.ts"],
+      files: ["**/*.{test,spec}.ts", "**/*.{test,spec}.tsx"],
       rules: {
-        "typescript/no-deprecated": "off",
-        "typescript/no-restricted-types": "off",
         "typescript/no-unsafe-type-assertion": "off",
-        "typescript/no-unused-vars": "off",
-        "no-console": "off",
       },
     },
   ],

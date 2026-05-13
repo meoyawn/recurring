@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
+	"github.com/recurring/api/internal/domain"
 	configgen "github.com/recurring/api/internal/gen/config"
 	"github.com/recurring/api/internal/gen/pggen"
 	sheetsgen "github.com/recurring/api/internal/gen/sheets"
@@ -30,7 +31,6 @@ var openAPISpec []byte
 const (
 	authorizationBearerPrefix = "Bearer"
 	latencyMilliseconds       = 1000
-	userIDContextKey          = "userID"
 )
 
 type echoConfig struct {
@@ -144,14 +144,18 @@ func (h *handler) authenticateSession(ctx *echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 	}
 
-	userID, err := pggen.NewQuerier(h.dbPool).SelectUserIDBySessionID(ctx.Request().Context(), sessionID)
+	rawUserID, err := pggen.NewQuerier(h.dbPool).SelectUserIDBySessionID(ctx.Request().Context(), sessionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 	}
 	if err != nil {
 		return err
 	}
-	ctx.Set(userIDContextKey, userID)
+	userID, ok := domain.UserIDFromString(rawUserID)
+	if !ok {
+		return echo.NewHTTPError(http.StatusInternalServerError, "authenticated user is invalid")
+	}
+	setUserID(ctx, userID)
 	return nil
 }
 

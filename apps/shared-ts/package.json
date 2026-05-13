@@ -8,8 +8,8 @@
       "import": "./src/index.ts"
     },
     "./hono-tracing": {
-      "types": "./src/hono-tracing.ts",
-      "import": "./src/hono-tracing.ts"
+      "types": "./src/server/hono-tracing.ts",
+      "import": "./src/server/hono-tracing.ts"
     }
   },
   "dependencies": {

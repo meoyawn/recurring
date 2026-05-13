@@ -1,4 +1,5 @@
 import type { Context, Env, MiddlewareHandler } from "hono"
+import { routePath as honoRoutePath } from "hono/route"
 
 declare module "hono" {
   interface ContextVariableMap {
@@ -174,7 +175,7 @@ const intAttribute = (key: string, value: number): OtlpAttribute => ({
   value: { intValue: String(value) },
 })
 
-const routePath = (c: Context): string => c.req.routePath || c.req.path
+const routePath = (c: Context): string => honoRoutePath(c) || c.req.path
 
 const spanName = (c: Context): string => `${c.req.method} ${routePath(c)}`
 
@@ -232,10 +233,7 @@ const otlpSpan = <E extends Env>(
   return span
 }
 
-const otlpPayload = (
-  serviceName: string,
-  span: OtlpSpan,
-): unknown => ({
+const otlpPayload = (serviceName: string, span: OtlpSpan): unknown => ({
   resourceSpans: [
     {
       resource: {

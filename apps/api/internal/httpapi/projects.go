@@ -13,8 +13,8 @@ func (h *handler) createProject(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "database is not configured")
 	}
 
-	userID, err := echo.ContextGet[string](c, userIDContextKey)
-	if err != nil || userID == "" {
+	userID, ok := userIDFromContext(c)
+	if !ok {
 		return echo.NewHTTPError(http.StatusInternalServerError, "authenticated user is not configured")
 	}
 
@@ -23,7 +23,7 @@ func (h *handler) createProject(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid project request")
 	}
 
-	_, err = pggen.NewQuerier(h.dbPool).CreateProject(c.Request().Context(), userID, req.Name)
+	_, err := pggen.NewQuerier(h.dbPool).CreateProject(c.Request().Context(), userID.String(), req.Name)
 	if err != nil {
 		return err
 	}
