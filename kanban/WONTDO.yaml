@@ -1,3 +1,17 @@
+t_31:
+  title: >-
+    upstream reusable validation error shaping for responsibleapi router
+  success_criteria: >-
+    after recurring proves the local mux.go validation error handler with tests,
+    responsibleapi/echo-middleware owns reusable kin-openapi normalization and
+    responsibleapi/echo-openapi-router exposes or documents the router-scoped
+    integration path for the same machine-readable 400 validation response shape
+  created: 2026-05-13T15:42:21+0300
+  finish: 2026-05-13T18:04:56+0300
+  deps:
+    - t_30
+  why: echo-middleware already takes errorhandler in options
+
 t_25:
   title: move [gen](apps/api/internal/gen) / `openapi` to `ogen`
   finish: 2026-05-09T14:05:14+0300

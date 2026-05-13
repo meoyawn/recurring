@@ -1,24 +1,3 @@
-t_30:
-  title: >-
-    sync recurring API validation error shape with
-    https://github.com/responsibleapi/echo-openapi-router
-  success_criteria: >-
-    packages/openapi/spec/recurring.responsible.ts 400 ValidationErr matches the
-    error response body emitted by responsibleapi/echo-openapi-router
-  created: 2026-05-13T01:40:42+0300
-
-t_31:
-  title: >-
-    upstream reusable validation error shaping for responsibleapi router
-  success_criteria: >-
-    after recurring proves the local mux.go validation error handler with tests,
-    responsibleapi/echo-middleware owns reusable kin-openapi normalization and
-    responsibleapi/echo-openapi-router exposes or documents the router-scoped
-    integration path for the same machine-readable 400 validation response shape
-  created: 2026-05-13T15:42:21+0300
-  deps:
-    - t_30
-
 t_11:
   title: create spike for api static config shape
   success_criteria: project spike markdown

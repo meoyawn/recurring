@@ -1,3 +1,13 @@
+t_30:
+  title: >-
+    sync recurring API validation error shape with
+    https://github.com/responsibleapi/echo-openapi-router
+  success_criteria: >-
+    packages/openapi/spec/recurring.responsible.ts 400 ValidationErr matches the
+    error response body emitted by responsibleapi/echo-openapi-router
+  created: 2026-05-13T01:40:42+0300
+  finish: 2026-05-13T18:04:01+0300
+
 t_29:
   title: improve echo-openapi-router security API
   success_criteria: >-
