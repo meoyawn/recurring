@@ -122,9 +122,15 @@ const protectedAPI = scope({
         201: Project,
       },
     },
-    "/:id": {
+    "/:id": scope({
       pathParams: {
         id: ProjectID,
+      },
+      GET: {
+        id: "getProject",
+        res: {
+          200: Project,
+        },
       },
       "/expenses": scope({
         GET: {
@@ -141,7 +147,7 @@ const protectedAPI = scope({
           },
         },
       }),
-    },
+    }),
   }),
   "/exports/workbook": GET({
     id: "downloadWorkbookExport",

@@ -95,6 +95,29 @@ async function createSessionID(): Promise<string> {
   return payload["session_id"]
 }
 
+async function createSessionProject(
+  workerFetch: Worker["fetch"],
+): Promise<{ projectID: string; sessionID: string }> {
+  const sessionID = await createSessionID()
+  const res = await workerFetch(
+    new Request(route(Paths.home), {
+      headers: { Cookie: `sessionID=${sessionID}` },
+      redirect: "manual",
+    }),
+  )
+  if (res.status !== 302) {
+    throw new Error(`home redirect failed with status ${res.status}`)
+  }
+
+  const location = new URL(requireHeader(res, "location"))
+  const projectID = location.pathname.replace("/projects/", "")
+  if (!/^prj_[0-9a-f]{32}$/.test(projectID)) {
+    throw new Error(`home redirect returned invalid project id ${projectID}`)
+  }
+
+  return { projectID, sessionID }
+}
+
 describe("inertia worker", () => {
   const workerFetch = getFetch(cfWorkers.exports as WorkerExports)
 
@@ -169,25 +192,46 @@ describe("inertia worker", () => {
   })
 
   test("serves project route and stores last project cookie", async () => {
+    const canonical = await createSessionProject(workerFetch)
     const res = await workerFetch(
-      new Request(route(Paths.project(projectID)), {
-        headers: { Cookie: "sessionID=sess_test" },
+      new Request(route(Paths.project(canonical.projectID)), {
+        headers: { Cookie: `sessionID=${canonical.sessionID}` },
       }),
     )
 
     expect(res.status).toEqual(200)
     expect(requireHeader(res, "content-type")).toContain("text/html")
     expect(cookieValue(requireHeader(res, "set-cookie"), "lastProjectID")).toEqual(
-      projectID,
+      canonical.projectID,
+    )
+  })
+
+  test("redirects project route to first project", async () => {
+    const canonical = await createSessionProject(workerFetch)
+    const staleProjectID = "prj_00000000000000000000000000000002"
+    const res = await workerFetch(
+      new Request(route(Paths.project(staleProjectID)), {
+        headers: { Cookie: `sessionID=${canonical.sessionID}` },
+        redirect: "manual",
+      }),
+    )
+
+    expect(res.status).toEqual(302)
+    expect(requireHeader(res, "location")).toEqual(
+      route(Paths.project(canonical.projectID)).toString(),
+    )
+    expect(cookieValue(requireHeader(res, "set-cookie"), "lastProjectID")).toEqual(
+      canonical.projectID,
     )
   })
 
   test("serves Inertia navigation as page JSON", async () => {
+    const canonical = await createSessionProject(workerFetch)
     const res = await workerFetch(
-      new Request(route(Paths.project(projectID)), {
+      new Request(route(Paths.project(canonical.projectID)), {
         headers: {
           Accept: "text/html, application/xhtml+xml",
-          Cookie: "sessionID=sess_test",
+          Cookie: `sessionID=${canonical.sessionID}`,
           "X-Inertia": "true",
           "X-Inertia-Version": inertiaVersion,
         },
@@ -201,7 +245,7 @@ describe("inertia worker", () => {
     expect(page).toEqual<InertiaPage>({
       component: "Home",
       props: { health: { status: "ok" } },
-      url: Paths.project(projectID),
+      url: Paths.project(canonical.projectID),
       version: inertiaVersion,
     })
   })
