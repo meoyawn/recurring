@@ -1,12 +1,3 @@
-t_29:
-  title: improve echo-openapi-router security API
-  success_criteria: >-
-    apps/api can mount echo-openapi-router without registering placeholder
-    security handlers for unimplemented secured routes
-  created: 2026-05-12T21:04:40+0300
-  deps:
-    - t_17
-
 t_30:
   title: >-
     sync recurring API validation error shape with
