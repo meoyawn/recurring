@@ -24,10 +24,8 @@ func MustUserID(c *echo.Context) domain.UserID {
 	return userID
 }
 
-func MustBind[T any](c *echo.Context) T {
-	var value T
-	if err := c.Bind(&value); err != nil {
+func MustBind(c *echo.Context, value any) {
+	if err := c.Bind(value); err != nil {
 		panic(err)
 	}
-	return value
 }

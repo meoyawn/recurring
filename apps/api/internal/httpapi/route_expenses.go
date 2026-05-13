@@ -14,7 +14,8 @@ import (
 func CreateExpense(deps *HandlerDeps) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		userID := MustUserID(c)
-		req := MustBind[openapi.CreateExpense](c)
+		var req openapi.CreateExpense
+		MustBind(c, &req)
 
 		_, err := pggen.NewQuerier(deps.dbPool).InsertExpense(c.Request().Context(), pggen.InsertExpenseParams{
 			ProjectID:            c.Param("id"),

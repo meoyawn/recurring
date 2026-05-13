@@ -10,7 +10,8 @@ import (
 
 func Signup(deps *HandlerDeps) echo.HandlerFunc {
 	return func(c *echo.Context) error {
-		req := MustBind[openapi.Signup](c)
+		var req openapi.Signup
+		MustBind(c, &req)
 
 		querier := pggen.NewQuerier(deps.dbPool)
 		sessionID, err := querier.CreateSignupSession(c.Request().Context(), pggen.CreateSignupSessionParams{

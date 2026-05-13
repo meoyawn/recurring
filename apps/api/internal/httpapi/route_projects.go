@@ -11,7 +11,8 @@ import (
 func CreateProject(deps *HandlerDeps) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		userID := MustUserID(c)
-		req := MustBind[openapi.CreateProject](c)
+		var req openapi.CreateProject
+		MustBind(c, &req)
 
 		_, err := pggen.NewQuerier(deps.dbPool).CreateProject(c.Request().Context(), userID.String(), req.Name)
 		if err != nil {

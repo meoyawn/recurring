@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/recurring/api/internal/app"
 	"github.com/recurring/api/internal/config"
 	"github.com/recurring/api/internal/dbtest"
@@ -273,8 +274,7 @@ func TestHealthzTraceSpan(t *testing.T) {
 		assert.NilError(t, provider.Shutdown(ctx))
 	})
 
-	handler, err := httpapi.NewEcho(nil, httpapi.WithTracerProvider(provider))
-	assert.NilError(t, err, "create echo")
+	handler := newTraceHandler(t, provider)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", http.NoBody)
 	assert.NilError(t, err, "create GET /healthz request")
@@ -316,8 +316,7 @@ func TestHealthzGeneratedRequestID(t *testing.T) {
 		assert.NilError(t, provider.Shutdown(ctx))
 	})
 
-	handler, err := httpapi.NewEcho(nil, httpapi.WithTracerProvider(provider))
-	assert.NilError(t, err, "create echo")
+	handler := newTraceHandler(t, provider)
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", http.NoBody)
 	assert.NilError(t, err, "create GET /healthz request")
@@ -719,6 +718,18 @@ func httptestResponse(t *testing.T, handler http.Handler, req *http.Request) *ht
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, req)
 	return recorder.Result()
+}
+
+func newTraceHandler(t *testing.T, provider trace.TracerProvider) http.Handler {
+	t.Helper()
+
+	pool, err := pgxpool.New(t.Context(), apiPostgresConnectionString)
+	assert.NilError(t, err, "open trace test database pool")
+	t.Cleanup(pool.Close)
+
+	handler, err := httpapi.NewEcho(pool, httpapi.WithTracerProvider(provider))
+	assert.NilError(t, err, "create echo")
+	return handler
 }
 
 func assertTraceHeaders(t *testing.T, header http.Header) {
