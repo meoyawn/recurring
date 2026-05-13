@@ -12,8 +12,6 @@ import type { EnvVars } from "./config/env.schema.ts"
 import { Paths } from "./paths.ts"
 import { rootView } from "./root-view.tsx"
 
-const inertiaVersion = "recurring-inertia-1"
-
 const mkApp = (): Hono<{ Bindings: EnvVars }> => {
   const app = new Hono<{ Bindings: EnvVars }>()
 
@@ -26,7 +24,7 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
         }),
     }),
   )
-  app.use(inertia({ version: inertiaVersion, rootView }))
+  app.use(inertia({ version: INERTIA_VERSION, rootView }))
 
   app.get(Paths.healthz, c => c.body(null, 200))
 

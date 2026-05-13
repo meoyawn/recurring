@@ -28,6 +28,7 @@ type InertiaPage = {
 const sessionIDPattern = /^sess_[0-9a-f]{32}$/
 const traceIDPattern = /^[0-9a-f]{32}$/
 const spanIDPattern = /^[0-9a-f]{16}$/
+const inertiaVersion = INERTIA_VERSION
 
 function getFetch(exports: WorkerExports): Worker["fetch"] {
   const worker = exports.default
@@ -133,7 +134,7 @@ describe("inertia worker", () => {
           Accept: "text/html, application/xhtml+xml",
           Cookie: "sessionID=sess_test",
           "X-Inertia": "true",
-          "X-Inertia-Version": "recurring-inertia-1",
+          "X-Inertia-Version": inertiaVersion,
         },
       }),
     )
@@ -146,7 +147,7 @@ describe("inertia worker", () => {
       component: "Home",
       props: { health: { status: "ok" } },
       url: Paths.home,
-      version: "recurring-inertia-1",
+      version: inertiaVersion,
     })
   })
 

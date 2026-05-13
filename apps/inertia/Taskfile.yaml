@@ -70,9 +70,7 @@ tasks:
       - Taskfile.yaml
       - ../../bun.lock
       - ../shared-ts/**/*.ts
-      - src/**/*.{ts,tsx}
-      - gen/**/*.{ts,tsx}
-      - vitest.miniflare.config.ts
+      - "./**/*.{ts,tsx}"
       - ../api/**/*.go
       - ../sheets/src/**/*.ts
 
@@ -108,8 +106,7 @@ tasks:
     cmd: bun vite build
     sources:
       - ../../bun.lock
-      - src/**/*.{ts,tsx}
-      - gen/**/*.{ts,tsx}
+      - "./**/*.{ts,tsx}"
       - ../shared-ts/**/*.ts
     generates:
       - dist/**/*

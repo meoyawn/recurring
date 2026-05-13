@@ -2,6 +2,8 @@ import { cloudflareTest } from "@cloudflare/vitest-pool-workers"
 import { ViteToml } from "vite-plugin-toml"
 import { defineConfig } from "vitest/config"
 
+import { inertiaVersion } from "./inertia-version.ts"
+
 export default defineConfig(async () => {
   const recurringAPIOrigin = process.env["RECURRING_API_ORIGIN"]
   if (recurringAPIOrigin === undefined) {
@@ -9,6 +11,9 @@ export default defineConfig(async () => {
   }
 
   return {
+    define: {
+      INERTIA_VERSION: JSON.stringify(inertiaVersion()),
+    },
     plugins: [
       ViteToml(),
       cloudflareTest({
