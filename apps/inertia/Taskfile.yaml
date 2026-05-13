@@ -45,7 +45,7 @@ tasks:
       - ../../bun.lock
       - package.json
       - tsconfig.json
-      - src/**/*
+      - ./**/*.{ts,tsx}
       - ../shared-ts/**/*.ts
       - "*.ts"
 
