@@ -100,6 +100,14 @@ const protectedAPI = scope({
       },
     },
   },
+  "/first-project-id": GET({
+    id: "firstProjectID",
+    description:
+      "Return the first project id linked to the current user, creating a default project when none exists.",
+    res: {
+      200: ProjectID,
+    },
+  }),
   "/projects": scope({
     GET: {
       id: "listProjects",

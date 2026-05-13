@@ -1,9 +1,10 @@
 -- InsertExpense inserts an expense for a project owned by a user.
 -- name: InsertExpense :one
 WITH owned_project AS (
-    SELECT id
+    SELECT projects.id
     FROM projects
-    WHERE id = pggen.arg('ProjectID') AND user_id = pggen.arg('UserID')
+    INNER JOIN users_projects ON users_projects.project_id = projects.id
+    WHERE projects.id = pggen.arg('ProjectID') AND users_projects.user_id = pggen.arg('UserID')
 )
 
 INSERT INTO expenses (

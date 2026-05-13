@@ -7,7 +7,15 @@ export { honoTracing, otlpTraceEndpointFromEnv } from "./server/hono-tracing.ts"
 
 export { delay, isRecord } from "./typescript.ts"
 
-export { userIDFromString, userIDString, type UserID } from "./ids.ts"
+export {
+  isProjectID,
+  projectIDFromString,
+  projectIDString,
+  userIDFromString,
+  userIDString,
+  type ProjectID,
+  type UserID,
+} from "./ids.ts"
 
 export {
   serviceClientContextFromHeaders,

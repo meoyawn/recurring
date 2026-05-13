@@ -1,9 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks"
 import {
+  isProjectID,
   serviceClientContextFromHeaders,
   serviceFetch,
   setServiceClientContextHeaders,
   type HttpURL,
+  type ProjectID,
 } from "@recurring/shared-ts"
 import { tracedRequest } from "@recurring/shared-ts/hono-tracing"
 import type { MiddlewareHandler } from "hono"
@@ -90,6 +92,14 @@ function getAPI(): DefaultApi {
 export const healthCheck = async (): Promise<{ status: string }> => {
   await getAPI().healthCheck()
   return { status: "ok" }
+}
+
+export const firstProjectID = async (): Promise<ProjectID> => {
+  const projectID = await getAPI().firstProjectID()
+  if (!isProjectID(projectID)) {
+    throw new Error("API returned invalid project id")
+  }
+  return projectID
 }
 
 export const upsertSignup = async (

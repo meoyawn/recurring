@@ -135,6 +135,7 @@ func (deps *HandlerDeps) registerRoutes(rb *openapirouter.RouterBuilder) {
 	rb.AddRoute("sheetsTest", SheetsTest(deps))
 	rb.AddRoute("upsertSignup", Signup(deps))
 	rb.AddRoute("createProject", CreateProject(deps))
+	rb.AddRoute("firstProjectID", FirstProjectID(deps))
 	rb.AddRoute("createExpense", CreateExpense(deps))
 }
 

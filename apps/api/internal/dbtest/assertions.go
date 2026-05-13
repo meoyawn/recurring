@@ -42,6 +42,26 @@ func SelectProjectIDByName(ctx context.Context, connectionString string, project
 	return projectID, nil
 }
 
+func SelectProjectRole(ctx context.Context, connectionString string, projectID string) (string, error) {
+	db, err := sql.Open("pgx", connectionString)
+	if err != nil {
+		return "", fmt.Errorf("open postgres: %w", err)
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	var role string
+	if err := db.QueryRowContext(
+		ctx,
+		"SELECT role FROM users_projects WHERE project_id = $1",
+		projectID,
+	).Scan(&role); err != nil {
+		return "", fmt.Errorf("select project role: %w", err)
+	}
+	return role, nil
+}
+
 func ExpenseExists(ctx context.Context, connectionString string, expense InsertedExpense) (bool, error) {
 	db, err := sql.Open("pgx", connectionString)
 	if err != nil {

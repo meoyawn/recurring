@@ -25,6 +25,7 @@ type InertiaPage = {
 }
 
 const sessionIDPattern = /^sess_[0-9a-f]{32}$/
+const projectID = "prj_00000000000000000000000000000001"
 const traceIDPattern = /^[0-9a-f]{32}$/
 const spanIDPattern = /^[0-9a-f]{16}$/
 const inertiaVersion = INERTIA_VERSION
@@ -72,6 +73,28 @@ const isInertiaPage = (value: unknown): value is InertiaPage =>
   typeof value["url"] === "string" &&
   typeof value["version"] === "string"
 
+async function createSessionID(): Promise<string> {
+  const unique = crypto.randomUUID()
+  const res = await fetch(new URL("/v1/signup", cfWorkers.env.RECURRING_API_ORIGIN), {
+    body: JSON.stringify({
+      google_sub: `google-${unique}`,
+      email: `miniflare-${unique}@example.com`,
+    }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  })
+  if (!res.ok) {
+    throw new Error(`signup failed with status ${res.status}`)
+  }
+
+  const payload = await res.json()
+  if (!isRecord(payload) || typeof payload["session_id"] !== "string") {
+    throw new Error("signup response is missing session_id")
+  }
+
+  return payload["session_id"]
+}
+
 describe("inertia worker", () => {
   const workerFetch = getFetch(cfWorkers.exports as WorkerExports)
 
@@ -111,24 +134,57 @@ describe("inertia worker", () => {
     expect(html).toContain('"component":"Login"')
   })
 
-  test("serves first Inertia visit as HTML with initial page props", async () => {
+  test("redirects first signed-in visit to first project", async () => {
+    const sessionID = await createSessionID()
     const res = await workerFetch(
       new Request(route(Paths.home), {
+        headers: { Cookie: `sessionID=${sessionID}` },
+        redirect: "manual",
+      }),
+    )
+
+    expect(res.status).toEqual(302)
+    const location = new URL(requireHeader(res, "location"))
+    expect(location.origin).toEqual(route(Paths.home).origin)
+    expect(location.pathname).toMatch(/^\/projects\/prj_[0-9a-f]{32}$/)
+    expect(cookieValue(requireHeader(res, "set-cookie"), "lastProjectID")).toEqual(
+      location.pathname.replace("/projects/", ""),
+    )
+  })
+
+  test("redirects home to last project from cookie", async () => {
+    const res = await workerFetch(
+      new Request(route(Paths.home), {
+        headers: {
+          Cookie: `sessionID=sess_test; lastProjectID=${projectID}`,
+        },
+        redirect: "manual",
+      }),
+    )
+
+    expect(res.status).toEqual(302)
+    expect(requireHeader(res, "location")).toEqual(
+      route(Paths.project(projectID)).toString(),
+    )
+  })
+
+  test("serves project route and stores last project cookie", async () => {
+    const res = await workerFetch(
+      new Request(route(Paths.project(projectID)), {
         headers: { Cookie: "sessionID=sess_test" },
       }),
     )
 
     expect(res.status).toEqual(200)
     expect(requireHeader(res, "content-type")).toContain("text/html")
-    const html = await res.text()
-    expect(html).toContain('<script data-page="app" type="application/json">')
-    expect(html).toContain('"component":"Home"')
-    expect(html).toContain('"health":{"status":"ok"}')
+    expect(cookieValue(requireHeader(res, "set-cookie"), "lastProjectID")).toEqual(
+      projectID,
+    )
   })
 
   test("serves Inertia navigation as page JSON", async () => {
     const res = await workerFetch(
-      new Request(route(Paths.home), {
+      new Request(route(Paths.project(projectID)), {
         headers: {
           Accept: "text/html, application/xhtml+xml",
           Cookie: "sessionID=sess_test",
@@ -145,7 +201,7 @@ describe("inertia worker", () => {
     expect(page).toEqual<InertiaPage>({
       component: "Home",
       props: { health: { status: "ok" } },
-      url: Paths.home,
+      url: Paths.project(projectID),
       version: inertiaVersion,
     })
   })

@@ -4,6 +4,7 @@ export type WebPathLiteral =
   | "/auth/google/start"
   | "/healthz"
   | "/login"
+  | `/projects/${string}`
 
 export const Paths = {
   googleAuthCallback: "/auth/google/callback",
@@ -11,7 +12,8 @@ export const Paths = {
   healthz: "/healthz",
   home: "/",
   login: "/login",
+  project: (id: string): WebPathLiteral => `/projects/${id}`,
 } as const satisfies Record<
   string,
-  WebPathLiteral | ((x: never) => WebPathLiteral)
+  WebPathLiteral | ((x: string) => WebPathLiteral)
 >

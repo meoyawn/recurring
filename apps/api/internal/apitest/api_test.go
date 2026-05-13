@@ -37,6 +37,7 @@ import (
 var (
 	apiBaseURL                  string
 	apiPostgresConnectionString string
+	projectIDPattern            = regexp.MustCompile(`^prj_[0-9a-f]{32}$`)
 	sessionIDPattern            = regexp.MustCompile(`^sess_[0-9a-f]{32}$`)
 )
 
@@ -84,6 +85,7 @@ type createExpensePayload struct {
 }
 
 type projectResponse struct {
+	ID         string `json:"id"`
 	Name       string `json:"name"`
 	ArchivedAt *int64 `json:"archived_at,omitempty"`
 }
@@ -440,6 +442,23 @@ func TestSessionSecurityAcceptsSignupSession(t *testing.T) {
 	assert.Equal(t, resp.StatusCode, http.StatusNotImplemented, "GET /v1/session/projects status")
 }
 
+func TestFirstProjectIDCreatesDefaultProject(t *testing.T) {
+	t.Parallel()
+
+	client := http.Client{Timeout: 10 * time.Second}
+	session := postSignup(t, client, randomSignupPayload(t))
+
+	projectID := getFirstProjectID(t, client, session.SessionID)
+	assertGeneratedProjectID(t, projectID)
+
+	secondProjectID := getFirstProjectID(t, client, session.SessionID)
+	assert.Equal(t, secondProjectID, projectID, "second firstProjectID")
+
+	role, err := dbtest.SelectProjectRole(t.Context(), apiPostgresConnectionString, projectID)
+	assert.NilError(t, err, "select project role")
+	assert.Equal(t, role, "owner", "default project role")
+}
+
 func TestCreateProjectRejectsMissingBearer(t *testing.T) {
 	t.Parallel()
 
@@ -495,6 +514,7 @@ func TestCreateProject(t *testing.T) {
 	var body projectResponse
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	assert.NilError(t, err, "decode POST /v1/session/projects response")
+	assertGeneratedProjectID(t, body.ID)
 	assert.Equal(t, body.Name, projectName, "POST /v1/session/projects name")
 	assert.Assert(t, body.ArchivedAt == nil, "POST /v1/session/projects archived_at = %v, want null", body.ArchivedAt)
 }
@@ -726,8 +746,37 @@ func postProject(t *testing.T, client http.Client, sessionID string, projectName
 
 	assert.Equal(t, resp.StatusCode, http.StatusCreated, "POST /v1/session/projects status")
 
-	projectID, err := dbtest.SelectProjectIDByName(t.Context(), apiPostgresConnectionString, projectName)
-	assert.NilError(t, err, "select project id")
+	var body projectResponse
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	assert.NilError(t, err, "decode POST /v1/session/projects response")
+	assertGeneratedProjectID(t, body.ID)
+	assert.Equal(t, body.Name, projectName, "POST /v1/session/projects name")
+	return body.ID
+}
+
+func getFirstProjectID(t *testing.T, client http.Client, sessionID string) string {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		apiBaseURL+"/v1/session/first-project-id",
+		http.NoBody,
+	)
+	assert.NilError(t, err, "create GET /v1/session/first-project-id request")
+	req.Header.Set("Authorization", "Bearer "+sessionID)
+
+	resp, err := client.Do(req)
+	assert.NilError(t, err, "GET /v1/session/first-project-id")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	assert.Equal(t, resp.StatusCode, http.StatusOK, "GET /v1/session/first-project-id status")
+
+	var projectID string
+	err = json.NewDecoder(resp.Body).Decode(&projectID)
+	assert.NilError(t, err, "decode GET /v1/session/first-project-id response")
 	return projectID
 }
 
@@ -797,6 +846,12 @@ func assertGeneratedSessionID(t *testing.T, sessionID string) {
 	t.Helper()
 
 	assert.Assert(t, sessionIDPattern.MatchString(sessionID), "session_id = %q, want generated session id", sessionID)
+}
+
+func assertGeneratedProjectID(t *testing.T, projectID string) {
+	t.Helper()
+
+	assert.Assert(t, projectIDPattern.MatchString(projectID), "project_id = %q, want generated project id", projectID)
 }
 
 func httptestResponse(t *testing.T, handler http.Handler, req *http.Request) *http.Response {
