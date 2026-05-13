@@ -1,10 +1,7 @@
+import { isHttpURL } from "@recurring/shared-ts"
 import * as v from "valibot"
 
-const httpURL = v.pipe(
-  v.string(),
-  v.url(),
-  v.check(value => ["http:", "https:"].includes(new URL(value).protocol)),
-)
+const httpURL = v.pipe(v.string(), v.url(), v.guard(isHttpURL))
 
 export const envVarsSchema = v.strictObject({
   RECURRING_API_ORIGIN: httpURL,

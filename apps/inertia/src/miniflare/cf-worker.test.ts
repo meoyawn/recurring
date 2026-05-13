@@ -2,7 +2,6 @@ import { isRecord } from "@recurring/shared-ts"
 import * as cfWorkers from "cloudflare:workers"
 import { describe, expect, test } from "vitest"
 
-import { apiOrigin } from "../app/api.ts"
 import { Paths, type WebPathLiteral } from "../paths.ts"
 import { waitForJaegerTrace } from "./jaeger.ts"
 
@@ -77,7 +76,7 @@ describe("inertia worker", () => {
   const workerFetch = getFetch(cfWorkers.exports as WorkerExports)
 
   test("reads the Wrangler API origin binding from Miniflare", () => {
-    expect(apiOrigin(cfWorkers.env)).toMatch(
+    expect(cfWorkers.env.RECURRING_API_ORIGIN).toMatch(
       /^http:\/\/(recurring\.localhost:8082|127\.0\.0\.1:\d+)$/,
     )
   })

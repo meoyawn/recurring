@@ -232,7 +232,7 @@ export const finishGoogleAuth = async (
     const config = authConfig(ctx, callbackPath)
     const accessToken = await exchangeAuthorizationCode(config, code)
     const profile = await fetchGoogleProfile(accessToken, config)
-    const signup = await upsertSignup(ctx, profile)
+    const signup = await upsertSignup(profile)
 
     return redirect(
       new URL(Paths.home, publicOrigin(request)).toString(),

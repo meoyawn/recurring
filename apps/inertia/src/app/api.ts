@@ -1,8 +1,14 @@
-import { serviceFetch, type ServiceClientContext } from "@recurring/shared-ts"
+import { AsyncLocalStorage } from "node:async_hooks"
+import {
+  serviceFetch,
+  type HttpURL,
+  type ServiceClientContext,
+} from "@recurring/shared-ts"
 import { tracedRequest } from "@recurring/shared-ts/hono-tracing"
+import type { MiddlewareHandler } from "hono"
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
 import type { Signup, SignupSession } from "../../gen/models/index.ts"
-import { Configuration } from "../../gen/runtime.ts"
+import { Configuration, type Middleware } from "../../gen/runtime.ts"
 import type { EnvVars } from "../config/env.schema.ts"
 import type { HonoCtx } from "../worker.ts"
 import type { GoogleProfile } from "./google-auth.ts"
@@ -12,18 +18,11 @@ type HealthPayload = {
   status: string
 }
 
-const requiredBinding = (value: string | undefined, name: string): string => {
-  if (value === undefined) {
-    throw new Error(`${name} is required`)
-  }
-  return value
+type ApiRequestContext = {
+  ctx?: HonoCtx
 }
 
-export const apiOrigin = (bindings: EnvVars): string =>
-  requiredBinding(
-    bindings.RECURRING_API_ORIGIN,
-    "RECURRING_API_ORIGIN",
-  ).replace(/\/$/, "")
+const apiRequestContextStorage = new AsyncLocalStorage<ApiRequestContext>()
 
 const headerValue = (request: Request, name: string): string | undefined => {
   const value = request.headers.get(name)
@@ -54,30 +53,91 @@ const serviceClientContextFromRequest = (
   return context
 }
 
-/**
- * Creates a fresh API client for each request instead of caching one, so
- * request-scoped auth and tracing context stay bound to the current request
- * without depending on Cloudflare Workers cache behavior.
- */
-function api(ctx: HonoCtx): DefaultApi {
-  const req = tracedRequest(ctx)
+const apiClients = new Map<HttpURL, DefaultApi>()
 
-  return new DefaultApi(
-    new Configuration({
-      accessToken: readSessionID(req),
-      basePath: apiOrigin(ctx.env),
-      fetchApi: serviceFetch({ context: serviceClientContextFromRequest(req) }),
-    }),
-  )
+export const apiContextMiddleware: MiddlewareHandler<{
+  Bindings: EnvVars
+}> = async (ctx, next) => {
+  const store: ApiRequestContext = { ctx }
+
+  await apiRequestContextStorage.run(store, async () => {
+    try {
+      await next()
+    } finally {
+      delete store.ctx
+    }
+  })
 }
 
-export const healthCheck = async (ctx: HonoCtx): Promise<HealthPayload> => {
-  await api(ctx).healthCheck()
+const apiHonoCtx = (): HonoCtx => {
+  const ctx = apiRequestContextStorage.getStore()?.ctx
+  if (!ctx) {
+    throw new Error("API request context is missing")
+  } else {
+    return ctx
+  }
+}
+
+const apiRequest = (): Request => tracedRequest(apiHonoCtx())
+
+const requestScopedMiddleware: Middleware = {
+  async pre({ init, url }) {
+    const request = apiRequest()
+    const accessToken = readSessionID(request)
+    const context = serviceClientContextFromRequest(request)
+    const headers = new Headers(init.headers)
+
+    if (accessToken) {
+      headers.set("Authorization", `Bearer ${accessToken}`)
+    }
+    if (context.traceparent) {
+      headers.set("traceparent", context.traceparent)
+    }
+    if (context.tracestate) {
+      headers.set("tracestate", context.tracestate)
+    }
+    if (context.requestID) {
+      headers.set("x-request-id", context.requestID)
+    }
+    if (context.idempotencyKey) {
+      headers.set("idempotency-key", context.idempotencyKey)
+    }
+
+    return { init: { ...init, headers }, url }
+  },
+}
+
+const cachedApi = (origin: HttpURL): DefaultApi => {
+  const existing = apiClients.get(origin)
+  if (existing !== undefined) {
+    return existing
+  }
+
+  const client = new DefaultApi(
+    new Configuration({
+      basePath: origin,
+      fetchApi: serviceFetch(),
+      middleware: [requestScopedMiddleware],
+    }),
+  )
+  apiClients.set(origin, client)
+  return client
+}
+
+/**
+ * Caches only origin-level API client state. Request-scoped auth and tracing
+ * context is pulled from the Worker async-local Hono context.
+ */
+function getAPI(): DefaultApi {
+  return cachedApi(apiHonoCtx().env.RECURRING_API_ORIGIN)
+}
+
+export const healthCheck = async (): Promise<HealthPayload> => {
+  await getAPI().healthCheck()
   return { status: "ok" }
 }
 
 export const upsertSignup = async (
-  ctx: HonoCtx,
   profile: GoogleProfile,
 ): Promise<SignupSession> => {
   const signup: Signup = {
@@ -91,5 +151,5 @@ export const upsertSignup = async (
     signup.picture_url = profile.picture
   }
 
-  return api(ctx).upsertSignup(signup)
+  return getAPI().upsertSignup(signup)
 }

@@ -4,7 +4,7 @@ import {
   otlpTraceEndpointFromEnv,
 } from "@recurring/shared-ts/hono-tracing"
 import { Hono, type Context } from "hono"
-import { healthCheck } from "./app/api.ts"
+import { apiContextMiddleware, healthCheck } from "./app/api.ts"
 import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
 import { readSessionID } from "./app/session-cookie.ts"
 import type { EnvVars } from "./config/env.schema.ts"
@@ -25,6 +25,7 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
         }),
     }),
   )
+  app.use(apiContextMiddleware)
   app.use(
     inertia({
       /** Inertia asset-version mismatch reloads only trigger for HTTP GET. */
@@ -49,7 +50,7 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
       return c.redirect(new URL(Paths.login, c.req.url).toString(), 302)
     }
 
-    const health = await healthCheck(c)
+    const health = await healthCheck()
 
     return c.render("Home", { health })
   })

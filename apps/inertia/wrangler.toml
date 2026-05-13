@@ -1,6 +1,7 @@
 "$schema" = "./node_modules/wrangler/config-schema.json"
 name = "recurring-inertia"
 compatibility_date = "2026-05-04"
+compatibility_flags = ["nodejs_als"]
 main = "./src/worker.ts"
 
 
