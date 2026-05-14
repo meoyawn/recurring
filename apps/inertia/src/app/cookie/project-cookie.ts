@@ -1,6 +1,6 @@
 import { isProjectID, type ProjectID } from "@recurring/shared-ts"
 
-import { cookie, readCookie } from "./session-cookie.ts"
+import { cookie, readCookie } from "../cookie.ts"
 
 const lastProjectIDCookieName = "lastProjectID"
 const lastProjectIDCookieMaxAge = 60 * 60 * 24 * 365

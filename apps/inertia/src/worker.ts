@@ -14,8 +14,12 @@ import {
   listProjects,
 } from "./app/api.ts"
 import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
-import { lastProjectIDCookie, readLastProjectID } from "./app/project-cookie.ts"
-import { isSecureRequest, readSessionID } from "./app/session-cookie.ts"
+import {
+  lastProjectIDCookie,
+  readLastProjectID,
+} from "./app/cookie/project-cookie.ts"
+import { isSecureRequest } from "./app/cookie.ts"
+import { readSessionID } from "./app/cookie/session-cookie.ts"
 import type { EnvVars } from "./config/env.schema.ts"
 import { Paths } from "./paths.ts"
 import { rootView } from "./root-view.tsx"
@@ -67,8 +71,7 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
     try {
       const projectID = await firstProjectID()
       const location = new URL(Paths.project(projectID), c.req.url)
-      const secure = isSecureRequest(c.req.raw)
-      c.header("Set-Cookie", lastProjectIDCookie(projectID, secure))
+
       return c.redirect(location, 302)
     } catch (err) {
       if (err instanceof ResponseError && err.response.status === 401) {
@@ -89,13 +92,12 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
     }
 
     try {
-      const secure = isSecureRequest(c.req.raw)
-
       const [projects, expenses] = await Promise.all([
         listProjects(),
         listExpenses(projectID),
       ])
 
+      const secure = isSecureRequest(c.req.raw)
       c.header("Set-Cookie", lastProjectIDCookie(projectID, secure))
       return c.render("Project", { projects, expenses })
     } catch (err) {

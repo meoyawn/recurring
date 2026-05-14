@@ -20,7 +20,7 @@ import { Configuration, type Middleware } from "../../gen/runtime.ts"
 import type { EnvVars } from "../config/env.schema.ts"
 import type { HonoCtx } from "../worker.ts"
 import type { GoogleProfile } from "./google-auth.ts"
-import { readSessionID } from "./session-cookie.ts"
+import { readSessionID } from "./cookie/session-cookie.ts"
 
 type ApiRequestContext = {
   ctx?: HonoCtx

@@ -7,3 +7,12 @@ export function isHttpURL(value: string): value is HttpURL {
     return false
   }
 }
+
+export function toHttpURL(url: URL): HttpURL | undefined {
+  const str = url.toString()
+  if (isHttpURL(str)) {
+    return str
+  } else {
+    return undefined
+  }
+}

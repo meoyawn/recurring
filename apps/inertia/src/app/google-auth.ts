@@ -1,24 +1,20 @@
-import { isRecord, type EmailAddrStr } from "@recurring/shared-ts"
+import { type HttpURL, isRecord, type EmailAddrStr } from "@recurring/shared-ts"
 import { tracedRequest } from "@recurring/shared-ts/hono-tracing"
 
+import { toHttpURL } from "../../../shared-ts/src/web.ts"
 import { Paths } from "../paths.ts"
 import type { HonoCtx } from "../worker.ts"
 import { upsertSignup } from "./api.ts"
-import {
-  clearCookie,
-  cookie,
-  isSecureRequest,
-  readCookie,
-  sessionCookie,
-} from "./session-cookie.ts"
+import { clearCookie, cookie, isSecureRequest, readCookie } from "./cookie.ts"
+import { sessionCookie } from "./cookie/session-cookie.ts"
 
 type GoogleAuthConfig = {
-  authorizationEndpoint: string
+  authorizationEndpoint: HttpURL
   clientId: string
   clientSecret: string
-  redirectURI: string
-  tokenEndpoint: string
-  userinfoEndpoint: string
+  redirectURI: HttpURL
+  tokenEndpoint: HttpURL
+  userinfoEndpoint: HttpURL
 }
 
 const googleStateCookieName = "googleOAuthState"
@@ -74,33 +70,19 @@ const authConfig = (ctx: HonoCtx, callbackPath: string): GoogleAuthConfig => {
     throw new Error("Google OAuth client credentials are required")
   }
 
+  const redirectURI = toHttpURL(
+    new URL(callbackPath, publicOrigin(tracedRequest(ctx))),
+  )
+  if (!redirectURI) throw new Error("impossible")
+
   return {
-    authorizationEndpoint: requiredBinding(
-      bindings.GOOGLE_AUTHORIZATION_ENDPOINT,
-      "GOOGLE_AUTHORIZATION_ENDPOINT",
-    ),
-    tokenEndpoint: requiredBinding(
-      bindings.GOOGLE_TOKEN_ENDPOINT,
-      "GOOGLE_TOKEN_ENDPOINT",
-    ),
-    userinfoEndpoint: requiredBinding(
-      bindings.GOOGLE_USERINFO_ENDPOINT,
-      "GOOGLE_USERINFO_ENDPOINT",
-    ),
+    authorizationEndpoint: bindings.GOOGLE_AUTHORIZATION_ENDPOINT,
+    tokenEndpoint: bindings.GOOGLE_TOKEN_ENDPOINT,
+    userinfoEndpoint: bindings.GOOGLE_USERINFO_ENDPOINT,
     clientId: bindings.GOOGLE_CLIENT_ID,
     clientSecret: bindings.GOOGLE_CLIENT_SECRET,
-    redirectURI: new URL(
-      callbackPath,
-      publicOrigin(tracedRequest(ctx)),
-    ).toString(),
+    redirectURI,
   }
-}
-
-const requiredBinding = (value: string | undefined, name: string): string => {
-  if (value === undefined) {
-    throw new Error(`${name} is required`)
-  }
-  return value
 }
 
 const randomState = (): string => {

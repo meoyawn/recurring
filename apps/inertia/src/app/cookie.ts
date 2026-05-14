@@ -1,6 +1,3 @@
-const sessionCookieName = "sessionID"
-const sessionCookieMaxAge = 60 * 60 * 24 * 30
-
 export type CookieOptions = {
   path?: string
   maxAge: number
@@ -36,12 +33,6 @@ export const clearCookie = (
   secure: boolean,
 ): string => cookie(name, "", { path, maxAge: 0, secure })
 
-export const sessionCookie = (sessionID: string, secure: boolean): string =>
-  cookie(sessionCookieName, sessionID, {
-    maxAge: sessionCookieMaxAge,
-    secure,
-  })
-
 export const readCookie = (
   request: Request,
   name: string,
@@ -64,6 +55,3 @@ export const readCookie = (
 
   return undefined
 }
-
-export const readSessionID = (request: Request): string | undefined =>
-  readCookie(request, sessionCookieName)
