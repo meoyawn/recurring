@@ -90,11 +90,13 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
 
     try {
       const secure = isSecureRequest(c.req.raw)
-      c.header("Set-Cookie", lastProjectIDCookie(projectID, secure))
+
       const [projects, expenses] = await Promise.all([
         listProjects(),
         listExpenses(projectID),
       ])
+
+      c.header("Set-Cookie", lastProjectIDCookie(projectID, secure))
       return c.render("Project", { projects, expenses })
     } catch (err) {
       if (err instanceof ResponseError && err.response.status === 401) {
@@ -102,6 +104,12 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
       }
       throw err
     }
+  })
+
+  /** Render Hono+Inertia 403/404 pages by setting status before c.render(). */
+  app.all("*", c => {
+    c.status(404)
+    return c.render("404")
   })
 
   return app

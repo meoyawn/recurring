@@ -251,6 +251,20 @@ describe("inertia worker", () => {
     )
   })
 
+  test("serves invalid project id as 404 HTML with 404 page payload", async () => {
+    const sessionID = await createSessionID()
+    const res = await workerFetch(
+      new Request(route(Paths.project("invalid")), {
+        headers: { Cookie: `sessionID=${sessionID}` },
+      }),
+    )
+
+    expect(res.status).toEqual(404)
+    expect(requireHeader(res, "content-type")).toContain("text/html")
+    const html = await res.text()
+    expect(html).toContain('"component":"404"')
+  })
+
   test("serves Inertia navigation as page JSON", async () => {
     const canonical = await createSessionProject(workerFetch)
     const res = await workerFetch(
@@ -280,6 +294,29 @@ describe("inertia worker", () => {
         ],
       },
       url: Paths.project(canonical.projectID),
+      version: inertiaVersion,
+    })
+  })
+
+  test("serves invalid project id Inertia navigation as 404 page JSON", async () => {
+    const sessionID = await createSessionID()
+    const res = await workerFetch(
+      new Request(route(Paths.project("invalid")), {
+        headers: {
+          Cookie: `sessionID=${sessionID}`,
+          "X-Inertia": "true",
+          "X-Inertia-Version": inertiaVersion,
+        },
+      }),
+    )
+    const page = await parseInertiaPage(res)
+
+    expect(res.status).toEqual(404)
+    expect(requireHeader(res, "x-inertia")).toEqual("true")
+    expect(page).toEqual<InertiaPage>({
+      component: "404",
+      props: {},
+      url: Paths.project("invalid"),
       version: inertiaVersion,
     })
   })
