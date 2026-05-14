@@ -19,8 +19,8 @@ import type {
 import { Configuration, type Middleware } from "../../gen/runtime.ts"
 import type { EnvVars } from "../config/env.schema.ts"
 import type { HonoCtx } from "../worker.ts"
-import type { GoogleProfile } from "./google-auth.ts"
 import { readSessionID } from "./cookie/session-cookie.ts"
+import type { GoogleProfile } from "./google-auth.ts"
 
 type ApiRequestContext = {
   ctx?: HonoCtx
@@ -91,7 +91,12 @@ const cachedApi = (origin: HttpURL): DefaultApi => {
  * context is pulled from the Worker async-local Hono context.
  */
 function getAPI(): DefaultApi {
-  return cachedApi(getHonoCtx().env.RECURRING_API_ORIGIN)
+  const env = getHonoCtx().env
+  const origin = env.RECURRING_API_ORIGIN
+  if (!origin) {
+    throw new Error(JSON.stringify(env))
+  }
+  return cachedApi(origin)
 }
 
 export const healthCheck = async (): Promise<{ status: string }> => {
@@ -107,11 +112,11 @@ export const firstProjectID = async (): Promise<ProjectID> => {
   return projectID
 }
 
-export const listProjects = async (): Promise<Project[]> => getAPI().listProjects()
+export const listProjects = async (): Promise<Project[]> =>
+  getAPI().listProjects()
 
-export const listExpenses = async (
-  projectID: ProjectID,
-): Promise<Expense[]> => getAPI().listExpenses(projectID)
+export const listExpenses = async (projectID: ProjectID): Promise<Expense[]> =>
+  getAPI().listExpenses(projectID)
 
 export const upsertSignup = async (
   profile: GoogleProfile,
