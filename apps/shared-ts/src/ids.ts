@@ -1,13 +1,10 @@
-const userIDPattern = /^usr_[0-9a-f]{32}$/
-const projectIDPattern = /^prj_[0-9a-f]{32}$/
-
 export type UserID = `usr_${string}`
 export type ProjectID = `prj_${string}`
 
-const isUserID = (id: string): id is UserID => userIDPattern.test(id)
+const isUserID = (id: string): id is UserID => id.startsWith("usr_")
 
 export const isProjectID = (id: unknown): id is ProjectID =>
-  typeof id === "string" && projectIDPattern.test(id)
+  typeof id === "string" && id.startsWith("prj_")
 
 export const userIDFromString = (id: string): UserID | undefined => {
   if (!isUserID(id)) {

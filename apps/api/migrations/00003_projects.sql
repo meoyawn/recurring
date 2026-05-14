@@ -1,6 +1,6 @@
 -- +goose Up
 CREATE TABLE projects (
-    id          text        NOT NULL PRIMARY KEY DEFAULT ('prj_' || encode(gen_random_bytes(16), 'hex')) CHECK (id ~ '^prj_[0-9a-f]{32}$'),
+    id          text        NOT NULL PRIMARY KEY DEFAULT ('prj_' || encode(gen_random_bytes(8), 'hex')) CHECK (id ~ '^prj_'),
     user_id     text        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     name        text        NOT NULL CHECK (length(name) > 0),
     archived_at timestamptz NULL,

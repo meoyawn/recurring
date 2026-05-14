@@ -26,8 +26,8 @@ type InertiaPage = {
   version: string
 }
 
-const sessionIDPattern = /^sess_[0-9a-f]{32}$/
-const projectID = "prj_00000000000000000000000000000001"
+const sessionIDPattern = /^sess_/
+const projectID = "prj_1"
 const traceIDPattern = /^[0-9a-f]{32}$/
 const spanIDPattern = /^[0-9a-f]{16}$/
 const inertiaVersion = INERTIA_VERSION
@@ -113,7 +113,7 @@ async function createSessionProject(
 
   const location = new URL(requireHeader(res, "location"))
   const redirectedProjectID = location.pathname.replace("/projects/", "")
-  if (!/^prj_[0-9a-f]{32}$/.test(redirectedProjectID)) {
+  if (!redirectedProjectID.startsWith("prj_")) {
     throw new Error(`home redirect returned invalid project id ${redirectedProjectID}`)
   }
 
@@ -140,7 +140,7 @@ async function createProject(sessionID: string, name: string): Promise<string> {
   if (!isRecord(payload) || typeof payload["id"] !== "string") {
     throw new Error("project creation response is missing id")
   }
-  if (!/^prj_[0-9a-f]{32}$/.test(payload["id"])) {
+  if (!payload["id"].startsWith("prj_")) {
     throw new Error(`project creation returned invalid project id ${payload["id"]}`)
   }
 
@@ -198,7 +198,7 @@ describe("inertia worker", () => {
     expect(res.status).toEqual(302)
     const location = new URL(requireHeader(res, "location"))
     expect(location.origin).toEqual(route(Paths.home).origin)
-    expect(location.pathname).toMatch(/^\/projects\/prj_[0-9a-f]{32}$/)
+    expect(location.pathname).toMatch(/^\/projects\/prj_/)
   })
 
   test("redirects home to last project from cookie", async () => {

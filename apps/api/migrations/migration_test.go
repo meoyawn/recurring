@@ -26,7 +26,7 @@ const (
 	constraintForeignKey = "FOREIGN KEY"
 	constraintCheck      = "CHECK"
 	constraintCascade    = "ON DELETE CASCADE"
-	sqlDefaultRandom     = "gen_random_bytes"
+	sqlDefaultRandom     = "gen_random_bytes(8)"
 	sqlDefaultEncode     = "encode"
 	sqlDefaultNow        = "now()"
 	columnUserID         = "user_id"
@@ -65,13 +65,15 @@ func TestMigrations(t *testing.T) {
 
 	version, err := goose.GetDBVersionContext(ctx, db)
 	assert.NilError(t, err, "get goose version")
-	assert.Equal(t, version, int64(4), "goose version")
+	assert.Equal(t, version, int64(5), "goose version")
 
 	assertGooseAppliedVersion(ctx, t, db, 1)
 	assertGooseAppliedVersion(ctx, t, db, 2)
 	assertGooseAppliedVersion(ctx, t, db, 3)
 	assertGooseAppliedVersion(ctx, t, db, 4)
+	assertGooseAppliedVersion(ctx, t, db, 5)
 	assertPgcrypto(ctx, t, db)
+	assertGeneratedPrimaryKeyIDPolicy(ctx, t, db)
 	assertExpenseColumns(ctx, t, db)
 	assertExpenseConstraints(ctx, t, db)
 	assertExpenseInsertBehavior(ctx, t, db)
@@ -150,6 +152,114 @@ func assertPgcrypto(ctx context.Context, t *testing.T, db *sql.DB) {
 	`).Scan(&installed)
 	assert.NilError(t, err, "query pgcrypto extension")
 	assert.Assert(t, installed, "pgcrypto extension is not installed")
+}
+
+func assertGeneratedPrimaryKeyIDPolicy(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT columns.table_name, columns.column_name, columns.column_default
+		FROM information_schema.columns AS columns
+		JOIN information_schema.key_column_usage AS key_columns
+			ON key_columns.table_schema = columns.table_schema
+			AND key_columns.table_name = columns.table_name
+			AND key_columns.column_name = columns.column_name
+		JOIN information_schema.table_constraints AS constraints
+			ON constraints.constraint_schema = key_columns.constraint_schema
+			AND constraints.constraint_name = key_columns.constraint_name
+			AND constraints.table_schema = key_columns.table_schema
+			AND constraints.table_name = key_columns.table_name
+		WHERE columns.table_schema = 'public'
+			AND constraints.constraint_type = 'PRIMARY KEY'
+			AND columns.column_default LIKE '%gen_random_bytes%'
+		ORDER BY columns.table_name, columns.column_name
+	`)
+	assert.NilError(t, err, "query generated primary key id columns")
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	got := map[string]string{}
+	for rows.Next() {
+		var table string
+		var column string
+		var defaultValue string
+		assert.NilError(t, rows.Scan(&table, &column, &defaultValue), "scan generated primary key id column")
+		got[table+"."+column] = defaultValue
+	}
+	assert.NilError(t, rows.Err(), "iterate generated primary key id columns")
+
+	want := map[string]string{
+		"expenses.id": "exp_",
+		"projects.id": "prj_",
+		"sessions.id": "sess_",
+		"users.id":    "usr_",
+	}
+	for name, prefix := range want {
+		defaultValue, ok := got[name]
+		assert.Assert(t, ok, "missing generated primary key id column %s", name)
+		assertGeneratedPrimaryKeyDefault(t, name, defaultValue, prefix)
+		assertIDCheckConstraint(ctx, t, db, name, prefix)
+	}
+	assert.Equal(t, len(got), len(want), "generated primary key id column count")
+}
+
+func assertGeneratedPrimaryKeyDefault(t *testing.T, name string, defaultValue string, prefix string) {
+	t.Helper()
+
+	assert.Assert(
+		t,
+		strings.Contains(defaultValue, prefix),
+		"%s default = %q, want prefix %q",
+		name,
+		defaultValue,
+		prefix,
+	)
+	assert.Assert(
+		t,
+		strings.Contains(defaultValue, sqlDefaultRandom),
+		"%s default = %q, want %s",
+		name,
+		defaultValue,
+		sqlDefaultRandom,
+	)
+	assert.Assert(
+		t,
+		strings.Contains(defaultValue, sqlDefaultEncode),
+		"%s default = %q, want %s",
+		name,
+		defaultValue,
+		sqlDefaultEncode,
+	)
+}
+
+func assertIDCheckConstraint(ctx context.Context, t *testing.T, db *sql.DB, name string, prefix string) {
+	t.Helper()
+
+	table, _, ok := strings.Cut(name, ".")
+	assert.Assert(t, ok, "generated id name %q is missing table separator", name)
+	rows, err := db.QueryContext(ctx, `
+		SELECT pg_get_constraintdef(oid)
+		FROM pg_constraint
+		WHERE conrelid = $1::regclass AND contype = 'c'
+	`, "public."+table)
+	assert.NilError(t, err, "query %s check constraints", table)
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	for rows.Next() {
+		var definition string
+		assert.NilError(t, rows.Scan(&definition), "scan %s check constraint", table)
+		if !strings.Contains(definition, "^"+prefix) {
+			continue
+		}
+		assert.Assert(t, !strings.Contains(definition, "[0-9a-f]"), "%s id check still constrains hex: %s", table, definition)
+		assert.Assert(t, !strings.Contains(definition, "{32}"), "%s id check still constrains length: %s", table, definition)
+		return
+	}
+	assert.NilError(t, rows.Err(), "iterate %s check constraints", table)
+	assert.Assert(t, false, "%s is missing prefix-only id check for %q", table, prefix)
 }
 
 type columnInfo struct {
@@ -283,7 +393,7 @@ func assertExpenseConstraints(ctx context.Context, t *testing.T, db *sql.DB) {
 
 	want := [][]string{
 		{constraintPrimaryKey, "id"},
-		{constraintCheck, "exp_[0-9a-f]{32}"},
+		{constraintCheck, "^exp_"},
 		{constraintCheck, "length(name) > 0"},
 		{constraintCheck, "amount_minor >= 0"},
 		{constraintCheck, "^[A-Z]{3}$"},
@@ -365,11 +475,11 @@ func assertInsertRejected(ctx context.Context, t *testing.T, db *sql.DB, name st
 func assertGeneratedID(t *testing.T, id string, prefix string, label string) {
 	t.Helper()
 
-	pattern := fmt.Sprintf(`^%s_[0-9a-f]{32}$`, prefix)
+	pattern := fmt.Sprintf(`^%s_[0-9a-f]+$`, prefix)
 	assert.Assert(
 		t,
 		regexp.MustCompile(pattern).MatchString(id),
-		"%s = %q, want %s plus 32 lowercase hex chars",
+		"%s = %q, want %s plus lowercase hex chars",
 		label,
 		id,
 		prefix,
@@ -582,7 +692,7 @@ func assertProjectConstraints(ctx context.Context, t *testing.T, db *sql.DB) {
 
 	want := [][]string{
 		{"PRIMARY KEY", "id"},
-		{constraintCheck, "prj_[0-9a-f]{32}"},
+		{constraintCheck, "^prj_"},
 		{constraintCheck, "length(name) > 0"},
 	}
 	for _, parts := range want {

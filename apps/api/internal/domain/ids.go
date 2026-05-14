@@ -1,13 +1,11 @@
 package domain
 
-import "regexp"
-
-var userIDPattern = regexp.MustCompile(`^usr_[0-9a-f]{32}$`)
+import "strings"
 
 type UserID string
 
 func UserIDFromString(id string) (UserID, bool) {
-	if !userIDPattern.MatchString(id) {
+	if !strings.HasPrefix(id, "usr_") {
 		return "", false
 	}
 	return UserID(id), true

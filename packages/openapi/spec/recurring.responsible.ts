@@ -42,9 +42,9 @@ const SessionSecurity = () =>
     scheme: "bearer",
   })
 
-const ProjectID = () => string({ pattern: "^prj_[0-9a-f]{32}$" })
+const ProjectID = () => string({ pattern: "^prj_" })
 
-const ExpenseID = () => string({ pattern: "^exp_[0-9a-f]{32}$" })
+const ExpenseID = () => string({ pattern: "^exp_" })
 
 const Expense = () =>
   object({

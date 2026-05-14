@@ -37,8 +37,8 @@ import (
 var (
 	apiBaseURL                  string
 	apiPostgresConnectionString string
-	projectIDPattern            = regexp.MustCompile(`^prj_[0-9a-f]{32}$`)
-	sessionIDPattern            = regexp.MustCompile(`^sess_[0-9a-f]{32}$`)
+	projectIDPattern            = regexp.MustCompile(`^prj_`)
+	sessionIDPattern            = regexp.MustCompile(`^sess_`)
 )
 
 const (
@@ -413,7 +413,7 @@ func TestSessionSecurityRejectsUnknownSession(t *testing.T) {
 	client := http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, apiBaseURL+"/v1/session/projects", http.NoBody)
 	assert.NilError(t, err, "create GET /v1/session/projects request")
-	req.Header.Set("Authorization", "Bearer sess_00000000000000000000000000000000")
+	req.Header.Set("Authorization", "Bearer sess_unknown")
 
 	resp, err := client.Do(req)
 	assert.NilError(t, err, "GET /v1/session/projects")

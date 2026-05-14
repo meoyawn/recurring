@@ -265,8 +265,8 @@ Migration file format:
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE expenses (
-  id text PRIMARY KEY DEFAULT ('exp_' || encode(gen_random_bytes(16), 'hex'))
-    CHECK (id ~ '^exp_[0-9a-f]{32}$'),
+  id text PRIMARY KEY DEFAULT ('exp_' || encode(gen_random_bytes(8), 'hex'))
+    CHECK (id ~ '^exp_'),
   name text NOT NULL CHECK (length(name) > 0),
   amount_minor bigint NOT NULL CHECK (amount_minor >= 0),
   currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
