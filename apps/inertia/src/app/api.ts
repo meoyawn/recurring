@@ -10,7 +10,12 @@ import {
 import { tracedRequest } from "@recurring/shared-ts/hono-tracing"
 import type { MiddlewareHandler } from "hono"
 import { DefaultApi } from "../../gen/apis/DefaultApi.ts"
-import type { Signup, SignupSession } from "../../gen/models/index.ts"
+import type {
+  Expense,
+  Project,
+  Signup,
+  SignupSession,
+} from "../../gen/models/index.ts"
 import { Configuration, type Middleware } from "../../gen/runtime.ts"
 import type { EnvVars } from "../config/env.schema.ts"
 import type { HonoCtx } from "../worker.ts"
@@ -101,6 +106,12 @@ export const firstProjectID = async (): Promise<ProjectID> => {
   }
   return projectID
 }
+
+export const listProjects = async (): Promise<Project[]> => getAPI().listProjects()
+
+export const listExpenses = async (
+  projectID: ProjectID,
+): Promise<Expense[]> => getAPI().listExpenses(projectID)
 
 export const upsertSignup = async (
   profile: GoogleProfile,

@@ -51,3 +51,17 @@ UNION ALL
 SELECT project_id
 FROM linked_project
 LIMIT 1;
+
+-- ListProjects lists projects linked to a user.
+-- name: ListProjects :many
+SELECT
+    COALESCE(projects.id, '') AS id,
+    COALESCE(projects.name, '') AS name,
+    CASE
+        WHEN projects.archived_at IS NULL THEN NULL
+        ELSE ((EXTRACT(EPOCH FROM projects.archived_at) * 1000)::bigint)::text
+    END AS archived_at_unix_millis
+FROM projects
+INNER JOIN users_projects ON users_projects.project_id = projects.id
+WHERE users_projects.user_id = pggen.arg('UserID')
+ORDER BY projects.created_at, projects.id;

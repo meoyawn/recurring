@@ -439,7 +439,12 @@ func TestSessionSecurityAcceptsSignupSession(t *testing.T) {
 		_ = resp.Body.Close()
 	}()
 
-	assert.Equal(t, resp.StatusCode, http.StatusNotImplemented, "GET /v1/session/projects status")
+	assert.Equal(t, resp.StatusCode, http.StatusOK, "GET /v1/session/projects status")
+
+	var body []projectResponse
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	assert.NilError(t, err, "decode GET /v1/session/projects response")
+	assert.DeepEqual(t, body, []projectResponse{})
 }
 
 func TestFirstProjectIDCreatesDefaultProject(t *testing.T) {
@@ -570,6 +575,7 @@ func TestCreateExpense(t *testing.T) {
 	assert.NilError(t, err, "decode POST /v1/session/projects/:id/expenses response")
 	assert.DeepEqual(t, body, expenseResponse(payload))
 	assertExpenseInserted(t, projectID, payload)
+	assertListedExpense(t, client, session.SessionID, projectID, payload)
 }
 
 func TestCreateExpenseValidationErrors(t *testing.T) {
@@ -620,6 +626,38 @@ func TestCreateExpenseValidationErrors(t *testing.T) {
 		Path:  []string{"money", "amount"},
 		Code:  validationRequired,
 	})
+}
+
+func assertListedExpense(
+	t *testing.T,
+	client http.Client,
+	sessionID string,
+	projectID string,
+	payload createExpensePayload,
+) {
+	t.Helper()
+
+	listReq, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		apiBaseURL+"/v1/session/projects/"+projectID+"/expenses",
+		http.NoBody,
+	)
+	assert.NilError(t, err, "create GET /v1/session/projects/:id/expenses request")
+	listReq.Header.Set("Authorization", "Bearer "+sessionID)
+
+	listResp, err := client.Do(listReq)
+	assert.NilError(t, err, "GET /v1/session/projects/:id/expenses")
+	defer func() {
+		_ = listResp.Body.Close()
+	}()
+
+	assert.Equal(t, listResp.StatusCode, http.StatusOK, "GET /v1/session/projects/:id/expenses status")
+
+	var listBody []expenseResponse
+	err = json.NewDecoder(listResp.Body).Decode(&listBody)
+	assert.NilError(t, err, "decode GET /v1/session/projects/:id/expenses response")
+	assert.DeepEqual(t, listBody, []expenseResponse{expenseResponse(payload)})
 }
 
 func TestSignupPostgresTrace(t *testing.T) {

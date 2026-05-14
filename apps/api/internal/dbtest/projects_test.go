@@ -99,6 +99,40 @@ func TestFirstProjectIDCreatesDefaultProject(t *testing.T) {
 	})
 }
 
+func TestListProjectsReturnsUserProjects(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	tx := beginRollbackTx(ctx, t)
+	q := pggen.NewQuerier(tx)
+	userID := insertUser(ctx, t, tx, "list-projects@example.com")
+	otherUserID := insertUser(ctx, t, tx, "list-projects-other@example.com")
+	firstProjectID := insertProject(ctx, t, tx, "First")
+	secondProjectID := insertProject(ctx, t, tx, "Second")
+	otherProjectID := insertProject(ctx, t, tx, "Other")
+	linkProject(ctx, t, tx, userID, firstProjectID, ownerRole)
+	linkProject(ctx, t, tx, userID, secondProjectID, ownerRole)
+	linkProject(ctx, t, tx, otherUserID, otherProjectID, ownerRole)
+	setProjectTimes(ctx, t, tx, firstProjectID, "1767225600000", "")
+	setProjectTimes(ctx, t, tx, secondProjectID, "1767312000000", "1767398400000")
+	setProjectTimes(ctx, t, tx, otherProjectID, "1767139200000", "")
+
+	rows, err := q.ListProjects(ctx, userID)
+	assert.NilError(t, err, "list projects")
+	assert.Equal(t, len(rows), 2, "project count")
+	assert.Equal(t, requireString(t, rows[0].ID, "first project id"), firstProjectID, "first project id")
+	assert.Equal(t, requireString(t, rows[0].Name, "first project name"), "First", "first project name")
+	assert.Assert(t, rows[0].ArchivedAtUnixMillis == nil, "first archived_at = %v, want nil", rows[0].ArchivedAtUnixMillis)
+	assert.Equal(t, requireString(t, rows[1].ID, "second project id"), secondProjectID, "second project id")
+	assert.Equal(t, requireString(t, rows[1].Name, "second project name"), "Second", "second project name")
+	assert.Equal(
+		t,
+		requireString(t, rows[1].ArchivedAtUnixMillis, "second archived_at"),
+		"1767398400000",
+		"second archived_at",
+	)
+}
+
 func insertUser(ctx context.Context, t *testing.T, tx *rollbackTx, email string) string {
 	t.Helper()
 
@@ -133,6 +167,25 @@ func linkProject(ctx context.Context, t *testing.T, tx *rollbackTx, userID strin
 		VALUES ($1, $2, $3)
 	`, userID, projectID, role)
 	assert.NilError(t, err, "link project")
+}
+
+func setProjectTimes(
+	ctx context.Context,
+	t *testing.T,
+	tx *rollbackTx,
+	projectID string,
+	createdAt string,
+	archivedAt string,
+) {
+	t.Helper()
+
+	_, err := tx.Exec(ctx, `
+		UPDATE projects
+		SET created_at = to_timestamp($2::double precision / 1000),
+		    archived_at = to_timestamp(NULLIF($3, '')::double precision / 1000)
+		WHERE id = $1
+	`, projectID, createdAt, archivedAt)
+	assert.NilError(t, err, "set project times")
 }
 
 func countUserProjects(ctx context.Context, t *testing.T, tx *rollbackTx, userID string) int {
@@ -183,4 +236,11 @@ func selectUserProjectLinks(ctx context.Context, t *testing.T, tx *rollbackTx, u
 	}
 	assert.NilError(t, rows.Err(), "iterate user project links")
 	return links
+}
+
+func requireString(t *testing.T, value *string, name string) string {
+	t.Helper()
+
+	assert.Assert(t, value != nil, "%s is null", name)
+	return *value
 }

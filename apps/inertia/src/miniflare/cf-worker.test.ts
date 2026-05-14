@@ -16,9 +16,11 @@ interface WorkerExports {
 type InertiaPage = {
   component: string
   props: {
+    expenses?: unknown[]
     health?: {
       status: string
     }
+    projects?: unknown[]
   }
   url: string
   version: string
@@ -110,12 +112,12 @@ async function createSessionProject(
   }
 
   const location = new URL(requireHeader(res, "location"))
-  const projectID = location.pathname.replace("/projects/", "")
-  if (!/^prj_[0-9a-f]{32}$/.test(projectID)) {
-    throw new Error(`home redirect returned invalid project id ${projectID}`)
+  const redirectedProjectID = location.pathname.replace("/projects/", "")
+  if (!/^prj_[0-9a-f]{32}$/.test(redirectedProjectID)) {
+    throw new Error(`home redirect returned invalid project id ${redirectedProjectID}`)
   }
 
-  return { projectID, sessionID }
+  return { projectID: redirectedProjectID, sessionID }
 }
 
 describe("inertia worker", () => {
@@ -243,8 +245,16 @@ describe("inertia worker", () => {
     expect(requireHeader(res, "x-inertia")).toEqual("true")
     expect(requireHeader(res, "vary")).toContain("X-Inertia")
     expect(page).toEqual<InertiaPage>({
-      component: "Home",
-      props: { health: { status: "ok" } },
+      component: "Project",
+      props: {
+        expenses: [],
+        projects: [
+          {
+            id: canonical.projectID,
+            name: "Home",
+          },
+        ],
+      },
       url: Paths.project(canonical.projectID),
       version: inertiaVersion,
     })

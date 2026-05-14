@@ -8,22 +8,20 @@ import (
 	"github.com/recurring/api/internal/gen/pggen"
 )
 
-func Signup(deps *HandlerDeps) echo.HandlerFunc {
-	return func(c *echo.Context) error {
-		var req openapi.Signup
-		MustBind(c, &req)
+func (deps *HandlerDeps) Signup(c *echo.Context) error {
+	var req openapi.Signup
+	MustBind(c, &req)
 
-		querier := pggen.NewQuerier(deps.dbPool)
-		sessionID, err := querier.CreateSignupSession(c.Request().Context(), pggen.CreateSignupSessionParams{
-			GoogleSub:  req.GoogleSub,
-			Email:      req.Email,
-			Name:       req.GetName(),
-			PictureURL: req.GetPictureUrl(),
-		})
-		if err != nil {
-			return err
-		}
-
-		return c.JSON(http.StatusOK, openapi.SignupSession{SessionId: sessionID})
+	querier := pggen.NewQuerier(deps.dbPool)
+	sessionID, err := querier.CreateSignupSession(c.Request().Context(), pggen.CreateSignupSessionParams{
+		GoogleSub:  req.GoogleSub,
+		Email:      req.Email,
+		Name:       req.GetName(),
+		PictureURL: req.GetPictureUrl(),
+	})
+	if err != nil {
+		return err
 	}
+
+	return c.JSON(http.StatusOK, openapi.SignupSession{SessionId: sessionID})
 }

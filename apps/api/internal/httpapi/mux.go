@@ -132,11 +132,13 @@ func (deps *HandlerDeps) registerRoutes(rb *openapirouter.RouterBuilder) {
 	rb.AddRoute("healthCheck", func(ctx *echo.Context) error {
 		return ctx.NoContent(http.StatusNoContent)
 	})
-	rb.AddRoute("sheetsTest", SheetsTest(deps))
-	rb.AddRoute("upsertSignup", Signup(deps))
-	rb.AddRoute("createProject", CreateProject(deps))
-	rb.AddRoute("firstProjectID", FirstProjectID(deps))
-	rb.AddRoute("createExpense", CreateExpense(deps))
+	rb.AddRoute("sheetsTest", deps.SheetsTest)
+	rb.AddRoute("upsertSignup", deps.Signup)
+	rb.AddRoute("listProjects", deps.ListProjects)
+	rb.AddRoute("createProject", deps.CreateProject)
+	rb.AddRoute("firstProjectID", deps.FirstProjectID)
+	rb.AddRoute("listExpenses", deps.ListExpenses)
+	rb.AddRoute("createExpense", deps.CreateExpense)
 }
 
 func loadOpenAPISpec() (*openapi3.T, error) {

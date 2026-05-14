@@ -7,7 +7,12 @@ import {
 import { Hono, type Context } from "hono"
 
 import { ResponseError } from "../gen/runtime.ts"
-import { apiContextMiddleware, firstProjectID, healthCheck } from "./app/api.ts"
+import {
+  apiContextMiddleware,
+  firstProjectID,
+  listExpenses,
+  listProjects,
+} from "./app/api.ts"
 import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
 import { lastProjectIDCookie, readLastProjectID } from "./app/project-cookie.ts"
 import { isSecureRequest, readSessionID } from "./app/session-cookie.ts"
@@ -93,16 +98,17 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
       }
 
       c.header("Set-Cookie", lastProjectIDCookie(projectID, secure))
+      const [projects, expenses] = await Promise.all([
+        listProjects(),
+        listExpenses(projectID),
+      ])
+      return c.render("Project", { projects, expenses })
     } catch (err) {
       if (err instanceof ResponseError && err.response.status === 401) {
         return c.redirect(new URL(Paths.login, c.req.url), 302)
       }
       throw err
     }
-
-    const health = await healthCheck()
-
-    return c.render("Home", { health })
   })
 
   return app
