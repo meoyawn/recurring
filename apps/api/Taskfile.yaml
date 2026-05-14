@@ -117,4 +117,6 @@ tasks:
     cmd: go list -u -m -f '{{"{{"}}if and (not .Main) (not .Indirect) .Update{{"}}"}}{{"{{"}}.Path{{"}}"}} {{"{{"}}.Version{{"}}"}} => {{"{{"}}.Update.Version{{"}}"}}{{"{{"}}end{{"}}"}}' all
 
   tidy:
+    deps:
+      - pggen
     cmd: go mod tidy
