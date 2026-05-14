@@ -89,14 +89,7 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
     }
 
     try {
-      const firstID = await firstProjectID()
       const secure = isSecureRequest(c.req.raw)
-      if (projectID !== firstID) {
-        const location = new URL(Paths.project(firstID), c.req.url)
-        c.header("Set-Cookie", lastProjectIDCookie(firstID, secure))
-        return c.redirect(location, 302)
-      }
-
       c.header("Set-Cookie", lastProjectIDCookie(projectID, secure))
       const [projects, expenses] = await Promise.all([
         listProjects(),

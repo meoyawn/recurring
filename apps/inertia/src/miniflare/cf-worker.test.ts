@@ -120,6 +120,33 @@ async function createSessionProject(
   return { projectID: redirectedProjectID, sessionID }
 }
 
+async function createProject(sessionID: string, name: string): Promise<string> {
+  const res = await fetch(
+    new URL("/v1/session/projects", cfWorkers.env.RECURRING_API_ORIGIN),
+    {
+      body: JSON.stringify({ name }),
+      headers: {
+        Authorization: `Bearer ${sessionID}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    },
+  )
+  if (res.status !== 201) {
+    throw new Error(`project creation failed with status ${res.status}`)
+  }
+
+  const payload = await res.json()
+  if (!isRecord(payload) || typeof payload["id"] !== "string") {
+    throw new Error("project creation response is missing id")
+  }
+  if (!/^prj_[0-9a-f]{32}$/.test(payload["id"])) {
+    throw new Error(`project creation returned invalid project id ${payload["id"]}`)
+  }
+
+  return payload["id"]
+}
+
 describe("inertia worker", () => {
   const workerFetch = getFetch(cfWorkers.exports as WorkerExports)
 
@@ -208,22 +235,19 @@ describe("inertia worker", () => {
     )
   })
 
-  test("redirects project route to first project", async () => {
+  test("serves requested project route instead of redirecting to first project", async () => {
     const canonical = await createSessionProject(workerFetch)
-    const staleProjectID = "prj_00000000000000000000000000000002"
+    const secondProjectID = await createProject(canonical.sessionID, "Work")
     const res = await workerFetch(
-      new Request(route(Paths.project(staleProjectID)), {
+      new Request(route(Paths.project(secondProjectID)), {
         headers: { Cookie: `sessionID=${canonical.sessionID}` },
-        redirect: "manual",
       }),
     )
 
-    expect(res.status).toEqual(302)
-    expect(requireHeader(res, "location")).toEqual(
-      route(Paths.project(canonical.projectID)).toString(),
-    )
+    expect(res.status).toEqual(200)
+    expect(requireHeader(res, "content-type")).toContain("text/html")
     expect(cookieValue(requireHeader(res, "set-cookie"), "lastProjectID")).toEqual(
-      canonical.projectID,
+      secondProjectID,
     )
   })
 
