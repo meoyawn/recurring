@@ -12,7 +12,7 @@ head_sampling_rate = 0.05
 [env.development]
 [env.development.vars]
 RECURRING_API_ORIGIN = "http://api.recurring.localhost:8080"
-RECURRING_WEB_ORIGIN = "http://recurring.localhost"
+RECURRING_WEB_ORIGIN = "http://recurring.localhost:5173"
 GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo"
@@ -25,7 +25,7 @@ required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
 [env.test]
 [env.test.vars]
 RECURRING_API_ORIGIN = "http://api.recurring.localhost:8082"
-RECURRING_WEB_ORIGIN = "http://recurring.localhost"
+RECURRING_WEB_ORIGIN = "http://recurring.localhost:5173"
 GOOGLE_AUTHORIZATION_ENDPOINT = "http://oauth.localhost:8081/authorize"
 GOOGLE_TOKEN_ENDPOINT = "http://oauth.localhost:8081/token"
 GOOGLE_USERINFO_ENDPOINT = "http://oauth.localhost:8081/userinfo"

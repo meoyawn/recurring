@@ -21,6 +21,7 @@ export default defineConfig({
   },
   server: {
     host: recurringWebOrigin.hostname,
+    port: Number.parseInt(recurringWebOrigin.port, 10),
   },
   plugins: [
     inertiaPages({

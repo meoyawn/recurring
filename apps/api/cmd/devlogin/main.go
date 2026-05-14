@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -84,7 +85,7 @@ func run() int {
 	}
 
 	if err := openCookieServer(ctx, webOrigin, sessionID, params.Email, *waitTimeout); err != nil {
-		fmt.Fprintf(os.Stderr, "open browser login: %v\n", err)
+		fmt.Fprintf(os.Stderr, "complete browser login: %v\n", err)
 		return exitFailure
 	}
 	fmt.Fprintf(os.Stdout, "created %s session for %s\n", webOrigin, params.Email)
@@ -183,11 +184,7 @@ func openCookieServer(
 		done <- err
 	}()
 
-	if err := openBrowser(ctx, cookieURL.String()); err != nil {
-		_ = shutdownServer(context.WithoutCancel(ctx), server)
-		<-done
-		return err
-	}
+	printLoginURL(ctx, cookieURL.String())
 
 	err = waitForBrowserRender(ctx, waitTimeout, rendered)
 	shutdownErr := shutdownServer(context.WithoutCancel(ctx), server)
@@ -250,10 +247,20 @@ func cookieServerURL(origin *url.URL, addr net.Addr) (*url.URL, error) {
 	}, nil
 }
 
-func openBrowser(ctx context.Context, target string) error {
-	cmd := exec.CommandContext(ctx, "open", target)
+func printLoginURL(ctx context.Context, target string) {
+	if err := copyToClipboard(ctx, target); err != nil {
+		fmt.Fprintf(os.Stdout, "open this URL in the Codex browser:\n%s\n", target)
+		fmt.Fprintf(os.Stdout, "copy URL to clipboard: %v\n", err)
+		return
+	}
+	fmt.Fprintf(os.Stdout, "copied URL to clipboard; open it in the Codex browser:\n%s\n", target)
+}
+
+func copyToClipboard(ctx context.Context, target string) error {
+	cmd := exec.CommandContext(ctx, "pbcopy")
+	cmd.Stdin = strings.NewReader(target)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("run open %q: %w", target, err)
+		return fmt.Errorf("run pbcopy: %w", err)
 	}
 	return nil
 }
