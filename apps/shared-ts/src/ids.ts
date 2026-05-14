@@ -6,8 +6,8 @@ export type ProjectID = `prj_${string}`
 
 const isUserID = (id: string): id is UserID => userIDPattern.test(id)
 
-export const isProjectID = (id: string): id is ProjectID =>
-  projectIDPattern.test(id)
+export const isProjectID = (id: unknown): id is ProjectID =>
+  typeof id === "string" && projectIDPattern.test(id)
 
 export const userIDFromString = (id: string): UserID | undefined => {
   if (!isUserID(id)) {

@@ -88,7 +88,7 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
     }
 
     const projectID = c.req.param("id")
-    if (projectID === undefined || !isProjectID(projectID)) {
+    if (!isProjectID(projectID)) {
       throw new HTTPException(404)
     }
 
