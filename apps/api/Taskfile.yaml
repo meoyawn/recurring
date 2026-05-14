@@ -4,6 +4,9 @@ includes:
   openapi:
     taskfile: ../../packages/openapi/Taskfile.yaml
     dir: ../../packages/openapi/
+  compose:
+    taskfile: ../../compose/Taskfile.yaml
+    dir: ../../compose/
 
 env:
   # Keep Go cache inside the API workspace. Codex sandbox cannot write to the
@@ -13,6 +16,8 @@ env:
 tasks:
   pggen:
     run: once
+    deps:
+      - compose:up-d
     desc: Generate typed Postgres query wrappers
     vars:
       OUT_DIR: internal/gen/pggen/
