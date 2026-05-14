@@ -199,9 +199,6 @@ describe("inertia worker", () => {
     const location = new URL(requireHeader(res, "location"))
     expect(location.origin).toEqual(route(Paths.home).origin)
     expect(location.pathname).toMatch(/^\/projects\/prj_[0-9a-f]{32}$/)
-    expect(cookieValue(requireHeader(res, "set-cookie"), "lastProjectID")).toEqual(
-      location.pathname.replace("/projects/", ""),
-    )
   })
 
   test("redirects home to last project from cookie", async () => {

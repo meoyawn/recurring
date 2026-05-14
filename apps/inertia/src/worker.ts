@@ -5,6 +5,7 @@ import {
   otlpTraceEndpointFromEnv,
 } from "@recurring/shared-ts/hono-tracing"
 import { Hono, type Context } from "hono"
+import { HTTPException } from "hono/http-exception"
 
 import { ResponseError } from "../gen/runtime.ts"
 import {
@@ -13,13 +14,13 @@ import {
   listExpenses,
   listProjects,
 } from "./app/api.ts"
-import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
+import { isSecureRequest } from "./app/cookie.ts"
 import {
   lastProjectIDCookie,
   readLastProjectID,
 } from "./app/cookie/project-cookie.ts"
-import { isSecureRequest } from "./app/cookie.ts"
 import { readSessionID } from "./app/cookie/session-cookie.ts"
+import { finishGoogleAuth, startGoogleAuth } from "./app/google-auth.ts"
 import type { EnvVars } from "./config/env.schema.ts"
 import { Paths } from "./paths.ts"
 import { rootView } from "./root-view.tsx"
@@ -88,7 +89,7 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
 
     const projectID = c.req.param("id")
     if (projectID === undefined || !isProjectID(projectID)) {
-      return c.notFound()
+      throw new HTTPException(404)
     }
 
     try {
@@ -108,10 +109,12 @@ const mkApp = (): Hono<{ Bindings: EnvVars }> => {
     }
   })
 
-  /** Render Hono+Inertia 403/404 pages by setting status before c.render(). */
-  app.all("*", c => {
-    c.status(404)
-    return c.render("404")
+  app.onError((err, c) => {
+    if (err instanceof HTTPException && err.status === 404) {
+      c.status(404)
+      return c.render("404")
+    }
+    throw err
   })
 
   return app
