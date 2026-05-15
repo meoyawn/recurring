@@ -1,6 +1,6 @@
-# `cf-worker.test.ts` Infra
+# E2E Infra
 
-`task test:e2e` wraps `apps/inertia/src/e2e/cf-worker.test.ts`
+`task test:e2e` wraps `apps/inertia/src/e2e/*.test.ts`
 in short-lived services. The test process talks to the Worker through the Vite
 dev HTTP origin, while the Worker gets Cloudflare-style bindings from
 `wrangler.toml`, `.dev.vars.development`, and the wrapper's dynamic env vars.
@@ -20,7 +20,7 @@ flowchart LR
     oauth["OAuth2 mock server<br/>oauth2-mock-server<br/>localhost:free-port"]
     vite["Vite dev server<br/>bun vite dev<br/>localhost:free-port"]
     worker["Cloudflare Vite plugin<br/>Worker runtime<br/>src/worker.ts"]
-    vitest["Vitest<br/>cf-worker.test.ts"]
+    bunTest["Bun test<br/>src/e2e/*.test.ts"]
   end
 
   task --> compose
@@ -31,9 +31,9 @@ flowchart LR
   api --> jaeger
 
   vite --> worker
-  vitest --> vite
-  vitest --> api
-  vitest --> jaeger
+  bunTest --> vite
+  bunTest --> api
+  bunTest --> jaeger
   worker --> api
   worker --> oauth
   worker --> jaeger
@@ -48,9 +48,9 @@ Boot order:
   `oauth2-mock-server.ts`, then starts `bun vite dev`.
 - `webtestenv.ts` passes `RECURRING_API_ORIGIN`, `RECURRING_WEB_ORIGIN`,
   `GOOGLE_AUTHORIZATION_ENDPOINT`, `GOOGLE_TOKEN_ENDPOINT`, and
-  `GOOGLE_USERINFO_ENDPOINT` into Vite/Vitest.
+  `GOOGLE_USERINFO_ENDPOINT` into Vite and Bun test.
 - `vite.config.ts` injects those dynamic values as Worker vars when
   `RECURRING_CF_WORKER_TEST=1`; other Worker vars and secrets still come from
   `apps/inertia/wrangler.toml` and `.dev.vars.development`.
-- After `/healthz` is ready on the Vite origin, `webtestenv.ts` starts Vitest for
-  `src/e2e/**/*.test.ts`.
+- After `/healthz` is ready on the Vite origin, `webtestenv.ts` starts
+  `bun test src/e2e/`.

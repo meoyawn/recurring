@@ -1,6 +1,7 @@
 import { isRecord } from "@recurring/shared-ts"
-import { describe, expect, test } from "vitest"
+import { describe, expect, test } from "bun:test"
 
+import { inertiaVersion } from "../../inertia-version.ts"
 import { Paths, type WebPathLiteral } from "../paths.ts"
 import { waitForJaegerTrace } from "./jaeger.ts"
 
@@ -21,7 +22,7 @@ const sessionIDPattern = /^sess_/
 const projectID = "prj_1"
 const traceIDPattern = /^[0-9a-f]{32}$/
 const spanIDPattern = /^[0-9a-f]{16}$/
-const inertiaVersion = INERTIA_VERSION
+const expectedInertiaVersion = inertiaVersion()
 const recurringAPIOrigin = requireEnv("RECURRING_API_ORIGIN")
 const recurringWebOrigin = requireEnv("RECURRING_WEB_ORIGIN")
 
@@ -268,16 +269,12 @@ describe("inertia worker", () => {
           Accept: "text/html, application/xhtml+xml",
           Cookie: `sessionID=${canonical.sessionID}`,
           "X-Inertia": "true",
-          "X-Inertia-Version": inertiaVersion,
+          "X-Inertia-Version": expectedInertiaVersion,
         },
       }),
     )
     const page = await parseInertiaPage(res)
-
-    expect(res.status).toEqual(200)
-    expect(requireHeader(res, "x-inertia")).toEqual("true")
-    expect(requireHeader(res, "vary")).toContain("X-Inertia")
-    expect(page).toEqual<InertiaPage>({
+    const expectedPage: InertiaPage = {
       component: "Project",
       props: {
         expenses: [],
@@ -289,8 +286,13 @@ describe("inertia worker", () => {
         ],
       },
       url: Paths.project(canonical.projectID),
-      version: inertiaVersion,
-    })
+      version: expectedInertiaVersion,
+    }
+
+    expect(res.status).toEqual(200)
+    expect(requireHeader(res, "x-inertia")).toEqual("true")
+    expect(requireHeader(res, "vary")).toContain("X-Inertia")
+    expect(page).toEqual(expectedPage)
   })
 
   test("serves invalid project id Inertia navigation as 404 page JSON", async () => {
@@ -300,20 +302,21 @@ describe("inertia worker", () => {
         headers: {
           Cookie: `sessionID=${sessionID}`,
           "X-Inertia": "true",
-          "X-Inertia-Version": inertiaVersion,
+          "X-Inertia-Version": expectedInertiaVersion,
         },
       }),
     )
     const page = await parseInertiaPage(res)
-
-    expect(res.status).toEqual(404)
-    expect(requireHeader(res, "x-inertia")).toEqual("true")
-    expect(page).toEqual<InertiaPage>({
+    const expectedPage: InertiaPage = {
       component: "404",
       props: {},
       url: Paths.project("invalid"),
-      version: inertiaVersion,
-    })
+      version: expectedInertiaVersion,
+    }
+
+    expect(res.status).toEqual(404)
+    expect(requireHeader(res, "x-inertia")).toEqual("true")
+    expect(page).toEqual(expectedPage)
   })
 
   test("returns Inertia asset mismatch reload response", async () => {

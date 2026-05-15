@@ -1,9 +1,9 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
-import { createServer } from "node:net"
 import { setTimeout as sleep } from "node:timers/promises"
+import { fileURLToPath } from "node:url"
 
 import { mockAuthServerURL, wranglerVars } from "../config/wrangler.toml.ts"
 import setupOAuth2MockServer from "./oauth2-mock-server.ts"
@@ -68,9 +68,7 @@ async function withFreePort(url: URL): Promise<URL> {
   return nextURL
 }
 
-function googleOAuthEndpointURLs(
-  oauthOrigin: URL,
-): GoogleOAuthEndpoints {
+function googleOAuthEndpointURLs(oauthOrigin: URL): GoogleOAuthEndpoints {
   return {
     GOOGLE_AUTHORIZATION_ENDPOINT: new URL(
       "/authorize",
@@ -143,10 +141,7 @@ async function stopChild(child: ChildProcess | undefined): Promise<void> {
   const shutdownTimeout = new Promise<undefined>(resolve => {
     setTimeout(() => resolve(undefined), shutdownTimeoutMs)
   })
-  const gracefulExitCode = await Promise.race([
-    child.exited,
-    shutdownTimeout,
-  ])
+  const gracefulExitCode = await Promise.race([child.exited, shutdownTimeout])
 
   if (gracefulExitCode !== undefined || child.exitCode !== null) {
     return
@@ -301,19 +296,17 @@ async function runWorkerTests(apiOrigin: string): Promise<number> {
 
   try {
     await waitForHealthz(webOrigin, vite)
-    const vitest = spawnInherited({
+    const testRunner = spawnInherited({
       cmd: [
         "bun",
-        "vitest",
-        "run",
-        "--config",
-        "vitest.e2e.config.ts",
+        "test",
+        "src/e2e/",
         ...process.argv.slice(2),
       ],
       cwd: inertiaDir,
       env,
     })
-    return await vitest.exited
+    return await testRunner.exited
   } finally {
     await stopChild(vite)
     await stopOAuth2MockServer()
@@ -337,7 +330,8 @@ async function main(): Promise<number> {
 try {
   process.exit(await main())
 } catch (err) {
-  const message = err instanceof Error ? err.stack ?? err.message : String(err)
+  const message =
+    err instanceof Error ? (err.stack ?? err.message) : String(err)
   process.stderr.write(`${message}\n`)
   process.exit(1)
 }
