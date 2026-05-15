@@ -67,7 +67,7 @@ tasks:
     deps:
       - compose:up-d
       - build
-    cmd: go -C ../api run ./cmd/webtestenv --cwd ../inertia -- bun src/e2e/cf-worker-test-runner.ts {{.CLI_ARGS}}
+    cmd: bun src/e2e/webtestenv.ts {{.CLI_ARGS}}
     sources:
       - Taskfile.yaml
       - ../../bun.lock
