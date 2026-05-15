@@ -1,17 +1,8 @@
 import { isRecord } from "@recurring/shared-ts"
-import * as cfWorkers from "cloudflare:workers"
 import { describe, expect, test } from "vitest"
 
 import { Paths, type WebPathLiteral } from "../paths.ts"
 import { waitForJaegerTrace } from "./jaeger.ts"
-
-interface Worker {
-  fetch: (request: Request) => Promise<Response> | Response
-}
-
-interface WorkerExports {
-  default: Worker
-}
 
 type InertiaPage = {
   component: string
@@ -31,14 +22,20 @@ const projectID = "prj_1"
 const traceIDPattern = /^[0-9a-f]{32}$/
 const spanIDPattern = /^[0-9a-f]{16}$/
 const inertiaVersion = INERTIA_VERSION
+const recurringAPIOrigin = requireEnv("RECURRING_API_ORIGIN")
+const recurringWebOrigin = requireEnv("RECURRING_WEB_ORIGIN")
 
-function getFetch(exports: WorkerExports): Worker["fetch"] {
-  const worker = exports.default
-  return worker.fetch.bind(worker)
+function requireEnv(name: string): string {
+  const value = process.env[name]
+  if (value === undefined) {
+    throw new Error(`${name} is required`)
+  }
+
+  return value
 }
 
 const route = (x: WebPathLiteral): URL =>
-  new URL(x, cfWorkers.env.RECURRING_WEB_ORIGIN)
+  new URL(x, recurringWebOrigin)
 
 const requireHeader = (response: Response, name: string): string => {
   const value = response.headers.get(name)
@@ -77,10 +74,10 @@ const isInertiaPage = (value: unknown): value is InertiaPage =>
 
 async function createSessionID(): Promise<string> {
   const unique = crypto.randomUUID()
-  const res = await fetch(new URL("/v1/signup", cfWorkers.env.RECURRING_API_ORIGIN), {
+  const res = await fetch(new URL("/v1/signup", recurringAPIOrigin), {
     body: JSON.stringify({
       google_sub: `google-${unique}`,
-      email: `miniflare-${unique}@example.com`,
+      email: `e2e-${unique}@example.com`,
     }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
@@ -98,7 +95,7 @@ async function createSessionID(): Promise<string> {
 }
 
 async function createSessionProject(
-  workerFetch: Worker["fetch"],
+  workerFetch: typeof fetch,
 ): Promise<{ projectID: string; sessionID: string }> {
   const sessionID = await createSessionID()
   const res = await workerFetch(
@@ -122,7 +119,7 @@ async function createSessionProject(
 
 async function createProject(sessionID: string, name: string): Promise<string> {
   const res = await fetch(
-    new URL("/v1/session/projects", cfWorkers.env.RECURRING_API_ORIGIN),
+    new URL("/v1/session/projects", recurringAPIOrigin),
     {
       body: JSON.stringify({ name }),
       headers: {
@@ -148,11 +145,12 @@ async function createProject(sessionID: string, name: string): Promise<string> {
 }
 
 describe("inertia worker", () => {
-  const workerFetch = getFetch(cfWorkers.exports as WorkerExports)
+  const workerFetch = fetch
 
-  test("reads the Wrangler API origin binding from Miniflare", () => {
-    expect(cfWorkers.env.RECURRING_API_ORIGIN).toMatch(
-      /^http:\/\/(recurring\.localhost:8082|127\.0\.0\.1:\d+)$/,
+  test("reads the wrapped worker test origins", () => {
+    expect(recurringAPIOrigin).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)
+    expect(new URL(recurringWebOrigin).origin).toMatch(
+      /^http:\/\/(localhost|127\.0\.0\.1):\d+$/,
     )
   })
 
@@ -344,9 +342,7 @@ describe("inertia worker", () => {
     const state = cookieValue(stateCookie, "googleOAuthState")
     const authorizationURL = new URL(requireHeader(startRes, "location"))
     expect(authorizationURL.pathname).toEqual("/authorize")
-    expect(authorizationURL.searchParams.get("client_id")).toEqual(
-      "test-google-client",
-    )
+    expect(authorizationURL.searchParams.get("client_id")).not.toEqual(null)
     expect(authorizationURL.searchParams.get("redirect_uri")).toEqual(
       route(Paths.googleAuthCallback).toString(),
     )

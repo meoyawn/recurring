@@ -59,13 +59,15 @@ tasks:
       - apps/inertia/src/**/*
       - apps/shared-ts/src/**/*
 
-  test:miniflare:
+  test:e2e:
+    aliases:
+      - test:miniflare
     run: once
-    desc: Run Miniflare tests; pass coverage with `task test:miniflare -- --coverage`
+    desc: Run e2e worker tests; pass coverage with `task test:e2e -- --coverage`
     deps:
       - compose:up-d
       - build
-    cmd: go -C ../api run ./cmd/webtestenv --cwd ../inertia -- bun vitest run --config vitest.miniflare.config.ts {{.CLI_ARGS}}
+    cmd: go -C ../api run ./cmd/webtestenv --cwd ../inertia -- bun src/e2e/cf-worker-test-runner.ts {{.CLI_ARGS}}
     sources:
       - Taskfile.yaml
       - ../../bun.lock
@@ -78,7 +80,7 @@ tasks:
     run: once
     deps:
       - openapi:generate:inertia-client
-    cmd: bun test --pass-with-no-tests --path-ignore-patterns 'src/miniflare/**'
+    cmd: bun test --pass-with-no-tests --path-ignore-patterns 'src/e2e/**'
     sources:
       - Taskfile.yaml
       - ../../bun.lock
@@ -89,7 +91,7 @@ tasks:
     run: once
     deps:
       - test:unit
-      - test:miniflare
+      - test:e2e
 
   check:
     deps:

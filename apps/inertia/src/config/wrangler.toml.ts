@@ -4,6 +4,11 @@ import { unstable_readConfig } from "wrangler"
 import { envVarsSchema, type EnvVars } from "./env.schema.ts"
 
 type WranglerEnvironment = "development" | "production" | "test"
+type GoogleOAuthEndpointVars = {
+  GOOGLE_AUTHORIZATION_ENDPOINT: string
+  GOOGLE_TOKEN_ENDPOINT: string
+  GOOGLE_USERINFO_ENDPOINT: string
+}
 
 export const wranglerVars = (env: WranglerEnvironment): EnvVars => {
   const config = unstable_readConfig({
@@ -13,8 +18,9 @@ export const wranglerVars = (env: WranglerEnvironment): EnvVars => {
   return parse(envVarsSchema, config.vars)
 }
 
-export const mockAuthServerURL = (): URL => {
-  const vars = wranglerVars("test")
+export const mockAuthServerURL = (
+  vars: GoogleOAuthEndpointVars = wranglerVars("test"),
+): URL => {
   const authorizationEndpoint = new URL(vars.GOOGLE_AUTHORIZATION_ENDPOINT)
   const tokenEndpoint = new URL(vars.GOOGLE_TOKEN_ENDPOINT)
   const userinfoEndpoint = new URL(vars.GOOGLE_USERINFO_ENDPOINT)
