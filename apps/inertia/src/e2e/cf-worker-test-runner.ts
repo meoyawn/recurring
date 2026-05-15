@@ -49,12 +49,19 @@ async function withFreePort(url: URL): Promise<URL> {
   return nextURL
 }
 
-function googleOAuthEndpointURLs(oauthOrigin: URL): Record<
-  "GOOGLE_AUTHORIZATION_ENDPOINT" | "GOOGLE_TOKEN_ENDPOINT" | "GOOGLE_USERINFO_ENDPOINT",
+function googleOAuthEndpointURLs(
+  oauthOrigin: URL,
+): Record<
+  | "GOOGLE_AUTHORIZATION_ENDPOINT"
+  | "GOOGLE_TOKEN_ENDPOINT"
+  | "GOOGLE_USERINFO_ENDPOINT",
   string
 > {
   return {
-    GOOGLE_AUTHORIZATION_ENDPOINT: new URL("/authorize", oauthOrigin).toString(),
+    GOOGLE_AUTHORIZATION_ENDPOINT: new URL(
+      "/authorize",
+      oauthOrigin,
+    ).toString(),
     GOOGLE_TOKEN_ENDPOINT: new URL("/token", oauthOrigin).toString(),
     GOOGLE_USERINFO_ENDPOINT: new URL("/userinfo", oauthOrigin).toString(),
   }
@@ -102,8 +109,7 @@ async function waitForHTTP(
     if (res.ok) {
       return
     }
-  } catch {
-  }
+  } catch {}
 
   await sleep(100)
   await waitForHTTP(url, child, deadline)
@@ -130,7 +136,9 @@ async function stopChild(child: ChildProcess): Promise<void> {
 
 async function main(): Promise<number> {
   const developmentVars = wranglerVars("development")
-  const webOrigin = await withFreePort(new URL(developmentVars.RECURRING_WEB_ORIGIN))
+  const webOrigin = await withFreePort(
+    new URL(developmentVars.RECURRING_WEB_ORIGIN),
+  )
   const oauthOrigin = await withFreePort(mockAuthServerURL())
   const googleOAuthEndpoints = googleOAuthEndpointURLs(oauthOrigin)
   const env = childEnv(webOrigin.toString(), googleOAuthEndpoints)
