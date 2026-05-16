@@ -28,6 +28,18 @@ services:
       - ./jaeger-config.yaml:/etc/jaeger/config.yaml:ro
       - recurring_jaeger_badger:/badger
 
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.60.0-noble
+    init: true
+    ipc: host
+    network_mode: host
+    user: pwuser
+    working_dir: /home/pwuser
+    command:
+      - /bin/sh
+      - -c
+      - npx -y playwright@1.60.0 run-server --port 3000 --host 127.0.0.1
+
 volumes:
   recurring_pgdata:
   recurring_jaeger_badger:

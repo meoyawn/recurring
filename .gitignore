@@ -14,3 +14,4 @@ node_modules/
 /apis/
 /runtime.ts
 /openapi-generator-*.md
+test-results/

@@ -1,9 +1,9 @@
 import { isRecord } from "@recurring/shared-ts"
 import { describe, expect, test } from "bun:test"
 
-import { inertiaVersion } from "../../inertia-version.ts"
-import { Paths, type WebPathLiteral } from "../paths.ts"
-import { waitForJaegerTrace } from "./jaeger.ts"
+import { inertiaVersion } from "../../../inertia-version.ts"
+import { Paths, type WebPathLiteral } from "../../paths.ts"
+import { waitForJaegerTrace } from "../jaeger.ts"
 
 type InertiaPage = {
   component: string

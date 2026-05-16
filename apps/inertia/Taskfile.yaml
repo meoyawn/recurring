@@ -60,14 +60,16 @@ tasks:
       - apps/shared-ts/src/**/*
 
   test:e2e:
-    aliases:
-      - test:miniflare
     run: once
-    desc: Run e2e worker tests; pass coverage with `task test:e2e -- --coverage`
+    desc: Run e2e server and browser tests; pass server coverage with `task test:e2e -- --coverage`
     deps:
       - compose:up-d
       - build
-    cmd: bun src/e2e/webtestenv.ts {{.CLI_ARGS}}
+    cmd: >-
+      bun src/e2e/webtestenv.ts
+      fish -c 'bun test src/e2e/server $argv; and bun playwright test'
+      --
+      {{.CLI_ARGS}}
     sources:
       - Taskfile.yaml
       - ../../bun.lock

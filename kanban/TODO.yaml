@@ -37,3 +37,10 @@ t_31:
     two different requests/HonoCtxs produce different accessToken values and
     serviceClientContextFromRequest values, while sharing the same apiOrigin
   created: 2026-05-13T20:30:11+0300
+
+t_32:
+  title: add mcr.microsoft.com/playwright in compose/docker-compose.yml
+  success_criteria: >-
+    apps/inertia/src/e2e tests never spawn chromium but create/close tabs in
+    single compose/docker-compose.yml container
+  created: 2026-05-17T02:01:07+0300

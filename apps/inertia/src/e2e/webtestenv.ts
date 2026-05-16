@@ -29,6 +29,7 @@ type WebTestEnvironment = {
   sheets: ChildProcess
 }
 
+const playwrightWSEndpoint = "ws://127.0.0.1:3000/"
 const startupTimeoutMs = 20_000
 const shutdownTimeoutMs = 5_000
 const e2eDir = dirname(fileURLToPath(import.meta.url))
@@ -88,6 +89,8 @@ function workerTestEnv(
     ...process.env,
     ...googleOAuthEndpoints,
     CLOUDFLARE_ENV: "development",
+    PW_TEST_CONNECT_WS_ENDPOINT:
+      process.env["PW_TEST_CONNECT_WS_ENDPOINT"] ?? playwrightWSEndpoint,
     RECURRING_API_ORIGIN: apiOrigin,
     RECURRING_CF_WORKER_TEST: "1",
     RECURRING_WEB_ORIGIN: webOrigin,
@@ -264,7 +267,12 @@ function setProcessEnv(env: GoogleOAuthEndpoints): void {
   }
 }
 
-async function runWorkerTests(apiOrigin: string): Promise<number> {
+async function runTestCommand(apiOrigin: string): Promise<number> {
+  const cmd = process.argv.slice(2)
+  if (cmd.length === 0) {
+    throw new Error("webtestenv command is required")
+  }
+
   const developmentVars = wranglerVars("development")
   const webOrigin = await withFreePort(
     new URL(developmentVars.RECURRING_WEB_ORIGIN),
@@ -297,12 +305,7 @@ async function runWorkerTests(apiOrigin: string): Promise<number> {
   try {
     await waitForHealthz(webOrigin, vite)
     const testRunner = spawnInherited({
-      cmd: [
-        "bun",
-        "test",
-        "src/e2e/",
-        ...process.argv.slice(2),
-      ],
+      cmd,
       cwd: inertiaDir,
       env,
     })
@@ -319,7 +322,7 @@ async function main(): Promise<number> {
 
   try {
     env = await startWebTestEnvironment(tmpDirPath)
-    return await runWorkerTests(env.apiOrigin)
+    return await runTestCommand(env.apiOrigin)
   } finally {
     await stopChild(env?.api)
     await stopChild(env?.sheets)
