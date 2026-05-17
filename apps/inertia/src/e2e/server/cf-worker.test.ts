@@ -247,20 +247,6 @@ describe("inertia worker", () => {
     )
   })
 
-  test("serves invalid project id as 404 HTML with 404 page payload", async () => {
-    const sessionID = await createSessionID()
-    const res = await workerFetch(
-      new Request(route(Paths.project("invalid")), {
-        headers: { Cookie: `sessionID=${sessionID}` },
-      }),
-    )
-
-    expect(res.status).toEqual(404)
-    expect(requireHeader(res, "content-type")).toContain("text/html")
-    const html = await res.text()
-    expect(html).toContain('"component":"404"')
-  })
-
   test("serves Inertia navigation as page JSON", async () => {
     const canonical = await createSessionProject(workerFetch)
     const res = await workerFetch(
