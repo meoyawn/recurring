@@ -1,8 +1,9 @@
-import { isRecord } from "@recurring/shared-ts"
 import { describe, expect, test } from "bun:test"
+import { type EmailAddrStr, isRecord } from "@recurring/shared-ts"
 
 import { inertiaVersion } from "../../../inertia-version.ts"
 import { Paths, type WebPathLiteral } from "../../paths.ts"
+import { recurringAPIClient } from "../help.ts"
 import { waitForJaegerTrace } from "../jaeger.ts"
 
 type InertiaPage = {
@@ -25,6 +26,7 @@ const spanIDPattern = /^[0-9a-f]{16}$/
 const expectedInertiaVersion = inertiaVersion()
 const recurringAPIOrigin = requireEnv("RECURRING_API_ORIGIN")
 const recurringWebOrigin = requireEnv("RECURRING_WEB_ORIGIN")
+const recurringAPI = recurringAPIClient(recurringAPIOrigin)
 
 function requireEnv(name: string): string {
   const value = process.env[name]
@@ -35,8 +37,7 @@ function requireEnv(name: string): string {
   return value
 }
 
-const route = (x: WebPathLiteral): URL =>
-  new URL(x, recurringWebOrigin)
+const route = (x: WebPathLiteral): URL => new URL(x, recurringWebOrigin)
 
 const requireHeader = (response: Response, name: string): string => {
   const value = response.headers.get(name)
@@ -73,35 +74,28 @@ const isInertiaPage = (value: unknown): value is InertiaPage =>
   typeof value["url"] === "string" &&
   typeof value["version"] === "string"
 
-async function createSessionID(): Promise<string> {
+async function createSessionID(
+  signup: { email?: EmailAddrStr; googleSub?: string } = {},
+): Promise<string> {
   const unique = crypto.randomUUID()
-  const res = await fetch(new URL("/v1/signup", recurringAPIOrigin), {
-    body: JSON.stringify({
-      google_sub: `google-${unique}`,
-      email: `e2e-${unique}@example.com`,
-    }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
+  const googleSub = signup.googleSub ?? `google-${unique}`
+  const email = signup.email ?? `e2e-${unique}@example.com`
+  const payload = await recurringAPI.upsertSignup({
+    google_sub: googleSub,
+    email,
   })
-  if (!res.ok) {
-    throw new Error(`signup failed with status ${res.status}`)
-  }
 
-  const payload = await res.json()
-  if (!isRecord(payload) || typeof payload["session_id"] !== "string") {
-    throw new Error("signup response is missing session_id")
-  }
-
-  return payload["session_id"]
+  return payload.session_id
 }
 
 async function createSessionProject(
   workerFetch: typeof fetch,
+  sessionID?: string,
 ): Promise<{ projectID: string; sessionID: string }> {
-  const sessionID = await createSessionID()
+  const resolvedSessionID = sessionID ?? (await createSessionID())
   const res = await workerFetch(
     new Request(route(Paths.home), {
-      headers: { Cookie: `sessionID=${sessionID}` },
+      headers: { Cookie: `sessionID=${resolvedSessionID}` },
       redirect: "manual",
     }),
   )
@@ -112,24 +106,23 @@ async function createSessionProject(
   const location = new URL(requireHeader(res, "location"))
   const redirectedProjectID = location.pathname.replace("/projects/", "")
   if (!redirectedProjectID.startsWith("prj_")) {
-    throw new Error(`home redirect returned invalid project id ${redirectedProjectID}`)
+    throw new Error(
+      `home redirect returned invalid project id ${redirectedProjectID}`,
+    )
   }
 
-  return { projectID: redirectedProjectID, sessionID }
+  return { projectID: redirectedProjectID, sessionID: resolvedSessionID }
 }
 
 async function createProject(sessionID: string, name: string): Promise<string> {
-  const res = await fetch(
-    new URL("/v1/session/projects", recurringAPIOrigin),
-    {
-      body: JSON.stringify({ name }),
-      headers: {
-        Authorization: `Bearer ${sessionID}`,
-        "Content-Type": "application/json",
-      },
-      method: "POST",
+  const res = await fetch(new URL("/v1/session/projects", recurringAPIOrigin), {
+    body: JSON.stringify({ name }),
+    headers: {
+      Authorization: `Bearer ${sessionID}`,
+      "Content-Type": "application/json",
     },
-  )
+    method: "POST",
+  })
   if (res.status !== 201) {
     throw new Error(`project creation failed with status ${res.status}`)
   }
@@ -139,7 +132,9 @@ async function createProject(sessionID: string, name: string): Promise<string> {
     throw new Error("project creation response is missing id")
   }
   if (!payload["id"].startsWith("prj_")) {
-    throw new Error(`project creation returned invalid project id ${payload["id"]}`)
+    throw new Error(
+      `project creation returned invalid project id ${payload["id"]}`,
+    )
   }
 
   return payload["id"]
@@ -226,9 +221,9 @@ describe("inertia worker", () => {
 
     expect(res.status).toEqual(200)
     expect(requireHeader(res, "content-type")).toContain("text/html")
-    expect(cookieValue(requireHeader(res, "set-cookie"), "lastProjectID")).toEqual(
-      canonical.projectID,
-    )
+    expect(
+      cookieValue(requireHeader(res, "set-cookie"), "lastProjectID"),
+    ).toEqual(canonical.projectID)
   })
 
   test("serves requested project route instead of redirecting to first project", async () => {
@@ -242,9 +237,9 @@ describe("inertia worker", () => {
 
     expect(res.status).toEqual(200)
     expect(requireHeader(res, "content-type")).toContain("text/html")
-    expect(cookieValue(requireHeader(res, "set-cookie"), "lastProjectID")).toEqual(
-      secondProjectID,
-    )
+    expect(
+      cookieValue(requireHeader(res, "set-cookie"), "lastProjectID"),
+    ).toEqual(secondProjectID)
   })
 
   test("serves Inertia navigation as page JSON", async () => {
@@ -319,6 +314,36 @@ describe("inertia worker", () => {
     expect(requireHeader(res, "x-inertia-location")).toEqual(
       route(Paths.home).toString(),
     )
+  })
+
+  test("not important, exploring signup threat", async () => {
+    const unique = crypto.randomUUID()
+    const email: EmailAddrStr = `same-email-${unique}@example.test`
+    const victimSessionID = await createSessionID({
+      email,
+      googleSub: `google-victim-${unique}`,
+    })
+    const victim = await createSessionProject(workerFetch, victimSessionID)
+
+    const attackerSessionID = await createSessionID({
+      email,
+      googleSub: `google-attacker-${unique}`,
+    })
+    const res = await workerFetch(
+      new Request(route(Paths.project(victim.projectID)), {
+        headers: {
+          Cookie: `sessionID=${attackerSessionID}`,
+          "X-Inertia": "true",
+          "X-Inertia-Version": expectedInertiaVersion,
+        },
+      }),
+    )
+    const page = await parseInertiaPage(res)
+
+    expect(res.status).toEqual(200)
+    expect(requireHeader(res, "x-inertia")).toEqual("true")
+    expect(page.props.projects).toEqual([])
+    expect(page.props.expenses).toEqual([])
   })
 
   test("finishes Google OAuth against the mock OAuth server", async () => {

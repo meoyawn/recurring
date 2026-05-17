@@ -1,9 +1,8 @@
 import { expect, test } from "@playwright/test"
 
-import { DefaultApi } from "../../../gen/apis/DefaultApi.ts"
-import { Configuration } from "../../../gen/runtime.ts"
 import type { EnvVars } from "../../config/env.schema.ts"
 import { Paths } from "../../paths.ts"
+import { recurringAPIClient } from "../help.ts"
 
 function requireEnv(name: keyof EnvVars): string {
   const value = process.env[name]
@@ -16,11 +15,7 @@ function requireEnv(name: keyof EnvVars): string {
 
 async function createSessionID(): Promise<string> {
   const unique = crypto.randomUUID()
-  const api = new DefaultApi(
-    new Configuration({
-      basePath: requireEnv("RECURRING_API_ORIGIN"),
-    }),
-  )
+  const api = recurringAPIClient(requireEnv("RECURRING_API_ORIGIN"))
   const payload = await api.upsertSignup({
     google_sub: `google-${unique}`,
     email: `e2e-${unique}@example.com`,

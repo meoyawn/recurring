@@ -7,6 +7,10 @@
 - Never start a dev server, it's already running
 - Never edit `vitest.config.ts` it's not used right now
 
+## HTTP API
+
+- Never use plain `fetch()`, there's a generated client in [gen](gen/)
+
 ## UX
 
 ### Forms
