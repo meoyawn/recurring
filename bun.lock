@@ -17,7 +17,6 @@
         "@hono/inertia": "^0.2.0",
         "@inertiajs/core": "^3.0.3",
         "@recurring/shared-ts": "workspace:*",
-        "hono": "^4.12.18",
         "inertia-adapter-solid": "1.0.0-beta.3",
         "solid-js": "^1.9.13",
         "vite-ssr-components": "^0.6.1",
@@ -50,7 +49,6 @@
       "dependencies": {
         "@recurring/shared-ts": "workspace:*",
         "@responsibleapi/hono": "^1.1.2",
-        "hono": "^4.12.18",
       },
       "devDependencies": {
         "typescript": "^6.0.3",

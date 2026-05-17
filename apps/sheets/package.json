@@ -4,8 +4,7 @@
   "type": "module",
   "dependencies": {
     "@recurring/shared-ts": "workspace:*",
-    "@responsibleapi/hono": "^1.1.2",
-    "hono": "^4.12.18"
+    "@responsibleapi/hono": "^1.1.2"
   },
   "devDependencies": {
     "typescript": "^6.0.3"
