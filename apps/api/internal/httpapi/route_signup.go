@@ -23,5 +23,5 @@ func (deps *HandlerDeps) Signup(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, openapi.SignupSession{SessionId: sessionID})
+	return c.JSON(http.StatusOK, openapi.SignupSession{SessionId: openapi.SessionID(sessionID)})
 }

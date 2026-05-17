@@ -16,6 +16,17 @@ Web 2.0 app
 - never run `bun patch`
 - never edit `.gitignore` without a human permission
 
+## Domain
+
+- never edit special ID/type contract files without syncing all of them:
+  - `apps/shared-ts/src/ids.ts`
+  - `apps/api/internal/domain/ids.go`
+  - `packages/openapi/spec/recurring.responsible.ts`
+  - `packages/openapi/config/recurring-ts-fetch.yaml`
+  - `packages/openapi/config/go-structs.yaml`
+  - `packages/openapi/templates/typescript-fetch/models.index.mustache`
+  - `packages/openapi/templates/go-structs/ids.go.mustache`
+
 ## CLI
 
 - never call `rg --files`, call `rg --files --hidden -u -g '!.git'` instead

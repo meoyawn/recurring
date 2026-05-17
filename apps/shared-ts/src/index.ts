@@ -8,11 +8,15 @@ export { honoTracing, otlpTraceEndpointFromEnv } from "./server/hono-tracing.ts"
 export { delay, isRecord } from "./typescript.ts"
 
 export {
+  expenseIDFromString,
+  isExpenseID,
+  isUserID,
   isProjectID,
   isSessionID,
   projectIDFromString,
   sessionIDFromString,
   userIDFromString,
+  type ExpenseID,
   type ProjectID,
   type SessionID,
   type UserID,

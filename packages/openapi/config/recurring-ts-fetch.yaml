@@ -19,7 +19,11 @@ additionalProperties:
   withoutRuntimeChecks: true
   sortModelPropertiesByRequiredFlag: true
 
+templateDir: templates/typescript-fetch
+
 schemaMappings:
+  ExpenseID: true
+  ProjectID: true
   SessionID: true
 
 typeMappings:

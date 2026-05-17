@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import {
+  expenseIDFromString,
   projectIDFromString,
   sessionIDFromString,
   userIDFromString,
@@ -50,5 +51,21 @@ describe("projectIDFromString", () => {
   test("rejects malformed project ids", () => {
     expect(projectIDFromString("project_short")).toEqual(undefined)
     expect(projectIDFromString("PRJ_short")).toEqual(undefined)
+  })
+})
+
+describe("expenseIDFromString", () => {
+  test("accepts expense ids with the backend prefix", () => {
+    const expenseID = expenseIDFromString("exp_short")
+    if (expenseID === undefined) {
+      throw new Error("valid expense id rejected")
+    }
+
+    expect(expenseID).toEqual("exp_short")
+  })
+
+  test("rejects malformed expense ids", () => {
+    expect(expenseIDFromString("expense_short")).toEqual(undefined)
+    expect(expenseIDFromString("EXP_short")).toEqual(undefined)
   })
 })

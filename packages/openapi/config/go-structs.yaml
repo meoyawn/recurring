@@ -6,6 +6,18 @@ globalProperties:
   apis: false
   apiDocs: false
   apiTests: false
-  supportingFiles: utils.go
+  supportingFiles: utils.go,ids.go
 additionalProperties:
   packageName: openapi
+
+templateDir: templates/go-structs
+
+schemaMappings:
+  ExpenseID: ExpenseID
+  ProjectID: ProjectID
+  SessionID: SessionID
+
+files:
+  ids.go.mustache:
+    templateType: SupportingFiles
+    destinationFilename: ids.go

@@ -37,7 +37,7 @@ func (deps *HandlerDeps) CreateExpense(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, openapi.Expense{
-		Id:         id,
+		Id:         openapi.ExpenseID(id),
 		Name:       req.Name,
 		Money:      req.Money,
 		Recurring:  req.Recurring,
@@ -64,7 +64,7 @@ func (deps *HandlerDeps) ListExpenses(c *echo.Context) error {
 			return err
 		}
 		expenses = append(expenses, openapi.Expense{
-			Id:   stringValue(row.ID),
+			Id:   openapi.ExpenseID(stringValue(row.ID)),
 			Name: stringValue(row.Name),
 			Money: openapi.Money{
 				Amount:   row.AmountMinor,

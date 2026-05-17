@@ -18,7 +18,7 @@ func (deps *HandlerDeps) CreateProject(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusCreated, openapi.Project{Id: id, Name: req.Name})
+	return c.JSON(http.StatusCreated, openapi.Project{Id: openapi.ProjectID(id), Name: req.Name})
 }
 
 func (deps *HandlerDeps) ListProjects(c *echo.Context) error {
@@ -36,7 +36,7 @@ func (deps *HandlerDeps) ListProjects(c *echo.Context) error {
 			return err
 		}
 		projects = append(projects, openapi.Project{
-			Id:         stringValue(row.ID),
+			Id:         openapi.ProjectID(stringValue(row.ID)),
 			Name:       stringValue(row.Name),
 			ArchivedAt: archivedAt,
 		})
