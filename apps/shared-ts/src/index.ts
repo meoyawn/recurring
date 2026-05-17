@@ -9,11 +9,12 @@ export { delay, isRecord } from "./typescript.ts"
 
 export {
   isProjectID,
+  isSessionID,
   projectIDFromString,
-  projectIDString,
+  sessionIDFromString,
   userIDFromString,
-  userIDString,
   type ProjectID,
+  type SessionID,
   type UserID,
 } from "./ids.ts"
 

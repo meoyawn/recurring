@@ -44,6 +44,8 @@ const SessionSecurity = () =>
 
 const ProjectID = () => string({ pattern: "^prj_" })
 
+const SessionID = () => string({ pattern: "^sess_" })
+
 const ExpenseID = () => string({ pattern: "^exp_" })
 
 const Expense = () =>
@@ -207,7 +209,7 @@ const Signup = () =>
 
 const SignupSession = () =>
   object({
-    session_id: NonEmptyString,
+    session_id: SessionID,
   })
 
 const v1API = scope({

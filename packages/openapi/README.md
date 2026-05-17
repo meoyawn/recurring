@@ -4,7 +4,7 @@ Source of truth: `spec/recurring.openapi.yaml`.
 
 Generator version is pinned in `openapitools.json` (used by `@openapitools/openapi-generator-cli`).
 
-- `config/ts-fetch.yaml` — TypeScript `fetch` client → `apps/inertia/gen/`
+- `config/recurring-ts-fetch.yaml` — TypeScript `fetch` client → `apps/inertia/gen/`
 - `config/go-structs.yaml` — Go structs → `apps/api/internal/gen/openapi/`
 
 Install dependencies from the repo root:

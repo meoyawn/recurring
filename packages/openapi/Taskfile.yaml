@@ -67,12 +67,12 @@ tasks:
         bun openapi-generator-cli
         --openapitools {{.TASKFILE_DIR}}/openapitools.json
         generate
-        -c config/ts-fetch.yaml
+        -c config/recurring-ts-fetch.yaml
         -i {{.RECURRING_EMBEDDED_YAML}}
         -o {{.OUT_DIR}}
     sources:
       - "{{.RECURRING_EMBEDDED_YAML}}"
-      - config/ts-fetch.yaml
+      - config/recurring-ts-fetch.yaml
       - openapitools.json
     generates:
       - "{{.OUT_DIR}}/**/*"

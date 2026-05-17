@@ -20,12 +20,7 @@ additionalProperties:
   sortModelPropertiesByRequiredFlag: true
 
 schemaMappings:
-  # FormID: true
-  # WorkspaceID: true
-  # UserID: true
-  # SessionID: true
-  # OrgID: true
-  # FieldID: true
+  SessionID: true
 
 typeMappings:
   string+email: EmailAddrStr

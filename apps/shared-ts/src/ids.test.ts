@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import {
   projectIDFromString,
-  projectIDString,
+  sessionIDFromString,
   userIDFromString,
-  userIDString,
 } from "./ids.ts"
 
 describe("userIDFromString", () => {
@@ -13,12 +12,28 @@ describe("userIDFromString", () => {
       throw new Error("valid user id rejected")
     }
 
-    expect(userIDString(userID)).toEqual("usr_short")
+    expect(userID).toEqual("usr_short")
   })
 
   test("rejects malformed user ids", () => {
     expect(userIDFromString("user_short")).toEqual(undefined)
     expect(userIDFromString("USR_short")).toEqual(undefined)
+  })
+})
+
+describe("sessionIDFromString", () => {
+  test("accepts session ids with the backend prefix", () => {
+    const sessionID = sessionIDFromString("sess_short")
+    if (sessionID === undefined) {
+      throw new Error("valid session id rejected")
+    }
+
+    expect(sessionID).toEqual("sess_short")
+  })
+
+  test("rejects malformed session ids", () => {
+    expect(sessionIDFromString("session_short")).toEqual(undefined)
+    expect(sessionIDFromString("SESS_short")).toEqual(undefined)
   })
 })
 
@@ -29,7 +44,7 @@ describe("projectIDFromString", () => {
       throw new Error("valid project id rejected")
     }
 
-    expect(projectIDString(projectID)).toEqual("prj_short")
+    expect(projectID).toEqual("prj_short")
   })
 
   test("rejects malformed project ids", () => {
