@@ -29,7 +29,6 @@ type WebTestEnvironment = {
   sheets: ChildProcess
 }
 
-const playwrightWSEndpoint = "ws://127.0.0.1:3000/"
 const startupTimeoutMs = 20_000
 const shutdownTimeoutMs = 5_000
 const e2eDir = dirname(fileURLToPath(import.meta.url))
@@ -89,8 +88,6 @@ function workerTestEnv(
     ...process.env,
     ...googleOAuthEndpoints,
     CLOUDFLARE_ENV: "development",
-    PW_TEST_CONNECT_WS_ENDPOINT:
-      process.env["PW_TEST_CONNECT_WS_ENDPOINT"] ?? playwrightWSEndpoint,
     RECURRING_API_ORIGIN: apiOrigin,
     RECURRING_CF_WORKER_TEST: "1",
     RECURRING_WEB_ORIGIN: webOrigin,
