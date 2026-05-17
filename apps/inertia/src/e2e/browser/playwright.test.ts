@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test"
 
 import type { EnvVars } from "../../config/env.schema.ts"
+import { sessionCookieName } from "../../app/cookie/session-cookie.ts"
 import { Paths } from "../../paths.ts"
-import { recurringAPIClient } from "../help.ts"
+import { createSessionID } from "../api.ts"
 
 function requireEnv(name: keyof EnvVars): string {
   const value = process.env[name]
@@ -11,17 +12,6 @@ function requireEnv(name: keyof EnvVars): string {
   }
 
   return value
-}
-
-async function createSessionID(): Promise<string> {
-  const unique = crypto.randomUUID()
-  const api = recurringAPIClient(requireEnv("RECURRING_API_ORIGIN"))
-  const payload = await api.upsertSignup({
-    google_sub: `google-${unique}`,
-    email: `e2e-${unique}@example.com`,
-  })
-
-  return payload.session_id
 }
 
 test.describe("browser e2e", () => {
@@ -39,7 +29,7 @@ test.describe("browser e2e", () => {
     const webOrigin = requireEnv("RECURRING_WEB_ORIGIN")
     await context.addCookies([
       {
-        name: "sessionID",
+        name: sessionCookieName,
         url: webOrigin,
         value: await createSessionID(),
       },

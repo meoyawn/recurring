@@ -1,9 +1,10 @@
+import type { SessionID } from "@recurring/shared-ts"
 import { cookie, readCookie } from "../cookie.ts"
 
-const sessionCookieName = "sessionID"
+export const sessionCookieName = "sessionID"
 const sessionCookieMaxAge = 60 * 60 * 24 * 30
 
-export const sessionCookie = (sessionID: string, secure: boolean): string =>
+export const sessionCookie = (sessionID: SessionID, secure: boolean): string =>
   cookie(sessionCookieName, sessionID, {
     maxAge: sessionCookieMaxAge,
     secure,

@@ -3,7 +3,7 @@ import { type EmailAddrStr, isRecord } from "@recurring/shared-ts"
 
 import { inertiaVersion } from "../../../inertia-version.ts"
 import { Paths, type WebPathLiteral } from "../../paths.ts"
-import { recurringAPIClient } from "../help.ts"
+import { createSessionID } from "../api.ts"
 import { waitForJaegerTrace } from "../jaeger.ts"
 
 type InertiaPage = {
@@ -26,7 +26,6 @@ const spanIDPattern = /^[0-9a-f]{16}$/
 const expectedInertiaVersion = inertiaVersion()
 const recurringAPIOrigin = requireEnv("RECURRING_API_ORIGIN")
 const recurringWebOrigin = requireEnv("RECURRING_WEB_ORIGIN")
-const recurringAPI = recurringAPIClient(recurringAPIOrigin)
 
 function requireEnv(name: string): string {
   const value = process.env[name]
@@ -73,20 +72,6 @@ const isInertiaPage = (value: unknown): value is InertiaPage =>
   isRecord(value["props"]) &&
   typeof value["url"] === "string" &&
   typeof value["version"] === "string"
-
-async function createSessionID(
-  signup: { email?: EmailAddrStr; googleSub?: string } = {},
-): Promise<string> {
-  const unique = crypto.randomUUID()
-  const googleSub = signup.googleSub ?? `google-${unique}`
-  const email = signup.email ?? `e2e-${unique}@example.com`
-  const payload = await recurringAPI.upsertSignup({
-    google_sub: googleSub,
-    email,
-  })
-
-  return payload.session_id
-}
 
 async function createSessionProject(
   workerFetch: typeof fetch,
