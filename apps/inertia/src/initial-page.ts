@@ -1,6 +1,6 @@
-import type { createInertiaApp } from "inertia-adapter-solid"
+import type { Page } from "@inertiajs/core"
 
-type InitialPage = NonNullable<Parameters<typeof createInertiaApp>[0]["page"]>
+type InitialPage = Page
 
 export const parseInitialPage = (
   content: string | null,

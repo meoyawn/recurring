@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {},
   "devDependencies": {
-    "@openapitools/openapi-generator-cli": "^2.32.0",
+    "@openapitools/openapi-generator-cli": "^2.34.0",
     "@responsibleapi/ts": "^1.0.8",
     "typescript": "^6.0.3"
   }

@@ -13,7 +13,7 @@
     }
   },
   "dependencies": {
-    "hono": "^4.12.18"
+    "hono": "^4.12.23"
   },
   "devDependencies": {
     "typescript": "^6.0.3"
