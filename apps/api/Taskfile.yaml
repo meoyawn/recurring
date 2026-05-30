@@ -44,6 +44,7 @@ tasks:
     deps:
       - openapi:generate:config-go-structs
       - openapi:generate:go-structs
+      - openapi:generate:sheets-client
       - pggen
     env:
       RECURRING_CONFIG: config/dev.yaml
@@ -61,6 +62,7 @@ tasks:
     deps:
       - openapi:generate:config-go-structs
       - openapi:generate:go-structs
+      - openapi:generate:sheets-client
       - pggen
     vars:
       BIN: dist/recurring-api-linux-arm64
@@ -87,6 +89,7 @@ tasks:
     deps:
       - openapi:generate:config-go-structs
       - openapi:generate:go-structs
+      - openapi:generate:sheets-client
       - pggen
     cmds:
       - go test ./...
@@ -98,6 +101,7 @@ tasks:
     deps:
       - openapi:generate:config-go-structs
       - openapi:generate:go-structs
+      - openapi:generate:sheets-client
       - pggen
     env:
       # Keep golangci-lint cache inside the API workspace. Codex sandbox cannot
@@ -123,5 +127,8 @@ tasks:
 
   tidy:
     deps:
+      - openapi:generate:config-go-structs
+      - openapi:generate:go-structs
+      - openapi:generate:sheets-client
       - pggen
     cmd: go mod tidy

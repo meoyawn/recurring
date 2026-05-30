@@ -17,6 +17,13 @@ type GoogleOAuthEndpoints = Record<
   string
 >
 
+type GoogleOAuthCredentials = Record<
+  "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET",
+  string
+>
+
+type GoogleOAuthBindings = GoogleOAuthEndpoints & GoogleOAuthCredentials
+
 type SpawnOptions = {
   cmd: string[]
   cwd?: string
@@ -79,14 +86,29 @@ function googleOAuthEndpointURLs(oauthOrigin: URL): GoogleOAuthEndpoints {
   }
 }
 
+function googleOAuthCredentials(): GoogleOAuthCredentials {
+  const vars = wranglerVars("test")
+  if (
+    vars.GOOGLE_CLIENT_ID === undefined ||
+    vars.GOOGLE_CLIENT_SECRET === undefined
+  ) {
+    throw new Error("test Google OAuth credentials are required")
+  }
+
+  return {
+    GOOGLE_CLIENT_ID: vars.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: vars.GOOGLE_CLIENT_SECRET,
+  }
+}
+
 function workerTestEnv(
   apiOrigin: string,
   webOrigin: string,
-  googleOAuthEndpoints: GoogleOAuthEndpoints,
+  googleOAuthBindings: GoogleOAuthBindings,
 ): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    ...googleOAuthEndpoints,
+    ...googleOAuthBindings,
     CLOUDFLARE_ENV: "development",
     RECURRING_API_ORIGIN: apiOrigin,
     RECURRING_CF_WORKER_TEST: "1",
@@ -258,7 +280,7 @@ async function startWebTestEnvironment(
   }
 }
 
-function setProcessEnv(env: GoogleOAuthEndpoints): void {
+function setProcessEnv(env: GoogleOAuthBindings): void {
   for (const [name, value] of Object.entries(env)) {
     process.env[name] = value
   }
@@ -275,13 +297,16 @@ async function runTestCommand(apiOrigin: string): Promise<number> {
     new URL(developmentVars.RECURRING_WEB_ORIGIN),
   )
   const oauthOrigin = await withFreePort(mockAuthServerURL())
-  const googleOAuthEndpoints = googleOAuthEndpointURLs(oauthOrigin)
+  const googleOAuthBindings: GoogleOAuthBindings = {
+    ...googleOAuthEndpointURLs(oauthOrigin),
+    ...googleOAuthCredentials(),
+  }
   const env = workerTestEnv(
     apiOrigin,
     webOrigin.toString(),
-    googleOAuthEndpoints,
+    googleOAuthBindings,
   )
-  setProcessEnv(googleOAuthEndpoints)
+  setProcessEnv(googleOAuthBindings)
 
   const stopOAuth2MockServer = await setupOAuth2MockServer()
   const vite = spawnInherited({
