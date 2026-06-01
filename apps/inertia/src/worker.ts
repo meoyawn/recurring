@@ -27,7 +27,7 @@ import { rootView } from "./root-view.tsx"
 
 export type HonoCtx = Context<{ Bindings: EnvVars }>
 
-const mkApp = (): Hono<{ Bindings: EnvVars }> => {
+function mkApp(): Hono<{ Bindings: EnvVars }> {
   const app = new Hono<{ Bindings: EnvVars }>()
 
   app.use(

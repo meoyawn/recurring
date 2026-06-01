@@ -4,6 +4,7 @@ import { unstable_readConfig } from "wrangler"
 import { envVarsSchema, type EnvVars } from "./env.schema.ts"
 
 type WranglerEnvironment = "development" | "production" | "test"
+
 type GoogleOAuthEndpointVars = {
   GOOGLE_AUTHORIZATION_ENDPOINT: string
   GOOGLE_TOKEN_ENDPOINT: string
