@@ -5,48 +5,24 @@ import solid from "vite-plugin-solid"
 import ssrPlugin from "vite-ssr-components/plugin"
 
 import { inertiaVersion } from "./inertia-version.ts"
+import type { EnvVars } from "./src/config/env.schema.ts"
 import { wranglerVars } from "./src/config/wrangler.toml.ts"
 
-type WorkerTestEnvName =
-  | "RECURRING_API_ORIGIN"
-  | "RECURRING_WEB_ORIGIN"
-  | "GOOGLE_AUTHORIZATION_ENDPOINT"
-  | "GOOGLE_TOKEN_ENDPOINT"
-  | "GOOGLE_USERINFO_ENDPOINT"
-  | "GOOGLE_CLIENT_ID"
-  | "GOOGLE_CLIENT_SECRET"
-
-function requireWorkerTestEnv(name: WorkerTestEnvName): string {
-  const value = process.env[name]
-  if (value === undefined) {
-    throw new Error(`${name} is required`)
-  }
-
-  return value
-}
+type WorkerTestEnvName = keyof EnvVars
 
 function workerTestVars(): Record<WorkerTestEnvName, string> | undefined {
   if (process.env["RECURRING_CF_WORKER_TEST"] !== "1") {
     return undefined
   }
 
-  return {
-    RECURRING_API_ORIGIN: requireWorkerTestEnv("RECURRING_API_ORIGIN"),
-    RECURRING_WEB_ORIGIN: requireWorkerTestEnv("RECURRING_WEB_ORIGIN"),
-    GOOGLE_AUTHORIZATION_ENDPOINT: requireWorkerTestEnv(
-      "GOOGLE_AUTHORIZATION_ENDPOINT",
-    ),
-    GOOGLE_TOKEN_ENDPOINT: requireWorkerTestEnv("GOOGLE_TOKEN_ENDPOINT"),
-    GOOGLE_USERINFO_ENDPOINT: requireWorkerTestEnv("GOOGLE_USERINFO_ENDPOINT"),
-    GOOGLE_CLIENT_ID: requireWorkerTestEnv("GOOGLE_CLIENT_ID"),
-    GOOGLE_CLIENT_SECRET: requireWorkerTestEnv("GOOGLE_CLIENT_SECRET"),
-  }
+  return process.env as unknown as Record<WorkerTestEnvName, string>
 }
 
 const recurringWebOrigin = new URL(
   process.env["RECURRING_WEB_ORIGIN"] ??
     wranglerVars("development").RECURRING_WEB_ORIGIN,
 )
+
 const recurringWorkerTestVars = workerTestVars()
 
 export default defineConfig({
